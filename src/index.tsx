@@ -11,6 +11,9 @@ const app = new Hono()
 app.use('/static/*', serveStatic({ root: './public' }))
 app.use('/api/*', cors())
 
+// ─── Hero image (AI-generated luxury model) ───────────────────────────────────
+const HERO_IMAGE = 'https://www.genspark.ai/api/files/s/wr394uj9?cache_control=3600'
+
 // ─── i18n ──────────────────────────────────────────────────────────────────────
 const t: Record<string, Record<string, string>> = {
   ar: {
@@ -32,17 +35,14 @@ const t: Record<string, Record<string, string>> = {
     addProduct: 'إضافة منتج', editProduct: 'تعديل', deleteProduct: 'حذف',
     saveBtn: 'حفظ', cancelBtn: 'إلغاء',
     productName: 'اسم المنتج', productCode: 'رمز المنتج',
-    productCategory: 'الفئة',
-    productImage: 'رابط الصورة', productDesc: 'الوصف',
-    productStock: 'متوفر', productFeatured: 'مميز',
+    productCategory: 'الفئة', productImage: 'صورة المنتج',
+    productDesc: 'الوصف', productStock: 'متوفر', productFeatured: 'مميز',
     settings: 'الإعدادات', totalProducts: 'إجمالي المنتجات',
-    parseFilename: 'استيراد بالاسم', heroTitle: 'عنوان الصفحة الرئيسية',
     copyright: 'جميع الحقوق محفوظة',
     viewAll: 'عرض الكل', shopNow: 'تسوق الآن',
-    comingSoon: 'قريباً',
-    storeBrand: 'سالفورد ليبيا',
-    storeTagline: 'مجوهرات سواروفسكي الفاخرة في ليبيا',
-    brands: 'العلامات التجارية',
+    comingSoon: 'قريباً', brands: 'العلامات التجارية',
+    authentic: 'مجوهرات أصلية 100٪',
+    authenticBadge: '✦ مجوهرات أصلية ✦',
   },
   en: {
     home: 'Home', products: 'Products', sets: 'Sets',
@@ -63,34 +63,17 @@ const t: Record<string, Record<string, string>> = {
     addProduct: 'Add Product', editProduct: 'Edit', deleteProduct: 'Delete',
     saveBtn: 'Save', cancelBtn: 'Cancel',
     productName: 'Product Name', productCode: 'Product Code',
-    productCategory: 'Category',
-    productImage: 'Image URL', productDesc: 'Description',
-    productStock: 'In Stock', productFeatured: 'Featured',
+    productCategory: 'Category', productImage: 'Product Image',
+    productDesc: 'Description', productStock: 'In Stock', productFeatured: 'Featured',
     settings: 'Settings', totalProducts: 'Total Products',
-    parseFilename: 'Import by Filename', heroTitle: 'Hero Title',
     copyright: 'All rights reserved',
     viewAll: 'View All', shopNow: 'Shop Now',
-    comingSoon: 'Coming Soon',
-    storeBrand: 'Salford Libya',
-    storeTagline: 'Luxury Swarovski Jewelry in Libya',
-    brands: 'Brands',
+    comingSoon: 'Coming Soon', brands: 'Brands',
+    authentic: '100% Authentic Jewelry',
+    authenticBadge: '✦ 100% Authentic ✦',
   }
 }
 const tr = (key: string, lang: string) => (t[lang]?.[key]) || (t['en'][key]) || key
-
-// ─── Hero background image mosaic (Swarovski product images for bg) ───────────
-const HERO_BG_IMAGES = [
-  'https://www.genspark.ai/api/files/s/X9PzkTE4',
-  'https://www.genspark.ai/api/files/s/sl2CP5Aq',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5512850-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5642976-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5416604-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5452454-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5447085-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5563483-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5368552-01.jpg',
-  'https://image.swarovski.net/Content/Images/Product/FullSize/5479925-01.jpg',
-]
 
 // ─── HTML Shell ───────────────────────────────────────────────────────────────
 function shell(content: string, lang: string, pageTitle = '') {
@@ -104,8 +87,8 @@ function shell(content: string, lang: string, pageTitle = '') {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>${title}</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
-<meta name="description" content="Salford Libya — Swarovski Jewelry | سالفورد ليبيا — مجوهرات سواروفسكي"/>
-<meta property="og:image" content="https://www.genspark.ai/api/files/s/sl2CP5Aq"/>
+<meta name="description" content="Salford Libya — مجوهرات أصلية فاخرة | 100% Authentic Luxury Jewelry"/>
+<meta property="og:image" content="${HERO_IMAGE}"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cairo:wght@300;400;600;700;900&display=swap"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
@@ -116,8 +99,9 @@ ${content}
 <div id="buy-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box">
     <button class="modal-close" onclick="closeBuyModal()"><i class="fa fa-times"></i></button>
-    <div class="modal-logo">
-      <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya"/>
+    <div class="modal-logo-wrap">
+      <div class="modal-brand-name">Salford</div>
+      <div class="modal-brand-sub">Libya</div>
     </div>
     <p class="modal-title" id="modal-product-name"></p>
     <p class="modal-sub">${lang === 'ar' ? 'اختار منصة التواصل للشراء' : 'Choose your preferred platform to buy'}</p>
@@ -146,7 +130,10 @@ function nav(lang: string, active = '') {
 <header class="site-header" id="site-header">
   <div class="header-inner">
     <a href="/${lang}/" class="logo-link">
-      <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="logo-img"/>
+      <div class="logo-wordmark">
+        <span class="logo-s">S</span><span class="logo-alford">alford</span>
+        <span class="logo-dot">✦</span>
+      </div>
     </a>
     <nav class="main-nav" id="main-nav">
       <a href="/${lang}/" class="${active==='home'?'active':''}">${tr('home',lang)}</a>
@@ -209,9 +196,10 @@ function productCard(p: Product, lang: string) {
   <div class="card-img-wrap">
     <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.onerror=null;this.src='/static/placeholder.jpg'"/>
     ${badge}
+    <div class="card-overlay-shine"></div>
   </div>
   <div class="card-body">
-    <p class="card-code">SWAROVSKI · ${p.code}</p>
+    <p class="card-code"><span class="authentic-dot">✦</span> ${p.code}</p>
     <h3 class="card-name">${p.name}</h3>
     <div class="card-footer">
       ${p.inStock
@@ -232,9 +220,15 @@ function footer(lang: string) {
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="footer-logo"/>
-        <p class="footer-store-name">Salford Libya</p>
-        <p class="footer-tagline">${lang === 'ar' ? 'مجوهرات سواروفسكي الفاخرة في ليبيا' : 'Luxury Swarovski Jewelry in Libya'}</p>
+        <div class="footer-logo-wordmark">
+          <span class="footer-logo-s">S</span><span class="footer-logo-alford">alford</span>
+        </div>
+        <p class="footer-store-sub">Libya</p>
+        <p class="footer-tagline">${lang === 'ar' ? 'مجوهرات أصلية فاخرة في ليبيا' : 'Authentic Luxury Jewelry in Libya'}</p>
+        <div class="footer-authentic-badge">
+          <i class="fa fa-certificate"></i>
+          ${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}
+        </div>
       </div>
       <div class="footer-links">
         <h4>${lang==='ar'?'روابط':'Links'}</h4>
@@ -256,14 +250,13 @@ function footer(lang: string) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  API ROUTES  ← must come BEFORE /:lang/* wildcard routes
+//  API ROUTES  ← BEFORE /:lang/* wildcard
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/products/:id', c => {
   const p = getById(c.req.param('id'))
   return p ? c.json(p) : c.json({ error: 'Not found' }, 404)
 })
-
 app.get('/api/products', c => c.json(getAll()))
 
 app.post('/api/products', async c => {
@@ -317,32 +310,49 @@ app.post('/api/auth', async c => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  ADMIN ROUTES  ← must come BEFORE /:lang/* wildcard routes
+//  ADMIN ROUTES  ← BEFORE /:lang/* wildcard
 // ══════════════════════════════════════════════════════════════════════════════
+
+const adminShell = (body: string, title = 'Admin | Salford Libya') =>
+  `<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${title}</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<link rel="stylesheet" href="/static/style.css"/>
+</head><body class="admin-body" data-lang="en">${body}<script src="/static/app.js"></script></body></html>`
 
 app.get('/admin/login', c => {
   const html = `
 <div class="admin-login-page">
-  <div class="login-box">
-    <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="login-logo"/>
-    <h1>Admin Panel</h1>
-    <p>Salford Libya — Swarovski Store</p>
-    <form id="login-form" onsubmit="doLogin(event)">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo-wordmark">
+        <span class="login-logo-s">S</span><span class="login-logo-alford">alford</span>
+      </div>
+      <div class="login-logo-sub">Libya — Admin Panel</div>
+    </div>
+    <form id="login-form" onsubmit="doLogin(event)" class="login-form">
       <div class="form-group">
-        <label>Username</label>
-        <input type="text" id="login-user" required autocomplete="username"/>
+        <label><i class="fa fa-user"></i> Username</label>
+        <input type="text" id="login-user" required autocomplete="username" placeholder="Enter username"/>
       </div>
       <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="login-pass" required autocomplete="current-password"/>
+        <label><i class="fa fa-lock"></i> Password</label>
+        <input type="password" id="login-pass" required autocomplete="current-password" placeholder="Enter password"/>
       </div>
-      <div id="login-err" class="login-err" style="display:none">Invalid credentials</div>
-      <button type="submit" class="btn-primary btn-full">Login <i class="fa fa-arrow-right"></i></button>
+      <div id="login-err" class="login-err" style="display:none">
+        <i class="fa fa-circle-exclamation"></i> Invalid credentials
+      </div>
+      <button type="submit" class="btn-primary btn-full login-submit">
+        <i class="fa fa-arrow-right-to-bracket"></i> Login to Dashboard
+      </button>
     </form>
     <a href="/ar/" class="back-link"><i class="fa fa-arrow-left"></i> Back to Store</a>
   </div>
 </div>`
-  return c.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Admin | Salford Libya</title><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@400;600&display=swap"/><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/><link rel="stylesheet" href="/static/style.css"/></head><body class="admin-body" data-lang="en">${html}<script src="/static/app.js"></script></body></html>`)
+  return c.html(adminShell(html, 'Login | Salford Admin'))
 })
 
 app.get('/admin/dashboard', c => {
@@ -352,84 +362,162 @@ app.get('/admin/dashboard', c => {
     total: all.length,
     sets: getSets().length,
     inStock: all.filter(p => p.inStock).length,
-    featured: all.filter(p => p.featured).length
+    featured: all.filter(p => p.featured).length,
+    outOfStock: all.filter(p => !p.inStock).length,
   }
   const cats = ['necklaces','earrings','bracelets','sets']
 
   const html = `
 <div class="admin-wrap">
-  <!-- Sidebar -->
+  <!-- ─── Sidebar ─── -->
   <aside class="admin-sidebar">
-    <div class="sidebar-logo">
-      <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya"/>
+    <div class="sidebar-brand">
+      <div class="sidebar-logo-wordmark">
+        <span class="sb-logo-s">S</span><span class="sb-logo-rest">alford</span>
+      </div>
+      <div class="sidebar-brand-sub">Libya Admin</div>
     </div>
     <nav class="sidebar-nav">
-      <a href="#products-tab" class="sidebar-link active" onclick="showTab('products');return false;"><i class="fa fa-box"></i> Products</a>
-      <a href="#settings-tab" class="sidebar-link" onclick="showTab('settings');return false;"><i class="fa fa-cog"></i> Settings</a>
-      <a href="/ar/" class="sidebar-link"><i class="fa fa-store"></i> View Store</a>
-      <a href="#" onclick="adminLogout();return false;" class="sidebar-link sidebar-logout"><i class="fa fa-sign-out-alt"></i> Logout</a>
+      <a href="#products-tab" class="sidebar-link active" onclick="showTab('products');return false;">
+        <i class="fa fa-box-open"></i> <span>Products</span>
+      </a>
+      <a href="#sets-tab" class="sidebar-link" onclick="showTab('sets');return false;">
+        <i class="fa fa-layer-group"></i> <span>Sets</span>
+      </a>
+      <a href="#featured-tab" class="sidebar-link" onclick="showTab('featured');return false;">
+        <i class="fa fa-star"></i> <span>Featured</span>
+        <span class="sidebar-badge">${stats.featured}</span>
+      </a>
+      <a href="#settings-tab" class="sidebar-link" onclick="showTab('settings');return false;">
+        <i class="fa fa-cog"></i> <span>Settings</span>
+      </a>
+      <div class="sidebar-divider"></div>
+      <a href="/ar/" target="_blank" class="sidebar-link">
+        <i class="fa fa-store"></i> <span>View Store</span>
+      </a>
+      <a href="#" onclick="adminLogout();return false;" class="sidebar-link sidebar-logout">
+        <i class="fa fa-right-from-bracket"></i> <span>Logout</span>
+      </a>
     </nav>
   </aside>
 
-  <!-- Main -->
+  <!-- ─── Main Content ─── -->
   <main class="admin-main">
-    <!-- Stats -->
+    <!-- Stats Row -->
     <div class="admin-stats">
-      <div class="stat-card"><span>${stats.total}</span><label>Total Products</label></div>
-      <div class="stat-card"><span>${stats.sets}</span><label>Sets</label></div>
-      <div class="stat-card"><span>${stats.inStock}</span><label>In Stock</label></div>
-      <div class="stat-card"><span>${stats.featured}</span><label>Featured</label></div>
+      <div class="stat-card stat-gold">
+        <div class="stat-icon"><i class="fa fa-box-open"></i></div>
+        <div class="stat-info"><span class="stat-num">${stats.total}</span><label>Total Products</label></div>
+      </div>
+      <div class="stat-card stat-blue">
+        <div class="stat-icon"><i class="fa fa-layer-group"></i></div>
+        <div class="stat-info"><span class="stat-num">${stats.sets}</span><label>Sets</label></div>
+      </div>
+      <div class="stat-card stat-green">
+        <div class="stat-icon"><i class="fa fa-circle-check"></i></div>
+        <div class="stat-info"><span class="stat-num">${stats.inStock}</span><label>In Stock</label></div>
+      </div>
+      <div class="stat-card stat-purple">
+        <div class="stat-icon"><i class="fa fa-star"></i></div>
+        <div class="stat-info"><span class="stat-num">${stats.featured}</span><label>Featured</label></div>
+      </div>
+      <div class="stat-card stat-red">
+        <div class="stat-icon"><i class="fa fa-circle-xmark"></i></div>
+        <div class="stat-info"><span class="stat-num">${stats.outOfStock}</span><label>Out of Stock</label></div>
+      </div>
     </div>
 
-    <!-- Products Tab -->
+    <!-- ═══ PRODUCTS TAB ═══ -->
     <div id="products-tab" class="admin-tab">
       <div class="tab-head">
-        <h2>Products</h2>
-        <div style="display:flex;gap:10px;align-items:center;">
-          <input type="text" placeholder="Search products..." oninput="filterAdminTable(this.value)"
-            style="padding:8px 14px;border-radius:8px;border:1px solid rgba(201,169,110,0.3);background:#1a1a1f;color:#f5f5f5;font-size:0.85rem;"/>
-          <button class="btn-primary" onclick="openAddModal()"><i class="fa fa-plus"></i> Add Product</button>
+        <div>
+          <h2><i class="fa fa-box-open"></i> Products</h2>
+          <p class="tab-sub">Manage individual jewelry products</p>
+        </div>
+        <div class="tab-actions">
+          <div class="search-wrap">
+            <i class="fa fa-search search-icon-inner"></i>
+            <input type="text" placeholder="Search products..." oninput="filterAdminTable(this.value,'products-table')"/>
+          </div>
+          <button class="btn-primary" onclick="openAddModal()">
+            <i class="fa fa-plus"></i> Add Product
+          </button>
         </div>
       </div>
 
       <!-- Filename Parser -->
       <div class="parser-box">
-        <h4><i class="fa fa-magic"></i> Import by Filename</h4>
-        <p>Paste a filename like: <code>SWAROVSKI-5642976(550)</code> or <code>SWAROVSKI-5416604+5512850(900)</code></p>
+        <div class="parser-head">
+          <h4><i class="fa fa-wand-magic-sparkles"></i> Quick Import by Filename</h4>
+          <p>Format: <code>SWAROVSKI-5642976(550)</code> or set: <code>SWAROVSKI-5416604+5512850(900)</code></p>
+        </div>
         <div class="parser-row">
           <input type="text" id="parse-input" placeholder="SWAROVSKI-CODE(PRICE)"/>
-          <button onclick="parseFilename()" class="btn-secondary"><i class="fa fa-wand-magic-sparkles"></i> Parse</button>
+          <button onclick="parseFilenameAdmin()" class="btn-secondary">
+            <i class="fa fa-wand-magic-sparkles"></i> Parse & Fill
+          </button>
         </div>
         <div id="parse-result" style="display:none;" class="parse-result"></div>
       </div>
 
       <!-- Products Table -->
       <div class="table-wrap">
-        <table class="admin-table">
+        <table class="admin-table" id="products-table">
           <thead>
             <tr>
-              <th>Image</th><th>Name</th><th>Code</th><th>Category</th>
-              <th>Stock Status</th><th>Featured</th><th>Actions</th>
+              <th>Image</th>
+              <th>Product</th>
+              <th>Code</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Featured</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${all.map(p => `
-            <tr>
-              <td><img src="${p.image}" alt="${p.name}" class="table-thumb" onerror="this.onerror=null;this.style.opacity='0.3'"/></td>
-              <td><strong>${p.name}</strong>${p.isSet?'<span class="set-tag">SET</span>':''}</td>
-              <td><code>${p.code}</code></td>
-              <td>${p.category}</td>
+            ${all.filter(p => !p.isSet).map(p => `
+            <tr data-id="${p.id}">
               <td>
-                <button onclick="toggleStock('${p.id}',${p.inStock})" class="stock-toggle-btn ${p.inStock?'stock-btn-in':'stock-btn-out'}" title="Click to toggle">
+                <div class="table-img-wrap">
+                  <img src="${p.image}" alt="${p.name}" class="table-thumb"
+                    onerror="this.onerror=null;this.style.opacity='0.2'"
+                    onclick="openLightboxAdmin('${p.image}')" style="cursor:zoom-in;"/>
+                </div>
+              </td>
+              <td>
+                <div class="table-product-info">
+                  <strong>${p.name}</strong>
+                  <small>${p.shortDesc || ''}</small>
+                </div>
+              </td>
+              <td><code class="code-tag">${p.code}</code></td>
+              <td><span class="cat-tag cat-${p.category}">${p.category}</span></td>
+              <td>
+                <span class="price-tag">${p.price > 0 ? p.price + ' LYD' : '<em style="opacity:0.4">—</em>'}</span>
+              </td>
+              <td>
+                <button onclick="toggleStock('${p.id}',${p.inStock})"
+                  class="stock-toggle-btn ${p.inStock?'stock-btn-in':'stock-btn-out'}" title="Click to toggle">
                   <span class="status-dot ${p.inStock?'dot-green':'dot-red'}"></span>
                   ${p.inStock ? 'In Stock' : 'Out of Stock'}
-                  <i class="fa fa-repeat fa-xs" style="opacity:0.5;margin-left:4px;"></i>
+                  <i class="fa fa-arrows-rotate fa-xs"></i>
                 </button>
               </td>
-              <td>${p.featured?'<i class="fa fa-star" style="color:#c9a96e"></i>':'<i class="fa fa-star" style="color:#444"></i>'}</td>
+              <td>
+                <button onclick="toggleFeatured('${p.id}',${p.featured})"
+                  class="featured-toggle-btn ${p.featured?'feat-btn-on':'feat-btn-off'}" title="Toggle featured">
+                  <i class="fa fa-star"></i>
+                  ${p.featured ? 'Featured' : 'Normal'}
+                </button>
+              </td>
               <td class="action-btns">
-                <button onclick='openEditModal(${JSON.stringify(p)})' class="btn-sm btn-edit" title="Edit"><i class="fa fa-edit"></i></button>
-                <button onclick="confirmDelete('${p.id}','${p.name.replace(/'/g,"\\'")}') " class="btn-sm btn-del" title="Delete"><i class="fa fa-trash"></i></button>
+                <button onclick='openEditModal(${JSON.stringify(p)})' class="btn-sm btn-edit" title="Edit">
+                  <i class="fa fa-pen"></i>
+                </button>
+                <button onclick="confirmDelete('${p.id}','${p.name.replace(/'/g,"\\'")}') " class="btn-sm btn-del" title="Delete">
+                  <i class="fa fa-trash"></i>
+                </button>
               </td>
             </tr>`).join('')}
           </tbody>
@@ -437,55 +525,168 @@ app.get('/admin/dashboard', c => {
       </div>
     </div>
 
-    <!-- Settings Tab -->
+    <!-- ═══ SETS TAB ═══ -->
+    <div id="sets-tab" class="admin-tab" style="display:none;">
+      <div class="tab-head">
+        <div>
+          <h2><i class="fa fa-layer-group"></i> Sets & Collections</h2>
+          <p class="tab-sub">Manage jewelry sets and bundles</p>
+        </div>
+        <div class="tab-actions">
+          <button class="btn-primary" onclick="openAddModal(true)">
+            <i class="fa fa-plus"></i> Add Set
+          </button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table" id="sets-table">
+          <thead>
+            <tr>
+              <th>Images</th><th>Set Name</th><th>Codes</th><th>Price</th>
+              <th>Stock</th><th>Featured</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${all.filter(p => p.isSet).map(p => `
+            <tr data-id="${p.id}">
+              <td>
+                <div class="table-set-imgs">
+                  ${p.images.slice(0,2).map(img => `
+                    <img src="${img}" alt="${p.name}" class="table-thumb-sm"
+                      onerror="this.onerror=null;this.style.opacity='0.2'"
+                      onclick="openLightboxAdmin('${img}')" style="cursor:zoom-in;"/>
+                  `).join('')}
+                </div>
+              </td>
+              <td>
+                <div class="table-product-info">
+                  <strong>${p.name}</strong>
+                  <span class="set-items-preview">${(p.setItems||[]).map(i=>i.split('(')[0].trim()).join(' + ')}</span>
+                </div>
+              </td>
+              <td><code class="code-tag">${p.code}</code></td>
+              <td><span class="price-tag">${p.price > 0 ? p.price + ' LYD' : '<em style="opacity:0.4">—</em>'}</span></td>
+              <td>
+                <button onclick="toggleStock('${p.id}',${p.inStock})"
+                  class="stock-toggle-btn ${p.inStock?'stock-btn-in':'stock-btn-out'}">
+                  <span class="status-dot ${p.inStock?'dot-green':'dot-red'}"></span>
+                  ${p.inStock ? 'In Stock' : 'Out of Stock'}
+                  <i class="fa fa-arrows-rotate fa-xs"></i>
+                </button>
+              </td>
+              <td>
+                <button onclick="toggleFeatured('${p.id}',${p.featured})"
+                  class="featured-toggle-btn ${p.featured?'feat-btn-on':'feat-btn-off'}">
+                  <i class="fa fa-star"></i> ${p.featured ? 'Featured' : 'Normal'}
+                </button>
+              </td>
+              <td class="action-btns">
+                <button onclick='openEditModal(${JSON.stringify(p)})' class="btn-sm btn-edit"><i class="fa fa-pen"></i></button>
+                <button onclick="confirmDelete('${p.id}','${p.name.replace(/'/g,"\\'")}') " class="btn-sm btn-del"><i class="fa fa-trash"></i></button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ FEATURED TAB ═══ -->
+    <div id="featured-tab" class="admin-tab" style="display:none;">
+      <div class="tab-head">
+        <div>
+          <h2><i class="fa fa-star"></i> Featured Products</h2>
+          <p class="tab-sub">These products appear in the homepage "Featured" section</p>
+        </div>
+      </div>
+      <div class="featured-grid">
+        ${all.filter(p => !p.isSet).map(p => `
+        <div class="featured-card ${p.featured?'feat-active':''}">
+          <div class="featured-card-img">
+            <img src="${p.image}" alt="${p.name}" onerror="this.onerror=null;this.style.opacity='0.2'"/>
+            ${p.featured ? '<div class="feat-star-badge"><i class="fa fa-star"></i></div>' : ''}
+          </div>
+          <div class="featured-card-body">
+            <p class="feat-code">${p.code}</p>
+            <h4>${p.name}</h4>
+            <button onclick="toggleFeatured('${p.id}',${p.featured})"
+              class="feat-toggle-full ${p.featured?'feat-on':'feat-off'}">
+              <i class="fa fa-${p.featured?'star':'star'}"></i>
+              ${p.featured ? 'Remove from Featured' : 'Add to Featured'}
+            </button>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- ═══ SETTINGS TAB ═══ -->
     <div id="settings-tab" class="admin-tab" style="display:none;">
-      <h2>Site Settings</h2>
+      <div class="tab-head">
+        <div>
+          <h2><i class="fa fa-cog"></i> Site Settings</h2>
+          <p class="tab-sub">Configure store details, hero content, and admin credentials</p>
+        </div>
+      </div>
       <form onsubmit="saveSettings(event)" class="settings-form">
-        <div class="settings-grid">
-          <div class="form-group">
-            <label>Facebook Page URL</label>
-            <input type="url" name="facebookUrl" value="${s.facebookUrl}" placeholder="https://www.facebook.com/..."/>
-          </div>
-          <div class="form-group">
-            <label>Instagram Profile URL</label>
-            <input type="url" name="instagramUrl" value="${s.instagramUrl}" placeholder="https://www.instagram.com/..."/>
-          </div>
-          <div class="form-group">
-            <label>Hero Title (Arabic)</label>
-            <input type="text" name="heroTitleAr" value="${s.heroTitleAr}"/>
-          </div>
-          <div class="form-group">
-            <label>Hero Title (English)</label>
-            <input type="text" name="heroTitleEn" value="${s.heroTitleEn}"/>
-          </div>
-          <div class="form-group">
-            <label>Hero Subtitle (Arabic)</label>
-            <input type="text" name="heroSubtitleAr" value="${s.heroSubtitleAr}"/>
-          </div>
-          <div class="form-group">
-            <label>Hero Subtitle (English)</label>
-            <input type="text" name="heroSubtitleEn" value="${s.heroSubtitleEn}"/>
-          </div>
-          <div class="form-group">
-            <label>Admin Username</label>
-            <input type="text" name="adminUser" value="${s.adminUser}"/>
-          </div>
-          <div class="form-group">
-            <label>Admin Password</label>
-            <input type="password" name="adminPass" placeholder="Leave blank to keep current"/>
+        <div class="settings-section">
+          <h3 class="settings-section-title"><i class="fa fa-share-nodes"></i> Social Media</h3>
+          <div class="settings-grid">
+            <div class="form-group">
+              <label><i class="fab fa-facebook"></i> Facebook Page URL</label>
+              <input type="url" name="facebookUrl" value="${s.facebookUrl}" placeholder="https://www.facebook.com/..."/>
+            </div>
+            <div class="form-group">
+              <label><i class="fab fa-instagram"></i> Instagram Profile URL</label>
+              <input type="url" name="instagramUrl" value="${s.instagramUrl}" placeholder="https://www.instagram.com/..."/>
+            </div>
           </div>
         </div>
-        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Save Settings</button>
+        <div class="settings-section">
+          <h3 class="settings-section-title"><i class="fa fa-heading"></i> Hero Content</h3>
+          <div class="settings-grid">
+            <div class="form-group">
+              <label>Hero Title (Arabic)</label>
+              <input type="text" name="heroTitleAr" value="${s.heroTitleAr}"/>
+            </div>
+            <div class="form-group">
+              <label>Hero Title (English)</label>
+              <input type="text" name="heroTitleEn" value="${s.heroTitleEn}"/>
+            </div>
+            <div class="form-group">
+              <label>Hero Subtitle (Arabic)</label>
+              <input type="text" name="heroSubtitleAr" value="${s.heroSubtitleAr}"/>
+            </div>
+            <div class="form-group">
+              <label>Hero Subtitle (English)</label>
+              <input type="text" name="heroSubtitleEn" value="${s.heroSubtitleEn}"/>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3 class="settings-section-title"><i class="fa fa-shield-halved"></i> Admin Credentials</h3>
+          <div class="settings-grid">
+            <div class="form-group">
+              <label>Admin Username</label>
+              <input type="text" name="adminUser" value="${s.adminUser}"/>
+            </div>
+            <div class="form-group">
+              <label>Admin Password</label>
+              <input type="password" name="adminPass" placeholder="Leave blank to keep current"/>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Save All Settings</button>
       </form>
     </div>
   </main>
 </div>
 
-<!-- Add/Edit Product Modal -->
+<!-- ─── Add/Edit Product Modal ─── -->
 <div id="product-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box modal-large">
-    <button class="modal-close" onclick="closeProductModal()"><i class="fa fa-times"></i></button>
-    <h2 id="modal-title">Add Product</h2>
+    <div class="modal-header">
+      <h2 id="modal-title">Add Product</h2>
+      <button class="modal-close" onclick="closeProductModal()"><i class="fa fa-times"></i></button>
+    </div>
     <form id="product-form" onsubmit="saveProduct(event)" class="product-form">
       <input type="hidden" id="pf-id"/>
       <div class="form-grid">
@@ -494,7 +695,7 @@ app.get('/admin/dashboard', c => {
           <input type="text" id="pf-name" required placeholder="e.g. Iconic Swan Stud Earrings"/>
         </div>
         <div class="form-group">
-          <label>Product Code * <small style="color:#9a9a9a">(use + for sets)</small></label>
+          <label>Product Code * <small>(use + for sets)</small></label>
           <input type="text" id="pf-code" required placeholder="e.g. 5642976 or 5416604+5512850"/>
         </div>
         <div class="form-group">
@@ -503,12 +704,35 @@ app.get('/admin/dashboard', c => {
             ${cats.map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
           </select>
         </div>
+        <div class="form-group">
+          <label>Price (LYD) <small>optional — shown in admin only</small></label>
+          <input type="number" id="pf-price" min="0" placeholder="e.g. 550"/>
+        </div>
+        <div class="form-group">
+          <label>Original Price (LYD) <small>for sets — before discount</small></label>
+          <input type="number" id="pf-orig-price" min="0" placeholder="e.g. 680"/>
+        </div>
+        <!-- Image Upload -->
         <div class="form-group form-full">
-          <label>Image URL *</label>
-          <input type="url" id="pf-image" required placeholder="https://www.genspark.ai/api/files/s/..."/>
+          <label><i class="fa fa-image"></i> Product Image *</label>
+          <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('pf-image-file').click()">
+            <div class="upload-placeholder" id="upload-placeholder">
+              <i class="fa fa-cloud-arrow-up"></i>
+              <p>Click to upload image</p>
+              <small>JPG, PNG, WEBP — max 5MB</small>
+            </div>
+            <img id="upload-preview" style="display:none;max-height:180px;border-radius:8px;object-fit:contain;"/>
+          </div>
+          <input type="file" id="pf-image-file" accept="image/*" style="display:none;" onchange="handleImageUpload(this)"/>
+          <input type="hidden" id="pf-image"/>
+          <div style="margin-top:8px;">
+            <small style="color:#888;">Or paste URL directly:</small>
+            <input type="url" id="pf-image-url" placeholder="https://..." style="margin-top:4px;"
+              oninput="handleImageUrl(this.value)"/>
+          </div>
         </div>
         <div class="form-group form-full">
-          <label>Short Description <small style="color:#9a9a9a">(one line)</small></label>
+          <label>Short Description <small>(one line)</small></label>
           <input type="text" id="pf-short-desc" placeholder="e.g. Swan pavé studs, rhodium plated"/>
         </div>
         <div class="form-group form-full">
@@ -532,30 +756,41 @@ app.get('/admin/dashboard', c => {
         </div>
       </div>
       <div class="form-actions">
-        <button type="button" onclick="closeProductModal()" class="btn-outline"><i class="fa fa-times"></i> Cancel</button>
-        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Save Product</button>
+        <button type="button" onclick="closeProductModal()" class="btn-outline">
+          <i class="fa fa-times"></i> Cancel
+        </button>
+        <button type="submit" class="btn-primary">
+          <i class="fa fa-save"></i> Save Product
+        </button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- Delete Confirm Modal -->
+<!-- ─── Delete Confirm Modal ─── -->
 <div id="delete-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box modal-small">
-    <h3><i class="fa fa-triangle-exclamation" style="color:#e74c3c"></i> Delete Product</h3>
-    <p id="delete-msg" style="margin:16px 0;"></p>
-    <div class="form-actions">
+    <div class="delete-icon-wrap"><i class="fa fa-triangle-exclamation"></i></div>
+    <h3>Delete Product?</h3>
+    <p id="delete-msg"></p>
+    <div class="form-actions" style="justify-content:center;">
       <button onclick="closeDeleteModal()" class="btn-outline">Cancel</button>
       <button id="confirm-delete-btn" class="btn-danger"><i class="fa fa-trash"></i> Delete</button>
     </div>
   </div>
+</div>
+
+<!-- ─── Image Lightbox (Admin) ─── -->
+<div id="admin-lightbox" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.95);
+  display:none;align-items:center;justify-content:center;cursor:zoom-out;" onclick="this.style.display='none'">
+  <img id="admin-lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;"/>
 </div>`
 
-  return c.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Admin Dashboard | Salford Libya</title><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@400;600&display=swap"/><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/><link rel="stylesheet" href="/static/style.css"/></head><body class="admin-body" data-lang="en">${html}<script src="/static/app.js"></script></body></html>`)
+  return c.html(adminShell(html, 'Dashboard | Salford Admin'))
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  PAGE ROUTES  (/:lang/* — wildcard, must come LAST)
+//  PAGE ROUTES  (/:lang/* — wildcard, LAST)
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.get('/', c => c.redirect('/ar/'))
@@ -577,38 +812,31 @@ app.get('/:lang/', c => {
     { key: 'bracelets', icon: 'fa-link',    label: tr('bracelets', lang), count: byCategory('bracelets').length },
   ]
 
-  // Get actual product images for hero background
-  const allProducts = getAll()
-  const heroImgs = allProducts
-    .filter(p => p.image && p.image.startsWith('http'))
-    .slice(0, 12)
-    .map(p => p.image)
-
   const html = `
 ${nav(lang, 'home')}
 <main>
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <!-- Scattered blurred product image mosaic background -->
-    <div class="hero-mosaic" aria-hidden="true">
-      ${heroImgs.map((img, i) => `<div class="mosaic-item mosaic-item-${i % 12}" style="background-image:url('${img}')"></div>`).join('')}
-      <div class="hero-mosaic-overlay"></div>
-    </div>
-
+    <div class="hero-bg-img" style="background-image:url('${HERO_IMAGE}')"></div>
+    <div class="hero-bg-overlay"></div>
     <div class="hero-content">
-      <!-- Store name — VERY prominent -->
-      <div class="hero-store-badge">
-        <span class="hero-badge-dot"></span>
-        <span>${lang === 'ar' ? 'مجوهرات سواروفسكي' : 'SWAROVSKI JEWELRY'}</span>
-        <span class="hero-badge-dot"></span>
+      <div class="hero-authentic-pill">
+        <i class="fa fa-certificate"></i>
+        ${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}
       </div>
-      <h1 class="hero-store-name">Salford Libya</h1>
-      <p class="hero-store-name-ar">${lang === 'ar' ? 'سالفورد ليبيا' : ''}</p>
+      <h1 class="hero-store-name">
+        <span class="hero-name-s">S</span>alford
+      </h1>
+      <p class="hero-store-sub">Libya</p>
       <h2 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h2>
       <p class="hero-sub">${lang === 'ar' ? s.heroSubtitleAr : s.heroSubtitleEn}</p>
       <div class="hero-actions">
-        <a href="/${lang}/products" class="btn-primary btn-hero"><i class="fa fa-gem"></i> ${tr('shopNow', lang)}</a>
-        <a href="/${lang}/sets" class="btn-outline btn-hero"><i class="fa fa-layer-group"></i> ${tr('setsTitle', lang)}</a>
+        <a href="/${lang}/products" class="btn-hero-primary">
+          <i class="fa fa-gem"></i> ${tr('shopNow', lang)}
+        </a>
+        <a href="/${lang}/sets" class="btn-hero-outline">
+          <i class="fa fa-layer-group"></i> ${tr('setsTitle', lang)}
+        </a>
       </div>
     </div>
     <div class="hero-scroll"><i class="fa fa-chevron-down"></i></div>
@@ -619,23 +847,23 @@ ${nav(lang, 'home')}
     <div class="container">
       <div class="trust-items">
         <div class="trust-item">
-          <i class="fa fa-gem"></i>
+          <i class="fa fa-certificate"></i>
           <span>${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</span>
         </div>
         <div class="trust-divider"></div>
         <div class="trust-item">
-          <i class="fab fa-instagram"></i>
-          <span>${lang === 'ar' ? 'تواصل مباشر عبر سوشيال ميديا' : 'Order via Social Media'}</span>
+          <i class="fa fa-gem"></i>
+          <span>${lang === 'ar' ? 'جودة مضمونة' : 'Guaranteed Quality'}</span>
         </div>
         <div class="trust-divider"></div>
         <div class="trust-item">
-          <i class="fa fa-award"></i>
-          <span>${lang === 'ar' ? 'سواروفسكي الأصلية' : 'Genuine Swarovski'}</span>
+          <i class="fab fa-instagram"></i>
+          <span>${lang === 'ar' ? 'طلب عبر السوشيال ميديا' : 'Order via Social Media'}</span>
         </div>
         <div class="trust-divider"></div>
         <div class="trust-item">
           <i class="fa fa-map-marker-alt"></i>
-          <span>${lang === 'ar' ? 'خدمة ليبيا كاملاً' : 'Serving All of Libya'}</span>
+          <span>${lang === 'ar' ? 'نخدم ليبيا كاملاً' : 'Serving All of Libya'}</span>
         </div>
       </div>
     </div>
@@ -663,9 +891,23 @@ ${nav(lang, 'home')}
     </div>
   </section>
 
+  <!-- ═══ FEATURED PRODUCTS ═══ -->
+  ${featured.length > 0 ? `
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">${tr('featured', lang)}</h2>
+        <a href="/${lang}/products" class="view-all">${tr('viewAll', lang)} <i class="fa fa-arrow-right"></i></a>
+      </div>
+      <div class="product-grid">
+        ${featured.map(p => productCard(p, lang)).join('')}
+      </div>
+    </div>
+  </section>` : ''}
+
   <!-- ═══ FEATURED SETS ═══ -->
   ${featuredSets.length > 0 ? `
-  <section class="section section-dark">
+  <section class="section">
     <div class="container">
       <div class="section-head">
         <h2 class="section-title">${tr('setsTitle', lang)}</h2>
@@ -681,7 +923,7 @@ ${nav(lang, 'home')}
           </div>
           <div class="set-body">
             <span class="set-badge">${tr('save',lang)}</span>
-            <p class="card-code">SET · ${p.code}</p>
+            <p class="card-code"><span class="authentic-dot">✦</span> SET · ${p.code}</p>
             <h3>${p.name}</h3>
             <p class="set-items-list">${(p.setItems||[]).map(i=>`<span>${i.split('(')[0].trim()}</span>`).join(' + ')}</p>
             <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
@@ -693,32 +935,17 @@ ${nav(lang, 'home')}
     </div>
   </section>` : ''}
 
-  <!-- ═══ FEATURED PRODUCTS ═══ -->
-  <section class="section">
-    <div class="container">
-      <div class="section-head">
-        <h2 class="section-title">${tr('featured', lang)}</h2>
-        <a href="/${lang}/products" class="view-all">${tr('viewAll', lang)} <i class="fa fa-arrow-right"></i></a>
-      </div>
-      <div class="product-grid">
-        ${featured.map(p => productCard(p, lang)).join('')}
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ STORE SHOWCASE BANNER ═══ -->
-  <section class="showcase-banner">
-    <div class="showcase-inner">
-      <div class="showcase-text">
-        <p class="showcase-brand">✦ SWAROVSKI ✦</p>
-        <h2 class="showcase-store">Salford Libya</h2>
-        <p class="showcase-sub">${lang === 'ar'
-          ? 'اكتشفي مجموعتنا الحصرية من مجوهرات سواروفسكي — جودة لا مثيل لها'
-          : 'Discover our exclusive Swarovski collection — unrivalled quality'}</p>
-        <a href="/${lang}/products" class="btn-primary">
-          <i class="fa fa-gem"></i> ${tr('allProducts', lang)}
-        </a>
-      </div>
+  <!-- ═══ AUTHENTIC BANNER ═══ -->
+  <section class="authentic-banner">
+    <div class="authentic-inner">
+      <div class="authentic-icon"><i class="fa fa-certificate"></i></div>
+      <h2>${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</h2>
+      <p>${lang === 'ar'
+        ? 'جميع منتجاتنا أصلية وأصيلة — نضمن لك الجودة في كل قطعة'
+        : 'All our products are genuine and authentic — we guarantee quality in every piece'}</p>
+      <a href="/${lang}/products" class="btn-hero-primary">
+        <i class="fa fa-gem"></i> ${tr('allProducts', lang)}
+      </a>
     </div>
   </section>
 
@@ -818,7 +1045,7 @@ ${nav(lang, 'sets')}
           </div>
           <div class="set-body">
             <span class="set-badge">${tr('save',lang)}</span>
-            <p class="card-code">SET · ${p.code}</p>
+            <p class="card-code"><span class="authentic-dot">✦</span> SET · ${p.code}</p>
             <h3>${p.name}</h3>
             <div class="set-items-detail">
               <p class="set-includes-label">${tr('setContains', lang)}:</p>
@@ -859,11 +1086,9 @@ ${nav(lang)}
       <span>${p.name}</span>
     </div>
   </div>
-
   <section class="product-detail section">
     <div class="container">
       <div class="detail-grid">
-        <!-- Gallery -->
         <div class="detail-gallery">
           <div class="gallery-main">
             <img src="${p.image}" alt="${p.name}" id="main-img"
@@ -881,56 +1106,44 @@ ${nav(lang)}
               onerror="this.onerror=null;this.style.opacity='0.2'"/>`).join('')}
           </div>` : ''}
         </div>
-
-        <!-- Info -->
         <div class="detail-info">
-          <p class="detail-code">SWAROVSKI · ${p.code}</p>
+          <p class="detail-code"><span class="authentic-dot">✦</span> ${p.code}</p>
           <h1 class="detail-name">${p.name}</h1>
-
+          <div class="detail-authentic-badge">
+            <i class="fa fa-certificate"></i>
+            ${lang === 'ar' ? 'منتج أصلي 100٪' : '100% Authentic Product'}
+          </div>
           <p class="detail-stock ${p.inStock?'stock-in':'stock-out'}">
             <i class="fa fa-circle fa-xs"></i>
             ${p.inStock ? tr('inStock',lang) : tr('outOfStock',lang)}
           </p>
-
           ${p.inStock ? `
           <div class="buy-btns">
             <a href="${getSettings().facebookUrl}" target="_blank" rel="noopener"
                class="btn-channel fb-channel" onclick="trackBuy('${p.id}','fb')">
               <i class="fab fa-facebook-messenger"></i>
-              <div>
-                <span>${tr('buyNow',lang)}</span>
-                <small>Facebook</small>
-              </div>
+              <div><span>${tr('buyNow',lang)}</span><small>Facebook</small></div>
             </a>
             <a href="${getSettings().instagramUrl}" target="_blank" rel="noopener"
                class="btn-channel ig-channel" onclick="trackBuy('${p.id}','ig')">
               <i class="fab fa-instagram"></i>
-              <div>
-                <span>${tr('buyNow',lang)}</span>
-                <small>Instagram</small>
-              </div>
+              <div><span>${tr('buyNow',lang)}</span><small>Instagram</small></div>
             </a>
           </div>` : `<div class="out-of-stock-notice"><i class="fa fa-clock"></i> ${tr('outOfStock',lang)}</div>`}
-
-          <div class="detail-desc">
-            <p>${p.description}</p>
-          </div>
-
+          <div class="detail-desc"><p>${p.description}</p></div>
           ${p.isSet && p.setItems ? `
           <div class="set-includes-box">
             <h4><i class="fa fa-box-open"></i> ${tr('setContains', lang)}</h4>
             <ul>${p.setItems.map(item => `<li><i class="fa fa-check"></i> ${item.split('(')[0].trim()}</li>`).join('')}</ul>
           </div>` : ''}
-
           <div class="detail-meta">
-            <span><i class="fa fa-gem"></i> SWAROVSKI</span>
+            <span><i class="fa fa-certificate"></i> ${lang === 'ar' ? 'أصلي' : 'Authentic'}</span>
             <span><i class="fa fa-tag"></i> ${p.code}</span>
           </div>
         </div>
       </div>
     </div>
   </section>
-
   ${related.length > 0 ? `
   <section class="section section-dark">
     <div class="container">
