@@ -100,8 +100,10 @@ ${content}
   <div class="modal-box">
     <button class="modal-close" onclick="closeBuyModal()"><i class="fa fa-times"></i></button>
     <div class="modal-logo-wrap">
-      <div class="modal-brand-name">Salford</div>
-      <div class="modal-brand-sub">Libya</div>
+      ${lang === 'ar'
+        ? `<div class="modal-brand-name-ar">سالفورد ليبيا</div>`
+        : `<div class="modal-brand-name">Salford</div><div class="modal-brand-sub">Libya</div>`
+      }
     </div>
     <p class="modal-title" id="modal-product-name"></p>
     <p class="modal-sub">${lang === 'ar' ? 'اختار منصة التواصل للشراء' : 'Choose your preferred platform to buy'}</p>
@@ -131,8 +133,10 @@ function nav(lang: string, active = '') {
   <div class="header-inner">
     <a href="/${lang}/" class="logo-link">
       <div class="logo-wordmark">
-        <span class="logo-s">S</span><span class="logo-alford">alford</span>
-        <span class="logo-dot">✦</span>
+        ${lang === 'ar'
+          ? `<span class="logo-ar-name">سالفورد ليبيا</span>`
+          : `<span class="logo-s">S</span><span class="logo-alford">alford</span><span class="logo-dot">✦</span>`
+        }
       </div>
     </a>
     <nav class="main-nav" id="main-nav">
@@ -221,10 +225,13 @@ function footer(lang: string) {
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <div class="footer-logo-wordmark">
+        ${lang === 'ar'
+          ? `<div class="footer-logo-ar">سالفورد ليبيا</div>`
+          : `<div class="footer-logo-wordmark">
           <span class="footer-logo-s">S</span><span class="footer-logo-alford">alford</span>
         </div>
-        <p class="footer-store-sub">Libya</p>
+        <p class="footer-store-sub">Libya</p>`
+        }
         <p class="footer-tagline">${lang === 'ar' ? 'مجوهرات أصلية فاخرة في ليبيا' : 'Authentic Luxury Jewelry in Libya'}</p>
         <div class="footer-authentic-badge">
           <i class="fa fa-certificate"></i>
@@ -244,7 +251,7 @@ function footer(lang: string) {
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© ${new Date().getFullYear()} <strong>Salford Libya</strong> · ${tr('copyright', lang)}</p>
+      <p>© ${new Date().getFullYear()} <strong>${lang === 'ar' ? 'سالفورد ليبيا' : 'Salford Libya'}</strong> · ${tr('copyright', lang)}</p>
     </div>
   </div>
 </footer>`
@@ -825,10 +832,11 @@ ${nav(lang, 'home')}
         <i class="fa fa-certificate"></i>
         ${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}
       </div>
-      <h1 class="hero-store-name">
-        <span class="hero-name-s">S</span>alford
-      </h1>
-      <p class="hero-store-sub">Libya</p>
+      ${lang === 'ar'
+        ? `<h1 class="hero-store-name-ar">سالفورد ليبيا</h1>`
+        : `<h1 class="hero-store-name"><span class="hero-name-s">S</span>alford</h1>
+      <p class="hero-store-sub">Libya</p>`
+      }
       <h2 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h2>
       <p class="hero-sub">${lang === 'ar' ? s.heroSubtitleAr : s.heroSubtitleEn}</p>
       <div class="hero-brands-row">
