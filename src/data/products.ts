@@ -35,7 +35,8 @@ export interface SiteSettings {
 
 // ─── IN-MEMORY STORE ─────────────────────────────────────────────────────────
 let products: Product[] = [
-  // ── 1. Iconic Swan Stud Earrings (gradient pink/champagne)
+  // Empty — add products via the Admin Panel
+  /*
   {
     id: '1', code: '5512850', isSet: false,
     name: 'Iconic Swan Stud Earrings',
@@ -457,6 +458,7 @@ let products: Product[] = [
     setItems: ['Dazzling Swan Necklace — Pink (5469989)', 'Swan Drop Earrings — Pink (5678050)'],
     inStock: true, quantity: 3, featured: true,
   },
+  */
 ];
 
 let settings: SiteSettings = {
