@@ -22,6 +22,8 @@ function shell(title: string, bodyContent: string, lang: string = 'ar'): string 
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="description" content="Salford Libya – Authorized Swarovski Luxury Jewelry Retailer | سالفورد ليبيا – وكيل معتمد لمجوهرات سواروفسكي"/>
 <title>${title} | Salford Libya – SWAROVSKI</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="shortcut icon" href="/static/favicon.svg"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cormorant+Garamond:wght@300;400;500&family=Cairo:wght@300;400;600;700&display=swap"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>

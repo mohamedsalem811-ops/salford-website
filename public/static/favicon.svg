@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a1220"/>
+      <stop offset="100%" stop-color="#050505"/>
+    </radialGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#6b4dff" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#6b4dff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8d5a3"/>
+      <stop offset="50%" stop-color="#c9a96e"/>
+      <stop offset="100%" stop-color="#9a7a4a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="32" fill="url(#bgGrad)"/>
+  <!-- Purple glow -->
+  <circle cx="32" cy="32" r="32" fill="url(#glowGrad)"/>
+  <!-- Outer gold ring -->
+  <circle cx="32" cy="32" r="30" fill="none" stroke="url(#goldGrad)" stroke-width="1.2" opacity="0.7"/>
+
+  <!-- S letter -->
+  <text x="18" y="42"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="30"
+    font-weight="700"
+    font-style="italic"
+    fill="url(#goldGrad)"
+    letter-spacing="-1">SJ</text>
+
+  <!-- Bottom decorative line -->
+  <line x1="14" y1="48" x2="50" y2="48" stroke="url(#goldGrad)" stroke-width="0.8" opacity="0.6"/>
+</svg>
