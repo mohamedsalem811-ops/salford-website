@@ -473,7 +473,6 @@ function openAddModal() {
   setCheck('pf-instock', true);
   setCheck('pf-featured', false);
   setCheck('pf-isset', false);
-  setField('pf-qty', '10');
   modal.style.display = 'flex';
 }
 
@@ -491,7 +490,6 @@ function openEditModal(product) {
   setField('pf-short-desc', product.shortDesc || '');
   setField('pf-desc',       product.description || '');
   setField('pf-image',      product.image || (product.images && product.images[0]) || '');
-  setField('pf-qty',        product.quantity);
   setCheck('pf-instock',    product.inStock);
   setCheck('pf-featured',   product.featured);
   setCheck('pf-isset',      product.isSet);
@@ -536,7 +534,6 @@ async function saveProduct(e) {
     image,
     images:        [image],
     inStock:       getChecked('pf-instock'),
-    quantity:      parseInt(getField('pf-qty')) || 0,
     featured:      getChecked('pf-featured'),
   };
 

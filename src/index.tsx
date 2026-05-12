@@ -23,7 +23,7 @@ const t: Record<string, Record<string, string>> = {
     facebook: 'فيسبوك', instagram: 'إنستغرام',
     outOfStock: 'غير متوفر', inStock: 'متوفر',
     featured: 'المميزة', allProducts: 'جميع المنتجات',
-    setsTitle: 'الأطقم والمجموعات', save: 'وفر',
+    setsTitle: 'الأطقم والمجموعات', save: 'طقم حصري',
     setContains: 'يحتوي الطقم على', searchPlaceholder: 'ابحث عن منتج...',
     noResults: 'لا توجد نتائج', filterAll: 'الكل',
     sortNewest: 'الأحدث', sortLow: 'الأقل سعراً', sortHigh: 'الأعلى سعراً',
@@ -32,14 +32,17 @@ const t: Record<string, Record<string, string>> = {
     addProduct: 'إضافة منتج', editProduct: 'تعديل', deleteProduct: 'حذف',
     saveBtn: 'حفظ', cancelBtn: 'إلغاء',
     productName: 'اسم المنتج', productCode: 'رمز المنتج',
-    productPrice: 'السعر (LYD)', productCategory: 'الفئة',
+    productCategory: 'الفئة',
     productImage: 'رابط الصورة', productDesc: 'الوصف',
-    productStock: 'متوفر', productQty: 'الكمية', productFeatured: 'مميز',
+    productStock: 'متوفر', productFeatured: 'مميز',
     settings: 'الإعدادات', totalProducts: 'إجمالي المنتجات',
     parseFilename: 'استيراد بالاسم', heroTitle: 'عنوان الصفحة الرئيسية',
     copyright: 'جميع الحقوق محفوظة',
-    currency: 'دينار', viewAll: 'عرض الكل', shopNow: 'تسوق الآن',
-    heroTagline: 'وكيل معتمد لمجوهرات سواروفسكي في ليبيا',
+    viewAll: 'عرض الكل', shopNow: 'تسوق الآن',
+    comingSoon: 'قريباً',
+    storeBrand: 'سالفورد ليبيا',
+    storeTagline: 'مجوهرات سواروفسكي الفاخرة في ليبيا',
+    brands: 'العلامات التجارية',
   },
   en: {
     home: 'Home', products: 'Products', sets: 'Sets',
@@ -51,7 +54,7 @@ const t: Record<string, Record<string, string>> = {
     facebook: 'Facebook', instagram: 'Instagram',
     outOfStock: 'Out of Stock', inStock: 'In Stock',
     featured: 'Featured', allProducts: 'All Products',
-    setsTitle: 'Sets & Collections', save: 'Save',
+    setsTitle: 'Sets & Collections', save: 'Exclusive Set',
     setContains: 'This set includes', searchPlaceholder: 'Search products...',
     noResults: 'No results found', filterAll: 'All',
     sortNewest: 'Newest', sortLow: 'Price: Low to High', sortHigh: 'Price: High to Low',
@@ -60,17 +63,34 @@ const t: Record<string, Record<string, string>> = {
     addProduct: 'Add Product', editProduct: 'Edit', deleteProduct: 'Delete',
     saveBtn: 'Save', cancelBtn: 'Cancel',
     productName: 'Product Name', productCode: 'Product Code',
-    productPrice: 'Price (LYD)', productCategory: 'Category',
+    productCategory: 'Category',
     productImage: 'Image URL', productDesc: 'Description',
-    productStock: 'In Stock', productQty: 'Quantity', productFeatured: 'Featured',
+    productStock: 'In Stock', productFeatured: 'Featured',
     settings: 'Settings', totalProducts: 'Total Products',
     parseFilename: 'Import by Filename', heroTitle: 'Hero Title',
     copyright: 'All rights reserved',
-    currency: 'LYD', viewAll: 'View All', shopNow: 'Shop Now',
-    heroTagline: 'Authorized Swarovski Retailer in Libya',
+    viewAll: 'View All', shopNow: 'Shop Now',
+    comingSoon: 'Coming Soon',
+    storeBrand: 'Salford Libya',
+    storeTagline: 'Luxury Swarovski Jewelry in Libya',
+    brands: 'Brands',
   }
 }
 const tr = (key: string, lang: string) => (t[lang]?.[key]) || (t['en'][key]) || key
+
+// ─── Hero background image mosaic (Swarovski product images for bg) ───────────
+const HERO_BG_IMAGES = [
+  'https://www.genspark.ai/api/files/s/X9PzkTE4',
+  'https://www.genspark.ai/api/files/s/sl2CP5Aq',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5512850-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5642976-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5416604-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5452454-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5447085-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5563483-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5368552-01.jpg',
+  'https://image.swarovski.net/Content/Images/Product/FullSize/5479925-01.jpg',
+]
 
 // ─── HTML Shell ───────────────────────────────────────────────────────────────
 function shell(content: string, lang: string, pageTitle = '') {
@@ -84,10 +104,10 @@ function shell(content: string, lang: string, pageTitle = '') {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>${title}</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
-<meta name="description" content="Salford Libya — Authorized Swarovski Jewelry Retailer in Libya | سالفورد ليبيا — وكيل سواروفسكي المعتمد"/>
+<meta name="description" content="Salford Libya — Swarovski Jewelry | سالفورد ليبيا — مجوهرات سواروفسكي"/>
 <meta property="og:image" content="https://www.genspark.ai/api/files/s/sl2CP5Aq"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cairo:wght@300;400;600;700&display=swap"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cairo:wght@300;400;600;700;900&display=swap"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <link rel="stylesheet" href="/static/style.css"/>
 </head>
@@ -140,6 +160,22 @@ function nav(lang: string, active = '') {
           <a href="/${lang}/products?cat=bracelets"><i class="fa fa-circle-dot"></i> ${tr('bracelets',lang)}</a>
         </div>
       </div>
+      <div class="nav-dropdown">
+        <a href="#" class="dropdown-trigger">${tr('brands',lang)} <i class="fa fa-chevron-down fa-xs"></i></a>
+        <div class="dropdown-menu">
+          <a href="/${lang}/products" class="brand-active-link">
+            <span class="brand-dot brand-sw"></span> Swarovski
+          </a>
+          <a href="#" class="brand-soon-link" onclick="return false;">
+            <span class="brand-dot brand-pd"></span> Pandora
+            <span class="coming-soon-tag">${tr('comingSoon',lang)}</span>
+          </a>
+          <a href="#" class="brand-soon-link" onclick="return false;">
+            <span class="brand-dot brand-tf"></span> Tiffany &amp; Co.
+            <span class="coming-soon-tag">${tr('comingSoon',lang)}</span>
+          </a>
+        </div>
+      </div>
     </nav>
     <div class="header-actions">
       <button class="search-toggle" onclick="toggleSearch()" aria-label="Search"><i class="fa fa-search"></i></button>
@@ -161,11 +197,10 @@ function nav(lang: string, active = '') {
 
 // ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
 function productCard(p: Product, lang: string) {
-  const savings = p.originalPrice ? p.originalPrice - p.price : 0
   const badge = !p.inStock
     ? `<span class="badge badge-out">${tr('outOfStock',lang)}</span>`
-    : p.isSet && savings > 0
-    ? `<span class="badge badge-save">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>`
+    : p.isSet
+    ? `<span class="badge badge-save">${tr('save',lang)}</span>`
     : p.featured ? `<span class="badge badge-new">✦</span>` : ''
 
   const safeName = p.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')
@@ -179,15 +214,11 @@ function productCard(p: Product, lang: string) {
     <p class="card-code">SWAROVSKI · ${p.code}</p>
     <h3 class="card-name">${p.name}</h3>
     <div class="card-footer">
-      <div class="card-price">
-        ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
-        <span class="price-now">${p.price} ${tr('currency',lang)}</span>
-      </div>
       ${p.inStock
         ? `<button class="btn-buy" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
             <i class="fab fa-instagram"></i> ${tr('buyNow',lang)}
            </button>`
-        : `<span class="out-label">${tr('outOfStock',lang)}</span>`}
+        : `<span class="out-label"><i class="fa fa-clock fa-xs"></i> ${tr('outOfStock',lang)}</span>`}
     </div>
   </div>
 </article>`
@@ -202,7 +233,8 @@ function footer(lang: string) {
     <div class="footer-grid">
       <div class="footer-brand">
         <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="footer-logo"/>
-        <p>${tr('heroTagline', lang)}</p>
+        <p class="footer-store-name">Salford Libya</p>
+        <p class="footer-tagline">${lang === 'ar' ? 'مجوهرات سواروفسكي الفاخرة في ليبيا' : 'Luxury Swarovski Jewelry in Libya'}</p>
       </div>
       <div class="footer-links">
         <h4>${lang==='ar'?'روابط':'Links'}</h4>
@@ -217,7 +249,7 @@ function footer(lang: string) {
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© ${new Date().getFullYear()} ${s.storeName} · ${tr('copyright', lang)}</p>
+      <p>© ${new Date().getFullYear()} <strong>Salford Libya</strong> · ${tr('copyright', lang)}</p>
     </div>
   </div>
 </footer>`
@@ -377,7 +409,7 @@ app.get('/admin/dashboard', c => {
           <thead>
             <tr>
               <th>Image</th><th>Name</th><th>Code</th><th>Category</th>
-              <th>Price</th><th>Stock</th><th>Featured</th><th>Actions</th>
+              <th>Stock Status</th><th>Featured</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -387,8 +419,13 @@ app.get('/admin/dashboard', c => {
               <td><strong>${p.name}</strong>${p.isSet?'<span class="set-tag">SET</span>':''}</td>
               <td><code>${p.code}</code></td>
               <td>${p.category}</td>
-              <td>${p.price} LYD${p.originalPrice?`<br/><small class="text-muted" style="color:#9a9a9a">was ${p.originalPrice}</small>`:''}</td>
-              <td><span class="status-dot ${p.inStock?'dot-green':'dot-red'}"></span> ${p.inStock?'Yes':'No'} (${p.quantity})</td>
+              <td>
+                <button onclick="toggleStock('${p.id}',${p.inStock})" class="stock-toggle-btn ${p.inStock?'stock-btn-in':'stock-btn-out'}" title="Click to toggle">
+                  <span class="status-dot ${p.inStock?'dot-green':'dot-red'}"></span>
+                  ${p.inStock ? 'In Stock' : 'Out of Stock'}
+                  <i class="fa fa-repeat fa-xs" style="opacity:0.5;margin-left:4px;"></i>
+                </button>
+              </td>
               <td>${p.featured?'<i class="fa fa-star" style="color:#c9a96e"></i>':'<i class="fa fa-star" style="color:#444"></i>'}</td>
               <td class="action-btns">
                 <button onclick='openEditModal(${JSON.stringify(p)})' class="btn-sm btn-edit" title="Edit"><i class="fa fa-edit"></i></button>
@@ -461,22 +498,10 @@ app.get('/admin/dashboard', c => {
           <input type="text" id="pf-code" required placeholder="e.g. 5642976 or 5416604+5512850"/>
         </div>
         <div class="form-group">
-          <label>Price (LYD) *</label>
-          <input type="number" id="pf-price" required min="0" placeholder="e.g. 550"/>
-        </div>
-        <div class="form-group">
-          <label>Original Price <small style="color:#9a9a9a">(for savings display)</small></label>
-          <input type="number" id="pf-orig-price" min="0" placeholder="Optional — shows crossed-out price"/>
-        </div>
-        <div class="form-group">
           <label>Category *</label>
           <select id="pf-cat">
             ${cats.map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
           </select>
-        </div>
-        <div class="form-group">
-          <label>Quantity in Stock</label>
-          <input type="number" id="pf-qty" value="10" min="0"/>
         </div>
         <div class="form-group form-full">
           <label>Image URL *</label>
@@ -547,33 +572,81 @@ app.get('/:lang/', c => {
   const featured = getFeatured().slice(0, 8)
   const featuredSets = getFeaturedSets()
   const cats = [
-    { key: 'necklaces', icon: 'fa-circle-dot', label: tr('necklaces', lang), count: byCategory('necklaces').length },
-    { key: 'earrings',  icon: 'fa-circle-dot', label: tr('earrings', lang),  count: byCategory('earrings').length  },
-    { key: 'bracelets', icon: 'fa-circle-dot', label: tr('bracelets', lang), count: byCategory('bracelets').length },
+    { key: 'necklaces', icon: 'fa-diamond', label: tr('necklaces', lang), count: byCategory('necklaces').length },
+    { key: 'earrings',  icon: 'fa-star',    label: tr('earrings', lang),  count: byCategory('earrings').length  },
+    { key: 'bracelets', icon: 'fa-link',    label: tr('bracelets', lang), count: byCategory('bracelets').length },
   ]
+
+  // Get actual product images for hero background
+  const allProducts = getAll()
+  const heroImgs = allProducts
+    .filter(p => p.image && p.image.startsWith('http'))
+    .slice(0, 12)
+    .map(p => p.image)
 
   const html = `
 ${nav(lang, 'home')}
 <main>
-  <!-- HERO -->
+  <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-bg" id="particles"></div>
+    <!-- Scattered blurred product image mosaic background -->
+    <div class="hero-mosaic" aria-hidden="true">
+      ${heroImgs.map((img, i) => `<div class="mosaic-item mosaic-item-${i % 12}" style="background-image:url('${img}')"></div>`).join('')}
+      <div class="hero-mosaic-overlay"></div>
+    </div>
+
     <div class="hero-content">
-      <p class="hero-tag">✦ ${tr('heroTagline', lang)} ✦</p>
-      <h1 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h1>
+      <!-- Store name — VERY prominent -->
+      <div class="hero-store-badge">
+        <span class="hero-badge-dot"></span>
+        <span>${lang === 'ar' ? 'مجوهرات سواروفسكي' : 'SWAROVSKI JEWELRY'}</span>
+        <span class="hero-badge-dot"></span>
+      </div>
+      <h1 class="hero-store-name">Salford Libya</h1>
+      <p class="hero-store-name-ar">${lang === 'ar' ? 'سالفورد ليبيا' : ''}</p>
+      <h2 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h2>
       <p class="hero-sub">${lang === 'ar' ? s.heroSubtitleAr : s.heroSubtitleEn}</p>
       <div class="hero-actions">
-        <a href="/${lang}/products" class="btn-primary"><i class="fa fa-gem"></i> ${tr('shopNow', lang)}</a>
-        <a href="/${lang}/sets" class="btn-outline"><i class="fa fa-layer-group"></i> ${tr('setsTitle', lang)}</a>
+        <a href="/${lang}/products" class="btn-primary btn-hero"><i class="fa fa-gem"></i> ${tr('shopNow', lang)}</a>
+        <a href="/${lang}/sets" class="btn-outline btn-hero"><i class="fa fa-layer-group"></i> ${tr('setsTitle', lang)}</a>
       </div>
     </div>
     <div class="hero-scroll"><i class="fa fa-chevron-down"></i></div>
   </section>
 
-  <!-- CATEGORIES -->
+  <!-- ═══ TRUST BAR ═══ -->
+  <div class="trust-bar">
+    <div class="container">
+      <div class="trust-items">
+        <div class="trust-item">
+          <i class="fa fa-gem"></i>
+          <span>${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</span>
+        </div>
+        <div class="trust-divider"></div>
+        <div class="trust-item">
+          <i class="fab fa-instagram"></i>
+          <span>${lang === 'ar' ? 'تواصل مباشر عبر سوشيال ميديا' : 'Order via Social Media'}</span>
+        </div>
+        <div class="trust-divider"></div>
+        <div class="trust-item">
+          <i class="fa fa-award"></i>
+          <span>${lang === 'ar' ? 'سواروفسكي الأصلية' : 'Genuine Swarovski'}</span>
+        </div>
+        <div class="trust-divider"></div>
+        <div class="trust-item">
+          <i class="fa fa-map-marker-alt"></i>
+          <span>${lang === 'ar' ? 'خدمة ليبيا كاملاً' : 'Serving All of Libya'}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CATEGORIES ═══ -->
   <section class="section">
     <div class="container">
-      <h2 class="section-title">${tr('categories', lang)}</h2>
+      <div class="section-head">
+        <h2 class="section-title">${tr('categories', lang)}</h2>
+      </div>
       <div class="cat-grid">
         ${cats.map(cat => `
         <a href="/${lang}/products?cat=${cat.key}" class="cat-card">
@@ -582,7 +655,7 @@ ${nav(lang, 'home')}
           <span>${cat.count} ${lang === 'ar' ? 'منتج' : 'items'}</span>
         </a>`).join('')}
         <a href="/${lang}/sets" class="cat-card cat-sets">
-          <div class="cat-icon"><i class="fa fa-gem"></i></div>
+          <div class="cat-icon"><i class="fa fa-box-open"></i></div>
           <h3>${tr('setsTitle', lang)}</h3>
           <span>${featuredSets.length} ${lang === 'ar' ? 'طقم' : 'sets'}</span>
         </a>
@@ -590,7 +663,7 @@ ${nav(lang, 'home')}
     </div>
   </section>
 
-  <!-- FEATURED SETS -->
+  <!-- ═══ FEATURED SETS ═══ -->
   ${featuredSets.length > 0 ? `
   <section class="section section-dark">
     <div class="container">
@@ -600,7 +673,6 @@ ${nav(lang, 'home')}
       </div>
       <div class="sets-grid">
         ${featuredSets.map(p => {
-          const savings = p.originalPrice ? p.originalPrice - p.price : 0
           const safeName = p.name.replace(/'/g, "\\'")
           return `
         <article class="set-card" onclick="window.location='/${lang}/product/${p.id}'">
@@ -608,16 +680,10 @@ ${nav(lang, 'home')}
             ${p.images.slice(0,2).map((img,i) => `<img src="${img}" alt="${p.name}" class="set-img set-img-${i+1}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.3'"/>`).join('')}
           </div>
           <div class="set-body">
+            <span class="set-badge">${tr('save',lang)}</span>
             <p class="card-code">SET · ${p.code}</p>
             <h3>${p.name}</h3>
             <p class="set-items-list">${(p.setItems||[]).map(i=>`<span>${i.split('(')[0].trim()}</span>`).join(' + ')}</p>
-            <div class="set-price-row">
-              <div>
-                ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
-                <span class="price-now">${p.price} ${tr('currency',lang)}</span>
-              </div>
-              ${savings > 0 ? `<span class="save-badge">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>` : ''}
-            </div>
             <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
               <i class="fab fa-instagram"></i> ${tr('buyNow', lang)}
             </button>
@@ -627,7 +693,7 @@ ${nav(lang, 'home')}
     </div>
   </section>` : ''}
 
-  <!-- FEATURED PRODUCTS -->
+  <!-- ═══ FEATURED PRODUCTS ═══ -->
   <section class="section">
     <div class="container">
       <div class="section-head">
@@ -640,10 +706,26 @@ ${nav(lang, 'home')}
     </div>
   </section>
 
-  <!-- SOCIAL STRIP -->
+  <!-- ═══ STORE SHOWCASE BANNER ═══ -->
+  <section class="showcase-banner">
+    <div class="showcase-inner">
+      <div class="showcase-text">
+        <p class="showcase-brand">✦ SWAROVSKI ✦</p>
+        <h2 class="showcase-store">Salford Libya</h2>
+        <p class="showcase-sub">${lang === 'ar'
+          ? 'اكتشفي مجموعتنا الحصرية من مجوهرات سواروفسكي — جودة لا مثيل لها'
+          : 'Discover our exclusive Swarovski collection — unrivalled quality'}</p>
+        <a href="/${lang}/products" class="btn-primary">
+          <i class="fa fa-gem"></i> ${tr('allProducts', lang)}
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SOCIAL STRIP ═══ -->
   <section class="social-strip">
     <div class="container">
-      <p>${lang === 'ar' ? 'تابعنا على منصاتنا' : 'Follow us on our platforms'}</p>
+      <p>${lang === 'ar' ? 'تواصلي معنا للطلب والاستفسار' : 'Contact us to order or enquire'}</p>
       <div class="social-btns">
         <a href="${getSettings().facebookUrl}" target="_blank" rel="noopener" class="social-btn fb">
           <i class="fab fa-facebook"></i> Facebook
@@ -728,7 +810,6 @@ ${nav(lang, 'sets')}
     <div class="container">
       <div class="sets-grid sets-grid-lg">
         ${sets.map(p => {
-          const savings = p.originalPrice ? p.originalPrice - p.price : 0
           const safeName = p.name.replace(/'/g, "\\'")
           return `
         <article class="set-card set-card-lg" onclick="window.location='/${lang}/product/${p.id}'">
@@ -736,18 +817,12 @@ ${nav(lang, 'sets')}
             ${p.images.slice(0,2).map((img,i) => `<img src="${img}" alt="${p.name}" class="set-img set-img-${i+1}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.3'"/>`).join('')}
           </div>
           <div class="set-body">
+            <span class="set-badge">${tr('save',lang)}</span>
             <p class="card-code">SET · ${p.code}</p>
             <h3>${p.name}</h3>
             <div class="set-items-detail">
               <p class="set-includes-label">${tr('setContains', lang)}:</p>
               <ul>${(p.setItems||[]).map(item => `<li><i class="fa fa-check"></i> ${item.split('(')[0].trim()}</li>`).join('')}</ul>
-            </div>
-            <div class="set-price-row">
-              <div>
-                ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
-                <span class="price-now">${p.price} ${tr('currency',lang)}</span>
-              </div>
-              ${savings > 0 ? `<span class="save-badge">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>` : ''}
             </div>
             <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
               <i class="fab fa-instagram"></i> ${tr('buyNow', lang)}
@@ -768,7 +843,6 @@ app.get('/:lang/product/:id', c => {
   const p    = getById(c.req.param('id'))
   if (!p) return c.redirect(`/${lang}/products`)
 
-  const savings = p.originalPrice ? p.originalPrice - p.price : 0
   const related = getAll()
     .filter(r => r.id !== p.id && r.category === p.category && !r.isSet)
     .slice(0, 4)
@@ -812,16 +886,10 @@ ${nav(lang)}
         <div class="detail-info">
           <p class="detail-code">SWAROVSKI · ${p.code}</p>
           <h1 class="detail-name">${p.name}</h1>
-          <div class="detail-price">
-            ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
-            <span class="price-big">${p.price} ${tr('currency',lang)}</span>
-            ${savings > 0 ? `<span class="save-badge">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>` : ''}
-          </div>
 
           <p class="detail-stock ${p.inStock?'stock-in':'stock-out'}">
             <i class="fa fa-circle fa-xs"></i>
             ${p.inStock ? tr('inStock',lang) : tr('outOfStock',lang)}
-            ${p.inStock && p.quantity > 0 ? ` · ${p.quantity} ${lang==='ar'?'قطعة متبقية':'remaining'}` : ''}
           </p>
 
           ${p.inStock ? `
