@@ -61,103 +61,17 @@ document.addEventListener('click', e => {
   }
 });
 
-// ── Mobile menu toggle — iOS compatible ──────────────────────
+// ── Mobile menu toggle — APM drawer style ────────────────────
 let menuOpen = false;
 function toggleMenu() {
   menuOpen ? closeMenu() : openMenu();
 }
 function openMenu() {
-  let overlay = document.getElementById('mobile-nav-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'mobile-nav-overlay';
-    // iOS: use -webkit-overflow-scrolling and avoid fixed positioning issues
-    overlay.style.cssText = `
-      position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000;
-      background:rgba(247,241,236,0.98);
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      gap:2rem;padding:2rem;
-      -webkit-overflow-scrolling:touch;
-      overflow-y:auto;
-    `;
-
-    // inject animation style once
-    if (!document.getElementById('mobile-nav-style')) {
-      const style = document.createElement('style');
-      style.id = 'mobile-nav-style';
-      style.textContent = `
-        @keyframes fadeInMenu{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
-        #mobile-nav-overlay { animation: fadeInMenu 0.22s ease; }
-        #mobile-nav-overlay a:hover { color: #B76E79 !important; }
-        .hamburger.open span:nth-child(1){transform:rotate(45deg) translate(5px,5px);}
-        .hamburger.open span:nth-child(2){opacity:0;}
-        .hamburger.open span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px);}
-      `;
-      document.head.appendChild(style);
-    }
-
-    const close = document.createElement('button');
-    close.style.cssText = 'position:absolute;top:1.2rem;right:1.2rem;font-size:1.6rem;color:#B76E79;background:none;border:none;cursor:pointer;padding:8px;-webkit-tap-highlight-color:transparent;';
-    close.innerHTML = '<i class="fa fa-times"></i>';
-    close.setAttribute('aria-label', 'Close menu');
-    // use touchend for instant iOS response
-    close.addEventListener('touchend', e => { e.preventDefault(); closeMenu(); });
-    close.addEventListener('click', closeMenu);
-    overlay.appendChild(close);
-
-    // Rose gold divider
-    const divider = document.createElement('div');
-    divider.style.cssText = 'width:48px;height:2px;background:linear-gradient(90deg,transparent,#B76E79,transparent);border-radius:2px;margin-bottom:0.5rem;';
-    overlay.appendChild(divider);
-
-    const links = [
-      { href: `/${lang}/`,                      icon:'fa-home',        label: lang==='ar' ? 'الرئيسية'           : 'Home'              },
-      { href: `/${lang}/products`,               icon:'fa-gem',         label: lang==='ar' ? 'جميع المنتجات'      : 'All Products'       },
-      { href: `/${lang}/sets`,                   icon:'fa-layer-group', label: lang==='ar' ? 'الأطقم والمجموعات'  : 'Sets & Collections' },
-      { href: `/${lang}/products?cat=necklaces`, icon:'fa-diamond',     label: lang==='ar' ? 'القلائد'            : 'Necklaces'          },
-      { href: `/${lang}/products?cat=earrings`,  icon:'fa-star',        label: lang==='ar' ? 'الأقراط'            : 'Earrings'           },
-      { href: `/${lang}/products?cat=bracelets`, icon:'fa-link',        label: lang==='ar' ? 'الأساور'            : 'Bracelets'          },
-    ];
-
-    links.forEach(l => {
-      const a = document.createElement('a');
-      a.href = l.href;
-      a.innerHTML = `<i class="fa ${l.icon}" style="width:22px;text-align:center;color:#B76E79;margin-${lang==='ar'?'left':'right'}:10px;"></i>${l.label}`;
-      a.style.cssText = `
-        color:#2F2A2C;font-size:1.25rem;font-weight:600;letter-spacing:0.03em;
-        display:flex;align-items:center;padding:10px 20px;
-        border-radius:12px;width:100%;max-width:300px;
-        transition:background 0.2s,color 0.2s;
-        -webkit-tap-highlight-color:transparent;
-        text-decoration:none;
-      `;
-      // Touch-friendly active state
-      a.addEventListener('touchstart', () => { a.style.background='rgba(183,110,121,0.10)'; }, {passive:true});
-      a.addEventListener('touchend',   () => { a.style.background=''; });
-      overlay.appendChild(a);
-    });
-
-    // Language switch at bottom
-    const otherLang = lang === 'ar' ? 'en' : 'ar';
-    const otherLabel = lang === 'ar' ? 'English' : 'العربية';
-    const langBtn = document.createElement('a');
-    langBtn.href = `/${otherLang}/`;
-    langBtn.innerHTML = `<i class="fa fa-globe" style="margin-${lang==='ar'?'left':'right'}:8px;"></i>${otherLabel}`;
-    langBtn.style.cssText = `
-      margin-top:1rem;color:#B76E79;font-size:0.95rem;font-weight:700;
-      border:1.5px solid rgba(183,110,121,0.35);border-radius:20px;
-      padding:8px 24px;display:flex;align-items:center;
-      -webkit-tap-highlight-color:transparent;
-    `;
-    overlay.appendChild(langBtn);
-
-    document.body.appendChild(overlay);
-  }
-
-  overlay.style.display = 'flex';
-  // iOS scroll lock: use position fixed on body
-  document.body.style.position = 'fixed';
-  document.body.style.width = '100%';
+  const overlay = document.getElementById('mobile-nav-overlay');
+  const drawer  = document.getElementById('mobile-nav-drawer');
+  if (overlay) overlay.classList.add('open');
+  if (drawer)  drawer.classList.add('open');
+  // Prevent background scroll
   document.body.style.overflow = 'hidden';
   menuOpen = true;
   const ham = document.getElementById('hamburger');
@@ -166,9 +80,9 @@ function openMenu() {
 
 function closeMenu() {
   const overlay = document.getElementById('mobile-nav-overlay');
-  if (overlay) overlay.style.display = 'none';
-  document.body.style.position = '';
-  document.body.style.width = '';
+  const drawer  = document.getElementById('mobile-nav-drawer');
+  if (overlay) overlay.classList.remove('open');
+  if (drawer)  drawer.classList.remove('open');
   document.body.style.overflow = '';
   menuOpen = false;
   const ham = document.getElementById('hamburger');
