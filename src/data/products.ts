@@ -31,6 +31,8 @@ export interface SiteSettings {
   adminUser: string;
   adminPass: string;
   currency: string;
+  heroMediaUrl: string;
+  heroMediaType: string; // 'image' | 'video'
 }
 
 // ─── IN-MEMORY STORE ─────────────────────────────────────────────────────────

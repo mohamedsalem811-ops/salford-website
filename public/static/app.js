@@ -924,6 +924,8 @@ async function saveSettings(e) {
     heroSubtitleAr: form.heroSubtitleAr?.value?.trim() || '',
     heroSubtitleEn: form.heroSubtitleEn?.value?.trim() || '',
     adminUser:      form.adminUser?.value?.trim()      || '',
+    heroMediaUrl:   document.getElementById('hero-media-url-field')?.value  || '',
+    heroMediaType:  document.getElementById('hero-media-type-field')?.value || 'image',
   };
   const newPass = form.adminPass?.value;
   if (newPass) data.adminPass = newPass;
@@ -934,10 +936,131 @@ async function saveSettings(e) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (r.ok) { _settings = null; showToast('Settings saved!', 'success'); }
+    if (r.ok) { _settings = null; showToast('Settings saved! Reload the homepage to see the new background.', 'success'); }
     else showToast('Failed to save settings', 'error');
   } catch(err) { showToast('Network error: ' + err.message, 'error'); }
-  finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> Save Settings'; } }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> Save All Settings'; } }
+}
+
+// ── Hero Media upload & preview ──────────────────────────────
+function handleHeroMediaUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const maxMB = 8;
+  if (file.size > maxMB * 1024 * 1024) {
+    showToast(`File too large. Max ${maxMB} MB allowed.`, 'error');
+    return;
+  }
+
+  const isVideo = file.type.startsWith('video/');
+  const isImage = file.type.startsWith('image/');
+  if (!isVideo && !isImage) {
+    showToast('Unsupported file type. Use JPG, PNG, WEBP or MP4.', 'error');
+    return;
+  }
+
+  // Show progress bar
+  const prog = document.getElementById('hero-upload-progress');
+  const bar  = document.getElementById('hero-upload-bar');
+  const stat = document.getElementById('hero-upload-status');
+  if (prog) prog.style.display = 'block';
+  if (bar)  bar.style.width = '0%';
+  if (stat) stat.textContent = 'Reading file...';
+
+  const reader = new FileReader();
+
+  // Animate progress bar while reading
+  let pct = 0;
+  const tick = setInterval(() => {
+    pct = Math.min(pct + 3, 85);
+    if (bar) bar.style.width = pct + '%';
+  }, 60);
+
+  reader.onload = function(e) {
+    clearInterval(tick);
+    if (bar)  bar.style.width = '100%';
+    if (stat) stat.textContent = 'Done!';
+
+    const dataUrl = e.target.result;
+    const mediaType = isVideo ? 'video' : 'image';
+
+    // Write into hidden fields
+    const urlField  = document.getElementById('hero-media-url-field');
+    const typeField = document.getElementById('hero-media-type-field');
+    if (urlField)  urlField.value  = dataUrl;
+    if (typeField) typeField.value = mediaType;
+
+    // Update URL input box too
+    const urlInput = document.getElementById('hero-url-input');
+    if (urlInput) urlInput.value = dataUrl;
+
+    // Update preview
+    _renderHeroPreview(dataUrl, mediaType);
+
+    setTimeout(() => { if (prog) prog.style.display = 'none'; }, 1200);
+    showToast('Media ready — click "Save All Settings" to apply.', 'success');
+  };
+
+  reader.onerror = function() {
+    clearInterval(tick);
+    if (prog) prog.style.display = 'none';
+    showToast('Failed to read file.', 'error');
+  };
+
+  reader.readAsDataURL(file);
+}
+
+function previewHeroUrl(url) {
+  // live-update URL input without applying yet
+  const typeField = document.getElementById('hero-media-type-field');
+  const mediaType = (url.match(/\.(mp4|webm|mov)(\?|$)/i)) ? 'video' : 'image';
+  if (typeField) typeField.value = mediaType;
+}
+
+function applyHeroUrl() {
+  const url = (document.getElementById('hero-url-input')?.value || '').trim();
+  if (!url) return;
+  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  const mediaType = isVideo ? 'video' : 'image';
+
+  const urlField  = document.getElementById('hero-media-url-field');
+  const typeField = document.getElementById('hero-media-type-field');
+  if (urlField)  urlField.value  = url;
+  if (typeField) typeField.value = mediaType;
+
+  _renderHeroPreview(url, mediaType);
+  showToast('URL applied — click "Save All Settings" to save.', 'success');
+}
+
+function _renderHeroPreview(src, mediaType) {
+  const wrap  = document.getElementById('hero-media-preview');
+  const badge = document.getElementById('hero-media-type-badge');
+  if (!wrap) return;
+
+  // Remove existing media child (img or video), keep badge
+  const existing = wrap.querySelector('img, video');
+  if (existing) existing.remove();
+
+  let el;
+  if (mediaType === 'video') {
+    el = document.createElement('video');
+    el.src = src;
+    el.muted = true;
+    el.loop  = true;
+    el.autoplay = true;
+    el.playsInline = true;
+    el.style.cssText = 'width:100%;max-height:280px;object-fit:cover;display:block;pointer-events:none;';
+    el.play().catch(()=>{});
+  } else {
+    el = document.createElement('img');
+    el.src = src;
+    el.alt = 'Hero background preview';
+    el.style.cssText = 'width:100%;max-height:280px;object-fit:cover;display:block;';
+  }
+
+  wrap.insertBefore(el, wrap.firstChild);
+  if (badge) badge.textContent = mediaType === 'video' ? '▶ VIDEO' : '🖼 IMAGE';
 }
 
 // ── Stock / Featured quick toggles ───────────────────────────
@@ -1078,6 +1201,9 @@ window.closeDeleteModal     = closeDeleteModal;
 window.executeDelete        = executeDelete;
 window.parseFilenameAdmin   = parseFilenameAdmin;
 window.saveSettings         = saveSettings;
+window.handleHeroMediaUpload = handleHeroMediaUpload;
+window.previewHeroUrl       = previewHeroUrl;
+window.applyHeroUrl         = applyHeroUrl;
 window.filterAdminTable     = filterAdminTable;
 window.toggleStock          = toggleStock;
 window.toggleFeatured       = toggleFeatured;

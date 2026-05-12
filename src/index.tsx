@@ -122,6 +122,8 @@ async function dbGetSettings(db: D1Database): Promise<SiteSettings> {
     adminUser:      m.adminUser      || 'admin',
     adminPass:      m.adminPass      || 'salford2024',
     currency:       m.currency       || 'LYD',
+    heroMediaUrl:   m.heroMediaUrl   || 'https://www.genspark.ai/api/files/s/Wl5b6Moi',
+    heroMediaType:  m.heroMediaType  || 'image',
   }
 }
 
@@ -756,6 +758,46 @@ app.get('/admin/dashboard', async c => {
           </div>
         </div>
         <div class="settings-section">
+          <h3 class="settings-section-title"><i class="fa fa-image"></i> Hero Background Media</h3>
+          <p style="font-size:0.82rem;color:#b89aa0;margin-bottom:18px;opacity:0.75;">Upload a photo or video to use as the main page full-screen background. Recommended: portrait photo or landscape video (MP4). Max ~8 MB.</p>
+          <!-- Current preview -->
+          <div id="hero-media-preview" style="margin-bottom:20px;border-radius:12px;overflow:hidden;border:1px solid rgba(183,110,121,0.22);position:relative;background:#1a1215;max-width:560px;">
+            ${s.heroMediaType === 'video' && s.heroMediaUrl
+              ? `<video src="${s.heroMediaUrl}" muted loop autoplay playsinline style="width:100%;max-height:280px;object-fit:cover;display:block;pointer-events:none;"></video>`
+              : `<img src="${s.heroMediaUrl}" alt="Hero background" style="width:100%;max-height:280px;object-fit:cover;display:block;" onerror="this.style.display='none'"/>`
+            }
+            <div style="position:absolute;top:10px;left:10px;background:rgba(183,110,121,0.85);color:#fff;font-size:0.7rem;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.06em;text-transform:uppercase;" id="hero-media-type-badge">${s.heroMediaType === 'video' ? '▶ VIDEO' : '🖼 IMAGE'}</div>
+          </div>
+          <!-- Upload area -->
+          <div class="image-upload-area" id="hero-upload-area" onclick="document.getElementById('hero-media-input').click()" style="max-width:560px;cursor:pointer;">
+            <div class="upload-placeholder">
+              <i class="fa fa-cloud-arrow-up"></i>
+              <p>Click to upload photo or video</p>
+              <small>JPG, PNG, WEBP or MP4 · Max 8 MB</small>
+            </div>
+          </div>
+          <input type="file" id="hero-media-input" accept="image/jpeg,image/png,image/webp,video/mp4" style="display:none;" onchange="handleHeroMediaUpload(event)"/>
+          <div id="hero-upload-progress" style="display:none;margin-top:12px;">
+            <div style="height:4px;background:rgba(183,110,121,0.15);border-radius:4px;overflow:hidden;">
+              <div id="hero-upload-bar" style="height:100%;background:var(--rose);width:0%;transition:width 0.3s ease;border-radius:4px;"></div>
+            </div>
+            <p style="font-size:0.78rem;color:#b89aa0;margin-top:6px;text-align:center;" id="hero-upload-status">Uploading...</p>
+          </div>
+          <!-- URL input (alternative) -->
+          <div style="margin-top:16px;max-width:560px;">
+            <div class="form-group">
+              <label><i class="fa fa-link"></i> Or paste a direct URL (image or video)</label>
+              <div style="display:flex;gap:8px;">
+                <input type="url" id="hero-url-input" placeholder="https://..." value="${s.heroMediaUrl}" style="flex:1;" oninput="previewHeroUrl(this.value)"/>
+                <button type="button" onclick="applyHeroUrl()" style="padding:0 18px;background:var(--rose);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;white-space:nowrap;font-size:0.85rem;">Apply URL</button>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" name="heroMediaUrl"  id="hero-media-url-field"  value="${s.heroMediaUrl}"/>
+          <input type="hidden" name="heroMediaType" id="hero-media-type-field" value="${s.heroMediaType}"/>
+        </div>
+
+        <div class="settings-section">
           <h3 class="settings-section-title"><i class="fa fa-heading"></i> Hero Content</h3>
           <div class="settings-grid">
             <div class="form-group">
@@ -936,7 +978,12 @@ app.get('/:lang/', async c => {
 ${nav(lang, 'home')}
 <main>
   <section class="hero">
-    <div class="hero-bg-img" style="background-image:url('${HERO_IMAGE}')"></div>
+    ${s.heroMediaType === 'video' && s.heroMediaUrl
+      ? `<video class="hero-bg-video" autoplay muted loop playsinline disablePictureInPicture>
+           <source src="${s.heroMediaUrl}" type="video/mp4"/>
+         </video>`
+      : `<div class="hero-bg-img" style="background-image:url('${s.heroMediaUrl || HERO_IMAGE}')"></div>`
+    }
     <div class="hero-bg-overlay"></div>
     <div class="hero-content">
       <div class="hero-authentic-pill">
