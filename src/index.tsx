@@ -2,745 +2,879 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import {
-  getAllProducts, getProductById, getFeaturedProducts, getSets,
-  getIndividualProducts, searchProducts, getCategories, addProduct,
-  updateProduct, deleteProduct, getSettings, updateSettings, parseFilename
+  getAll, getById, getSets, getIndividual, getFeatured, getFeaturedSets,
+  byCategory, addProduct, updateProduct, deleteProduct,
+  getSettings, updateSettings, parseFilename, Product
 } from './data/products'
 
 const app = new Hono()
-
 app.use('/static/*', serveStatic({ root: './public' }))
 app.use('/api/*', cors())
 
-// ─── Shared HTML shell ──────────────────────────────────────────────────────
-function shell(title: string, bodyContent: string, lang: string = 'ar'): string {
+// ─── i18n ──────────────────────────────────────────────────────────────────────
+const t: Record<string, Record<string, string>> = {
+  ar: {
+    home: 'الرئيسية', products: 'المنتجات', sets: 'الأطقم',
+    categories: 'الفئات', admin: 'الإدارة',
+    necklaces: 'القلائد', earrings: 'الأقراط',
+    bracelets: 'الأساور', rings: 'الخواتم',
+    buyNow: 'اشتري الآن', contactUs: 'تواصل معنا للشراء',
+    chooseChannel: 'اختار منصة التواصل',
+    facebook: 'فيسبوك', instagram: 'إنستغرام',
+    outOfStock: 'غير متوفر', inStock: 'متوفر',
+    featured: 'المميزة', allProducts: 'جميع المنتجات',
+    setsTitle: 'الأطقم والمجموعات', save: 'وفر',
+    setContains: 'يحتوي الطقم على', searchPlaceholder: 'ابحث عن منتج...',
+    noResults: 'لا توجد نتائج', filterAll: 'الكل',
+    sortNewest: 'الأحدث', sortLow: 'الأقل سعراً', sortHigh: 'الأعلى سعراً',
+    adminLogin: 'دخول الإدارة', username: 'اسم المستخدم', password: 'كلمة المرور',
+    loginBtn: 'دخول', dashboard: 'لوحة التحكم',
+    addProduct: 'إضافة منتج', editProduct: 'تعديل', deleteProduct: 'حذف',
+    saveBtn: 'حفظ', cancelBtn: 'إلغاء',
+    productName: 'اسم المنتج', productCode: 'رمز المنتج',
+    productPrice: 'السعر (LYD)', productCategory: 'الفئة',
+    productImage: 'رابط الصورة', productDesc: 'الوصف',
+    productStock: 'متوفر', productQty: 'الكمية', productFeatured: 'مميز',
+    settings: 'الإعدادات', totalProducts: 'إجمالي المنتجات',
+    parseFilename: 'استيراد بالاسم', heroTitle: 'عنوان الصفحة الرئيسية',
+    copyright: 'جميع الحقوق محفوظة',
+    currency: 'دينار', viewAll: 'عرض الكل', shopNow: 'تسوق الآن',
+    heroTagline: 'وكيل معتمد لمجوهرات سواروفسكي في ليبيا',
+  },
+  en: {
+    home: 'Home', products: 'Products', sets: 'Sets',
+    categories: 'Categories', admin: 'Admin',
+    necklaces: 'Necklaces', earrings: 'Earrings',
+    bracelets: 'Bracelets', rings: 'Rings',
+    buyNow: 'Buy Now', contactUs: 'Contact Us to Buy',
+    chooseChannel: 'Choose your platform',
+    facebook: 'Facebook', instagram: 'Instagram',
+    outOfStock: 'Out of Stock', inStock: 'In Stock',
+    featured: 'Featured', allProducts: 'All Products',
+    setsTitle: 'Sets & Collections', save: 'Save',
+    setContains: 'This set includes', searchPlaceholder: 'Search products...',
+    noResults: 'No results found', filterAll: 'All',
+    sortNewest: 'Newest', sortLow: 'Price: Low to High', sortHigh: 'Price: High to Low',
+    adminLogin: 'Admin Login', username: 'Username', password: 'Password',
+    loginBtn: 'Login', dashboard: 'Dashboard',
+    addProduct: 'Add Product', editProduct: 'Edit', deleteProduct: 'Delete',
+    saveBtn: 'Save', cancelBtn: 'Cancel',
+    productName: 'Product Name', productCode: 'Product Code',
+    productPrice: 'Price (LYD)', productCategory: 'Category',
+    productImage: 'Image URL', productDesc: 'Description',
+    productStock: 'In Stock', productQty: 'Quantity', productFeatured: 'Featured',
+    settings: 'Settings', totalProducts: 'Total Products',
+    parseFilename: 'Import by Filename', heroTitle: 'Hero Title',
+    copyright: 'All rights reserved',
+    currency: 'LYD', viewAll: 'View All', shopNow: 'Shop Now',
+    heroTagline: 'Authorized Swarovski Retailer in Libya',
+  }
+}
+const tr = (key: string, lang: string) => (t[lang]?.[key]) || (t['en'][key]) || key
+
+// ─── HTML Shell ───────────────────────────────────────────────────────────────
+function shell(content: string, lang: string, pageTitle = '') {
   const dir = lang === 'ar' ? 'rtl' : 'ltr'
+  const s = getSettings()
+  const title = pageTitle ? `${pageTitle} | ${s.storeName}` : s.storeName
   return `<!DOCTYPE html>
 <html lang="${lang}" dir="${dir}" data-lang="${lang}">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="description" content="Salford Libya – Authorized Swarovski Luxury Jewelry Retailer | سالفورد ليبيا – وكيل معتمد لمجوهرات سواروفسكي"/>
-<title>${title} | Salford Libya – SWAROVSKI</title>
+<title>${title}</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
-<link rel="shortcut icon" href="/static/favicon.svg"/>
+<meta name="description" content="Salford Libya — Authorized Swarovski Jewelry Retailer in Libya | سالفورد ليبيا — وكيل سواروفسكي المعتمد"/>
+<meta property="og:image" content="https://www.genspark.ai/api/files/s/sl2CP5Aq"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cormorant+Garamond:wght@300;400;500&family=Cairo:wght@300;400;600;700&display=swap"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cairo:wght@300;400;600;700&display=swap"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <link rel="stylesheet" href="/static/style.css"/>
 </head>
 <body>
-${bodyContent}
+${content}
+<div id="buy-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeBuyModal()"><i class="fa fa-times"></i></button>
+    <div class="modal-logo">
+      <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya"/>
+    </div>
+    <p class="modal-title" id="modal-product-name"></p>
+    <p class="modal-sub">${lang === 'ar' ? 'اختار منصة التواصل للشراء' : 'Choose your preferred platform to buy'}</p>
+    <div class="modal-btns">
+      <a id="modal-fb-btn" href="#" target="_blank" rel="noopener" class="modal-btn fb-btn">
+        <i class="fab fa-facebook-messenger"></i>
+        <span>${lang === 'ar' ? 'تواصل عبر فيسبوك' : 'Contact via Facebook'}</span>
+      </a>
+      <a id="modal-ig-btn" href="#" target="_blank" rel="noopener" class="modal-btn ig-btn">
+        <i class="fab fa-instagram"></i>
+        <span>${lang === 'ar' ? 'تواصل عبر إنستغرام' : 'Contact via Instagram'}</span>
+      </a>
+    </div>
+  </div>
+</div>
 <script src="/static/app.js"></script>
 </body>
 </html>`
 }
 
-// ─── i18n translations ──────────────────────────────────────────────────────
-const t: Record<string, Record<string, string>> = {
-  ar: {
-    home: 'الرئيسية', products: 'جميع المنتجات', sets: 'الأطقم والمجموعات',
-    categories: 'الفئات', contact: 'تواصل معنا', search: 'بحث...',
-    featured: 'المنتجات المميزة', featuredSets: 'الأطقم المميزة',
-    shopNow: 'تسوق الآن', buyNow: 'اشتري الآن', buySets: 'اشتري الطقم الآن',
-    outOfStock: 'غير متوفر', inStock: 'متوفر', save: 'وفر',
-    heroTagline: 'وكيل معتمد لمجوهرات سواروفسكي الفاخرة',
-    discoverCollection: 'اكتشف المجموعة',
-    contactToBuy: 'تواصل معنا لإتمام الشراء',
-    contactMsg: 'تواصل معنا عبر إحدى منصاتنا لطلب هذا المنتج',
-    facebook: 'فيسبوك', instagram: 'إنستغرام', whatsapp: 'واتساب',
-    productCode: 'رمز المنتج', category: 'الفئة', price: 'السعر',
-    description: 'الوصف', relatedProducts: 'منتجات ذات صلة',
-    setIncludes: 'يشمل الطقم', individualPrices: 'الأسعار الفردية',
-    specialSetPrice: 'سعر الطقم الخاص', youSave: 'توفر',
-    allProducts: 'جميع المنتجات', filterByCategory: 'تصفية حسب الفئة',
-    all: 'الكل', sortBy: 'ترتيب حسب', newest: 'الأحدث', priceLow: 'السعر: من الأقل',
-    priceHigh: 'السعر: من الأعلى', featured2: 'المميز', noProducts: 'لا توجد منتجات',
-    necklaces: 'القلائد', earrings: 'الأقراط', bracelets: 'الأساور',
-    rings: 'الخواتم', sets2: 'الأطقم',
-    adminLogin: 'لوحة الإدارة', username: 'اسم المستخدم', password: 'كلمة المرور',
-    login: 'دخول', logout: 'خروج', dashboard: 'لوحة التحكم',
-    addProduct: 'إضافة منتج', editProduct: 'تعديل منتج', deleteProduct: 'حذف',
-    save2: 'حفظ', cancel: 'إلغاء', name: 'الاسم', nameAr: 'الاسم بالعربية',
-    imageUrl: 'رابط الصورة', stockQty: 'الكمية', isFeatured: 'منتج مميز',
-    isSet2: 'طقم', productCodes: 'رمز/رموز المنتج', siteSettings: 'إعدادات الموقع',
-    totalProducts: 'إجمالي المنتجات', totalSets: 'إجمالي الأطقم',
-    featuredCount: 'المنتجات المميزة', inStockCount: 'المتوفرة',
-    availableInSet: 'متوفر ضمن طقم', viewSet: 'عرض الطقم',
-    backToProducts: 'عودة للمنتجات', searchResults: 'نتائج البحث',
-    noResults: 'لا توجد نتائج', tryAgain: 'حاول مرة أخرى',
-    copyrightText: 'جميع الحقوق محفوظة'
-  },
-  en: {
-    home: 'Home', products: 'All Products', sets: 'Sets & Collections',
-    categories: 'Categories', contact: 'Contact Us', search: 'Search...',
-    featured: 'Featured Products', featuredSets: 'Featured Sets',
-    shopNow: 'Shop Now', buyNow: 'Buy Now', buySets: 'Buy Set Now',
-    outOfStock: 'Out of Stock', inStock: 'In Stock', save: 'Save',
-    heroTagline: 'Authorized Swarovski Luxury Jewelry Retailer',
-    discoverCollection: 'Discover Collection',
-    contactToBuy: 'Contact us to purchase this item',
-    contactMsg: 'Reach us on our social platforms to order this product',
-    facebook: 'Facebook', instagram: 'Instagram', whatsapp: 'WhatsApp',
-    productCode: 'Product Code', category: 'Category', price: 'Price',
-    description: 'Description', relatedProducts: 'Related Products',
-    setIncludes: 'Set Includes', individualPrices: 'Individual Prices',
-    specialSetPrice: 'Special Set Price', youSave: 'You Save',
-    allProducts: 'All Products', filterByCategory: 'Filter by Category',
-    all: 'All', sortBy: 'Sort By', newest: 'Newest', priceLow: 'Price: Low to High',
-    priceHigh: 'Price: High to Low', featured2: 'Featured', noProducts: 'No products found',
-    necklaces: 'Necklaces', earrings: 'Earrings', bracelets: 'Bracelets',
-    rings: 'Rings', sets2: 'Sets',
-    adminLogin: 'Admin Panel', username: 'Username', password: 'Password',
-    login: 'Login', logout: 'Logout', dashboard: 'Dashboard',
-    addProduct: 'Add Product', editProduct: 'Edit Product', deleteProduct: 'Delete',
-    save2: 'Save', cancel: 'Cancel', name: 'Name', nameAr: 'Arabic Name',
-    imageUrl: 'Image URL', stockQty: 'Stock Quantity', isFeatured: 'Featured',
-    isSet2: 'Is a Set', productCodes: 'Product Code(s)', siteSettings: 'Site Settings',
-    totalProducts: 'Total Products', totalSets: 'Total Sets',
-    featuredCount: 'Featured', inStockCount: 'In Stock',
-    availableInSet: 'Available in Set', viewSet: 'View Set',
-    backToProducts: 'Back to Products', searchResults: 'Search Results',
-    noResults: 'No results found', tryAgain: 'Try again',
-    copyrightText: 'All rights reserved'
-  }
-}
-
-function tr(key: string, lang: string): string {
-  return (t[lang] && t[lang][key]) || (t['en'][key]) || key
-}
-
-// ─── NAV ────────────────────────────────────────────────────────────────────
-function nav(lang: string, active: string = ''): string {
-  const s = getSettings()
-  const otherLang = lang === 'ar' ? 'en' : 'ar'
-  const otherLangLabel = lang === 'ar' ? 'English' : 'عربي'
+// ─── NAV ──────────────────────────────────────────────────────────────────────
+function nav(lang: string, active = '') {
+  const other = lang === 'ar' ? 'en' : 'ar'
+  const otherLabel = lang === 'ar' ? 'EN' : 'عربي'
   return `
-<header id="site-header">
+<header class="site-header" id="site-header">
   <div class="header-inner">
     <a href="/${lang}/" class="logo-link">
-      <div class="logo-mark">SJ</div>
-      <div class="logo-text">
-        <span class="logo-salford">SALFORD</span>
-        <span class="logo-jewelry">jewelry</span>
-      </div>
+      <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="logo-img"/>
     </a>
     <nav class="main-nav" id="main-nav">
-      <a href="/${lang}/" class="nav-link ${active==='home'?'active':''}">${tr('home',lang)}</a>
-      <a href="/${lang}/products" class="nav-link ${active==='products'?'active':''}">${tr('products',lang)}</a>
-      <a href="/${lang}/sets" class="nav-link ${active==='sets'?'active':''}">${tr('sets',lang)}</a>
+      <a href="/${lang}/" class="${active==='home'?'active':''}">${tr('home',lang)}</a>
+      <a href="/${lang}/products" class="${active==='products'?'active':''}">${tr('products',lang)}</a>
+      <a href="/${lang}/sets" class="${active==='sets'?'active':''}">${tr('sets',lang)}</a>
       <div class="nav-dropdown">
-        <span class="nav-link dropdown-trigger">${tr('categories',lang)} <i class="fas fa-chevron-down"></i></span>
+        <a href="#" class="dropdown-trigger">${tr('categories',lang)} <i class="fa fa-chevron-down fa-xs"></i></a>
         <div class="dropdown-menu">
-          <a href="/${lang}/products?category=Necklaces" class="dropdown-item"><i class="fas fa-gem"></i> ${tr('necklaces',lang)}</a>
-          <a href="/${lang}/products?category=Earrings" class="dropdown-item"><i class="fas fa-circle-dot"></i> ${tr('earrings',lang)}</a>
-          <a href="/${lang}/products?category=Bracelets" class="dropdown-item"><i class="fas fa-ring"></i> ${tr('bracelets',lang)}</a>
-          <a href="/${lang}/sets" class="dropdown-item"><i class="fas fa-star"></i> ${tr('sets2',lang)}</a>
+          <a href="/${lang}/products?cat=necklaces"><i class="fa fa-circle-dot"></i> ${tr('necklaces',lang)}</a>
+          <a href="/${lang}/products?cat=earrings"><i class="fa fa-circle-dot"></i> ${tr('earrings',lang)}</a>
+          <a href="/${lang}/products?cat=bracelets"><i class="fa fa-circle-dot"></i> ${tr('bracelets',lang)}</a>
         </div>
       </div>
     </nav>
     <div class="header-actions">
-      <div class="search-wrap">
-        <input type="text" id="header-search" placeholder="${tr('search',lang)}" autocomplete="off"/>
-        <button onclick="doSearch('${lang}')" class="search-btn"><i class="fas fa-search"></i></button>
-        <div id="search-dropdown" class="search-dropdown"></div>
-      </div>
-      <a href="/${otherLang}/" class="lang-btn" title="Switch Language">${otherLangLabel}</a>
-      <a href="${s.facebookUrl}" target="_blank" class="social-icon-btn" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-      <a href="${s.instagramUrl}" target="_blank" class="social-icon-btn" title="Instagram"><i class="fab fa-instagram"></i></a>
-      <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menu"><i class="fas fa-bars"></i></button>
+      <button class="search-toggle" onclick="toggleSearch()" aria-label="Search"><i class="fa fa-search"></i></button>
+      <a href="/${other}/" class="lang-switch">${otherLabel}</a>
+      <a href="/admin/login" class="admin-icon" title="Admin"><i class="fa fa-lock"></i></a>
+      <button class="hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
     </div>
+  </div>
+  <div class="search-bar" id="search-bar" style="display:none;">
+    <form action="/${lang}/products" method="get" class="search-form">
+      <input type="text" name="q" placeholder="${tr('searchPlaceholder',lang)}" autocomplete="off"/>
+      <button type="submit"><i class="fa fa-search"></i></button>
+    </form>
   </div>
 </header>`
 }
 
-function footer(lang: string): string {
-  const s = getSettings()
-  const year = new Date().getFullYear()
-  return `
-<footer class="site-footer">
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <div class="footer-logo">
-        <div class="logo-mark small">SJ</div>
-        <div class="logo-text"><span class="logo-salford">SALFORD</span><span class="logo-jewelry">jewelry</span></div>
-      </div>
-      <p class="footer-tagline">${tr('heroTagline',lang)}</p>
-    </div>
-    <div class="footer-links">
-      <a href="/${lang}/">${tr('home',lang)}</a>
-      <a href="/${lang}/products">${tr('products',lang)}</a>
-      <a href="/${lang}/sets">${tr('sets',lang)}</a>
-    </div>
-    <div class="footer-social">
-      <a href="${s.facebookUrl}" target="_blank" class="footer-social-btn"><i class="fab fa-facebook-f"></i> ${tr('facebook',lang)}</a>
-      <a href="${s.instagramUrl}" target="_blank" class="footer-social-btn ig"><i class="fab fa-instagram"></i> ${tr('instagram',lang)}</a>
-      <a href="https://wa.me/${s.whatsappNumber.replace(/\D/g,'')}" target="_blank" class="footer-social-btn wa"><i class="fab fa-whatsapp"></i> ${tr('whatsapp',lang)}</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <p>© ${year} Salford Libya – SWAROVSKI Authorized Retailer. ${tr('copyrightText',lang)}</p>
-  </div>
-</footer>
-<div id="buy-modal" class="modal-overlay" onclick="closeModal()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
-    <div id="modal-content"></div>
-  </div>
-</div>`
-}
+// ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
+function productCard(p: Product, lang: string) {
+  const savings = p.originalPrice ? p.originalPrice - p.price : 0
+  const badge = !p.inStock
+    ? `<span class="badge badge-out">${tr('outOfStock',lang)}</span>`
+    : p.isSet && savings > 0
+    ? `<span class="badge badge-save">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>`
+    : p.featured ? `<span class="badge badge-new">✦</span>` : ''
 
-// ─── Product card ────────────────────────────────────────────────────────────
-function productCard(p: any, lang: string): string {
-  const savings = p.isSet && p.savings ? `<div class="savings-badge">${tr('save',lang)} ${p.savings} ${p.currency}</div>` : ''
-  const setBadge = p.isSet ? `<div class="set-badge"><i class="fas fa-layer-group"></i> SET</div>` : ''
-  const outBadge = !p.inStock ? `<div class="out-badge">${tr('outOfStock',lang)}</div>` : ''
-  const btnText = p.isSet ? tr('buySets',lang) : tr('buyNow',lang)
-  const codesStr = p.productCodes.join('+')
-  const img = p.images[0] || 'https://via.placeholder.com/400x400/0a0a0a/c9a96e?text=SWAROVSKI'
+  const safeName = p.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')
   return `
-<article class="product-card" onclick="window.location.href='/${lang}/product/${p.id}'">
+<article class="product-card" onclick="window.location='/${lang}/product/${p.id}'">
   <div class="card-img-wrap">
-    <img src="${img}" alt="${p.name}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x400/0a0a0a/c9a96e?text=SWAROVSKI'"/>
-    ${p.images[1] ? `<img src="${p.images[1]}" class="card-img-hover" alt="${p.name} alt" loading="lazy"/>` : ''}
-    ${setBadge}${savings}${outBadge}
-    <div class="card-overlay">
-      <button class="quick-buy-btn" onclick="event.stopPropagation();openBuyModal('${p.id}','${p.name.replace(/'/g,"\\'")}','${codesStr}','${p.isSet}','${lang}')">${btnText}</button>
-    </div>
+    <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.onerror=null;this.src='/static/placeholder.jpg'"/>
+    ${badge}
   </div>
   <div class="card-body">
-    <p class="card-code">SWAROVSKI-${codesStr}</p>
+    <p class="card-code">SWAROVSKI · ${p.code}</p>
     <h3 class="card-name">${p.name}</h3>
-    ${p.isSet && p.setComponents ? `<p class="card-includes"><i class="fas fa-layer-group"></i> ${p.setComponents.map((c:any)=>c.name.split('–')[0].trim()).join(' + ')}</p>` : ''}
-    <div class="card-price-row">
-      <span class="card-price">${p.displayPrice}</span>
-      ${p.isSet && p.savings ? `<span class="card-savings">-${p.savings} ${p.currency}</span>` : ''}
+    <div class="card-footer">
+      <div class="card-price">
+        ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
+        <span class="price-now">${p.price} ${tr('currency',lang)}</span>
+      </div>
+      ${p.inStock
+        ? `<button class="btn-buy" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
+            <i class="fab fa-instagram"></i> ${tr('buyNow',lang)}
+           </button>`
+        : `<span class="out-label">${tr('outOfStock',lang)}</span>`}
     </div>
-    <button class="buy-btn ${!p.inStock?'disabled':''}" onclick="event.stopPropagation();${p.inStock?`openBuyModal('${p.id}','${p.name.replace(/'/g,"\\'")}','${codesStr}','${p.isSet}','${lang}')`:'void(0)'}">${p.inStock ? btnText : tr('outOfStock',lang)}</button>
   </div>
 </article>`
 }
 
-// ─── HOME ───────────────────────────────────────────────────────────────────
-app.get('/', (c) => c.redirect('/ar/'))
-app.get('/en', (c) => c.redirect('/en/'))
-app.get('/ar', (c) => c.redirect('/ar/'))
-
-app.get('/:lang/', (c) => {
-  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
+// ─── FOOTER ───────────────────────────────────────────────────────────────────
+function footer(lang: string) {
   const s = getSettings()
-  const featured = getFeaturedProducts().filter(p => !p.isSet).slice(0, 8)
-  const featuredSets = getFeaturedProducts().filter(p => p.isSet).slice(0, 3)
-  const cats = [
-    { key: 'Necklaces', icon: 'fas fa-gem', labelAr: 'القلائد', labelEn: 'Necklaces' },
-    { key: 'Earrings', icon: 'fas fa-circle-dot', labelAr: 'الأقراط', labelEn: 'Earrings' },
-    { key: 'Bracelets', icon: 'fas fa-ring', labelAr: 'الأساور', labelEn: 'Bracelets' },
-    { key: 'Sets', icon: 'fas fa-layer-group', labelAr: 'الأطقم', labelEn: 'Sets' },
-  ]
-  const body = `
-${nav(lang, 'home')}
-<main>
-<!-- HERO -->
-<section class="hero" id="hero-section">
-  <div class="hero-bg">
-    <div class="hero-particles" id="particles"></div>
-    <div class="hero-glow"></div>
-  </div>
-  <div class="hero-content">
-    <div class="hero-brand-tag">SWAROVSKI × SALFORD</div>
-    <h1 class="hero-title">
-      <span class="hero-sj">SJ</span>
-      <span>${lang==='ar'?s.heroTitleAr:s.heroTitleEn}</span>
-    </h1>
-    <p class="hero-subtitle">${lang==='ar'?s.heroSubtitleAr:s.heroSubtitleEn}</p>
-    <div class="hero-actions">
-      <a href="/${lang}/products" class="btn-primary"><i class="fas fa-gem"></i> ${tr('shopNow',lang)}</a>
-      <a href="/${lang}/sets" class="btn-outline"><i class="fas fa-layer-group"></i> ${tr('sets',lang)}</a>
-    </div>
-    <div class="hero-stats">
-      <div class="stat"><span class="stat-num">${getAllProducts().filter(p=>!p.isSet).length}+</span><span>${lang==='ar'?'منتج':'Products'}</span></div>
-      <div class="stat-sep"></div>
-      <div class="stat"><span class="stat-num">${getSets().length}</span><span>${lang==='ar'?'طقم':'Sets'}</span></div>
-      <div class="stat-sep"></div>
-      <div class="stat"><span class="stat-num">100%</span><span>${lang==='ar'?'أصلي':'Authentic'}</span></div>
-    </div>
-  </div>
-  <div class="hero-scroll"><i class="fas fa-chevron-down"></i></div>
-</section>
-
-<!-- CATEGORIES -->
-<section class="section categories-section">
-  <div class="section-inner">
-    <div class="section-header"><span class="section-tag">COLLECTION</span><h2>${lang==='ar'?'تصفح حسب الفئة':'Browse by Category'}</h2></div>
-    <div class="categories-grid">
-      ${cats.map(cat => `
-      <a href="/${lang}/${cat.key==='Sets'?'sets':`products?category=${cat.key}`}" class="cat-card">
-        <div class="cat-icon"><i class="${cat.icon}"></i></div>
-        <div class="cat-name">${lang==='ar'?cat.labelAr:cat.labelEn}</div>
-        <div class="cat-count">${getAllProducts().filter(p=>cat.key==='Sets'?p.isSet:p.category===cat.key).length} ${lang==='ar'?'قطعة':'items'}</div>
-      </a>`).join('')}
-    </div>
-  </div>
-</section>
-
-<!-- FEATURED PRODUCTS -->
-<section class="section products-section">
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="section-tag">FEATURED</span>
-      <h2>${tr('featured',lang)}</h2>
-      <a href="/${lang}/products" class="section-link">${lang==='ar'?'عرض الكل':'View All'} <i class="fas fa-arrow-${lang==='ar'?'left':'right'}"></i></a>
-    </div>
-    <div class="products-grid">
-      ${featured.map(p => productCard(p, lang)).join('')}
-    </div>
-  </div>
-</section>
-
-<!-- FEATURED SETS -->
-${featuredSets.length > 0 ? `
-<section class="section sets-section">
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="section-tag">SETS</span>
-      <h2>${tr('featuredSetsAr'||'featuredSets',lang)}</h2>
-      <a href="/${lang}/sets" class="section-link">${lang==='ar'?'عرض الكل':'View All'} <i class="fas fa-arrow-${lang==='ar'?'left':'right'}"></i></a>
-    </div>
-    <div class="sets-grid">
-      ${featuredSets.map(p => `
-      <article class="set-card" onclick="window.location.href='/${lang}/product/${p.id}'">
-        <div class="set-card-imgs">
-          ${p.images.slice(0,3).map((img:string,i:number)=>`<img src="${img}" class="set-img set-img-${i}" alt="${p.name}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x400/0a0a0a/c9a96e?text=SWAROVSKI'"/>`).join('')}
-          <div class="set-img-badge"><i class="fas fa-layer-group"></i> SET</div>
-        </div>
-        <div class="set-card-body">
-          <p class="card-code">SWAROVSKI-${p.productCodes.join('+')}</p>
-          <h3 class="set-name">${p.name}</h3>
-          <p class="set-includes"><i class="fas fa-check-circle"></i> ${p.setComponents?.map((c:any)=>c.name.split('–')[0].trim()).join(' + ') || ''}</p>
-          <div class="set-pricing">
-            <span class="set-price">${p.displayPrice}</span>
-            ${p.savings ? `<span class="set-savings">${tr('save',lang)} ${p.savings} ${p.currency}</span>` : ''}
-          </div>
-          <button class="buy-btn" onclick="event.stopPropagation();openBuyModal('${p.id}','${p.name.replace(/'/g,"\\'")}','${p.productCodes.join('+')}','true','${lang}')">${tr('buySets',lang)}</button>
-        </div>
-      </article>`).join('')}
-    </div>
-  </div>
-</section>` : ''}
-
-<!-- BRAND STRIP -->
-<section class="brand-strip">
-  <div class="brand-strip-inner">
-    <div class="sparkle-row">
-      ${Array(12).fill(0).map((_,i)=>`<i class="fas fa-sparkles sparkle-icon" style="animation-delay:${i*0.2}s"></i>`).join('')}
-    </div>
-    <p>${lang==='ar'?'مجوهرات سواروفسكي الأصلية – متوفرة الآن في ليبيا':'Authentic SWAROVSKI Jewelry – Now Available in Libya'}</p>
-    <div class="sparkle-row">
-      ${Array(12).fill(0).map((_,i)=>`<i class="fas fa-sparkles sparkle-icon" style="animation-delay:${i*0.2+0.1}s"></i>`).join('')}
-    </div>
-  </div>
-</section>
-</main>
-${footer(lang)}`
-  return c.html(shell(lang==='ar'?'سالفورد ليبيا':'Salford Libya', body, lang))
-})
-
-// ─── PRODUCTS ───────────────────────────────────────────────────────────────
-app.get('/:lang/products', (c) => {
-  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const category = c.req.query('category') || ''
-  const sort = c.req.query('sort') || 'featured'
-  const search = c.req.query('q') || ''
-  let prods = getIndividualProducts()
-  if (search) prods = prods.filter(p => !p.isSet && (p.name.toLowerCase().includes(search.toLowerCase()) || p.nameAr.includes(search) || p.productCodes.some(c2 => c2.includes(search))))
-  if (category) prods = prods.filter(p => p.category === category)
-  if (sort === 'price_asc') prods = prods.sort((a,b) => a.price - b.price)
-  else if (sort === 'price_desc') prods = prods.sort((a,b) => b.price - a.price)
-  else if (sort === 'featured') prods = prods.sort((a,b) => (b.featured?1:0) - (a.featured?1:0))
-  const cats = getCategories()
-  const body = `
-${nav(lang,'products')}
-<main>
-<section class="page-hero">
-  <div class="page-hero-inner">
-    <h1>${tr('allProducts',lang)}</h1>
-    <div class="breadcrumb"><a href="/${lang}/">${tr('home',lang)}</a> <i class="fas fa-chevron-${lang==='ar'?'left':'right'}"></i> <span>${tr('allProducts',lang)}</span></div>
-  </div>
-</section>
-<section class="catalog-section">
-  <div class="catalog-inner">
-    <aside class="catalog-filters" id="catalog-filters">
-      <div class="filter-group">
-        <h4>${tr('filterByCategory',lang)}</h4>
-        <a href="/${lang}/products${sort?`?sort=${sort}`:''}" class="filter-btn ${!category?'active':''}">${tr('all',lang)}</a>
-        ${cats.map(cat => `<a href="/${lang}/products?category=${cat}${sort?`&sort=${sort}`:''}" class="filter-btn ${category===cat?'active':''}">${lang==='ar'?(cat==='Necklaces'?'القلائد':cat==='Earrings'?'الأقراط':cat==='Bracelets'?'الأساور':cat==='Rings'?'الخواتم':cat):cat}</a>`).join('')}
+  return `
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="footer-logo"/>
+        <p>${tr('heroTagline', lang)}</p>
       </div>
-      <div class="filter-group">
-        <h4>${tr('sortBy',lang)}</h4>
-        <a href="/${lang}/products?${category?`category=${category}&`:''}" class="filter-btn ${!sort||sort==='featured'?'active':''}">${tr('featured2',lang)}</a>
-        <a href="/${lang}/products?${category?`category=${category}&`:''}&sort=price_asc" class="filter-btn ${sort==='price_asc'?'active':''}">${tr('priceLow',lang)}</a>
-        <a href="/${lang}/products?${category?`category=${category}&`:''}&sort=price_desc" class="filter-btn ${sort==='price_desc'?'active':''}">${tr('priceHigh',lang)}</a>
-      </div>
-    </aside>
-    <div class="catalog-main">
-      <div class="catalog-toolbar">
-        <span class="result-count">${prods.length} ${lang==='ar'?'منتج':'products'}</span>
-        <button class="filter-toggle-btn" onclick="toggleFilters()"><i class="fas fa-sliders-h"></i> ${tr('filterByCategory',lang)}</button>
-      </div>
-      ${prods.length === 0 ? `<div class="empty-state"><i class="fas fa-gem"></i><p>${tr('noProducts',lang)}</p></div>` : `<div class="products-grid">${prods.map(p => productCard(p, lang)).join('')}</div>`}
-    </div>
-  </div>
-</section>
-</main>
-${footer(lang)}`
-  return c.html(shell(tr('allProducts',lang), body, lang))
-})
-
-// ─── SETS ────────────────────────────────────────────────────────────────────
-app.get('/:lang/sets', (c) => {
-  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const sets = getSets()
-  const body = `
-${nav(lang,'sets')}
-<main>
-<section class="page-hero">
-  <div class="page-hero-inner">
-    <h1>${tr('sets',lang)}</h1>
-    <p>${lang==='ar'?'مجموعات منسقة من مجوهرات سواروفسكي الأصيلة بأسعار خاصة':'Curated Swarovski jewelry sets at special bundle prices'}</p>
-    <div class="breadcrumb"><a href="/${lang}/">${tr('home',lang)}</a> <i class="fas fa-chevron-${lang==='ar'?'left':'right'}"></i> <span>${tr('sets',lang)}</span></div>
-  </div>
-</section>
-<section class="section">
-  <div class="section-inner">
-    <div class="sets-list">
-      ${sets.map(p => `
-      <article class="set-detail-card" onclick="window.location.href='/${lang}/product/${p.id}'">
-        <div class="set-detail-imgs">
-          ${p.images.slice(0,2).map((img:string)=>`<img src="${img}" alt="${p.name}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x400/0a0a0a/c9a96e?text=SWAROVSKI'"/>`).join('')}
-        </div>
-        <div class="set-detail-info">
-          <div class="set-badge-top"><i class="fas fa-layer-group"></i> ${p.subCategory||'SET'}</div>
-          <p class="card-code">SWAROVSKI-${p.productCodes.join('+')}</p>
-          <h3>${p.name}</h3>
-          <div class="set-components-list">
-            ${(p.setComponents||[]).map((comp:any) => `
-            <div class="comp-row">
-              <img src="${comp.images[0]||''}" alt="${comp.name}" onerror="this.src='https://via.placeholder.com/60x60/0a0a0a/c9a96e?text=SW'"/>
-              <div><strong>${comp.name}</strong><span>${comp.individualPrice} ${p.currency}</span></div>
-            </div>`).join('')}
-          </div>
-          <div class="set-price-table">
-            ${(p.setComponents||[]).map((comp:any)=>`<div class="price-row"><span>${comp.name}</span><span>${comp.individualPrice} ${p.currency}</span></div>`).join('')}
-            <div class="price-row total-row"><span>${tr('specialSetPrice',lang)}</span><span class="special-price">${p.displayPrice}</span></div>
-            ${p.savings ? `<div class="price-row savings-row"><span>${tr('youSave',lang)}</span><span class="savings-amount">-${p.savings} ${p.currency}</span></div>` : ''}
-          </div>
-          <button class="buy-btn big" onclick="event.stopPropagation();openBuyModal('${p.id}','${p.name.replace(/'/g,"\\'")}','${p.productCodes.join('+')}','true','${lang}')">${tr('buySets',lang)}</button>
-        </div>
-      </article>`).join('')}
-    </div>
-  </div>
-</section>
-</main>
-${footer(lang)}`
-  return c.html(shell(tr('sets',lang), body, lang))
-})
-
-// ─── PRODUCT DETAIL ──────────────────────────────────────────────────────────
-app.get('/:lang/product/:id', (c) => {
-  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const id = c.req.param('id')
-  const p = getProductById(id)
-  if (!p) return c.html(shell('404', `${nav(lang)}<main><div class="empty-state" style="margin:8rem auto"><i class="fas fa-gem"></i><p>Product not found</p><a href="/${lang}/products" class="btn-primary">Back</a></div></main>${footer(lang)}`, lang))
-  
-  const related = getAllProducts().filter(r => r.id !== id && !r.isSet && r.category === p.category).slice(0,4)
-  const inSets = getSets().filter(s => s.productCodes.some(c2 => p.productCodes.includes(c2)))
-  const codesStr = p.productCodes.join('+')
-
-  const body = `
-${nav(lang)}
-<main>
-<section class="product-detail-section">
-  <div class="product-detail-inner">
-    <!-- GALLERY -->
-    <div class="product-gallery">
-      <div class="gallery-main-wrap">
-        <img id="main-img" src="${p.images[0]||'https://via.placeholder.com/600x600/0a0a0a/c9a96e?text=SWAROVSKI'}" alt="${p.name}" class="gallery-main-img" onerror="this.src='https://via.placeholder.com/600x600/0a0a0a/c9a96e?text=SWAROVSKI'"/>
-        ${!p.inStock?`<div class="out-overlay">${tr('outOfStock',lang)}</div>`:''}
-        ${p.isSet?`<div class="set-overlay-badge"><i class="fas fa-layer-group"></i> SET</div>`:''}
-      </div>
-      ${p.images.length > 1 ? `
-      <div class="gallery-thumbs">
-        ${p.images.map((img:string,i:number)=>`<img src="${img}" class="gallery-thumb ${i===0?'active':''}" onclick="switchImg(this,'${img}')" alt="thumb ${i+1}" loading="lazy" onerror="this.src='https://via.placeholder.com/80x80/0a0a0a/c9a96e?text=SW'"/>`).join('')}
-      </div>` : ''}
-    </div>
-    <!-- INFO -->
-    <div class="product-info">
-      <div class="breadcrumb">
+      <div class="footer-links">
+        <h4>${lang==='ar'?'روابط':'Links'}</h4>
         <a href="/${lang}/">${tr('home',lang)}</a>
-        <i class="fas fa-chevron-${lang==='ar'?'left':'right'}"></i>
-        <a href="/${lang}/products">${tr('allProducts',lang)}</a>
-        <i class="fas fa-chevron-${lang==='ar'?'left':'right'}"></i>
-        <span>${p.category}</span>
+        <a href="/${lang}/products">${tr('products',lang)}</a>
+        <a href="/${lang}/sets">${tr('sets',lang)}</a>
       </div>
-      <div class="product-badges">
-        <span class="brand-badge">SWAROVSKI</span>
-        ${p.isSet?`<span class="set-badge-inline"><i class="fas fa-layer-group"></i> SET</span>`:''}
-        ${p.inStock?`<span class="stock-badge in"><i class="fas fa-check-circle"></i> ${tr('inStock',lang)}</span>`:`<span class="stock-badge out"><i class="fas fa-times-circle"></i> ${tr('outOfStock',lang)}</span>`}
+      <div class="footer-social">
+        <h4>${lang==='ar'?'تابعنا':'Follow Us'}</h4>
+        <a href="${s.facebookUrl}" target="_blank" rel="noopener"><i class="fab fa-facebook"></i> Facebook</a>
+        <a href="${s.instagramUrl}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> Instagram</a>
       </div>
-      <h1 class="product-title">${p.name}</h1>
-      <p class="product-name-ar">${p.nameAr}</p>
-      <p class="product-code-display">SWAROVSKI-${codesStr}</p>
-      
-      ${p.isSet && p.setComponents ? `
-      <div class="set-price-box">
-        <table class="set-price-table">
-          <thead><tr><th>${tr('setIncludes',lang)}</th><th>${lang==='ar'?'السعر الفردي':'Individual Price'}</th></tr></thead>
-          <tbody>
-            ${p.setComponents.map((comp:any)=>`<tr><td>${comp.name}</td><td>${comp.individualPrice} ${p.currency}</td></tr>`).join('')}
-            <tr class="set-total-row"><td><strong>${tr('specialSetPrice',lang)}</strong></td><td><strong class="special-price-big">${p.displayPrice}</strong></td></tr>
-            ${p.savings?`<tr class="savings-final-row"><td>${tr('youSave',lang)}</td><td class="savings-text">-${p.savings} ${p.currency}</td></tr>`:''}
-          </tbody>
-        </table>
-      </div>` : `
-      <div class="price-display">
-        <span class="big-price">${p.displayPrice}</span>
-      </div>`}
-      
-      <div class="buy-actions">
-        <button class="buy-btn big ${!p.inStock?'disabled':''}" onclick="${p.inStock?`openBuyModal('${id}','${p.name.replace(/'/g,"\\'")}','${codesStr}','${p.isSet}','${lang}')`:''}">${p.inStock?(p.isSet?tr('buySets',lang):tr('buyNow',lang)):tr('outOfStock',lang)}</button>
-      </div>
-      
-      <div class="product-desc">
-        <h3>${tr('description',lang)}</h3>
-        <div class="desc-text">${p.description.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br/>')}</div>
-      </div>
-
-      ${inSets.length > 0 ? `
-      <div class="in-set-notice">
-        <i class="fas fa-layer-group"></i>
-        <div>
-          <strong>${tr('availableInSet',lang)}</strong>
-          ${inSets.map(s=>`<a href="/${lang}/product/${s.id}" class="set-link">${s.name} – ${tr('save',lang)} ${s.savings} ${s.currency}</a>`).join('')}
-        </div>
-      </div>` : ''}
+    </div>
+    <div class="footer-bottom">
+      <p>© ${new Date().getFullYear()} ${s.storeName} · ${tr('copyright', lang)}</p>
     </div>
   </div>
-</section>
+</footer>`
+}
 
-${related.length > 0 ? `
-<section class="section">
-  <div class="section-inner">
-    <div class="section-header"><h2>${tr('relatedProducts',lang)}</h2></div>
-    <div class="products-grid">${related.map(r => productCard(r, lang)).join('')}</div>
-  </div>
-</section>` : ''}
-</main>
-${footer(lang)}`
-  return c.html(shell(p.name, body, lang))
+// ══════════════════════════════════════════════════════════════════════════════
+//  API ROUTES  ← must come BEFORE /:lang/* wildcard routes
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/products/:id', c => {
+  const p = getById(c.req.param('id'))
+  return p ? c.json(p) : c.json({ error: 'Not found' }, 404)
 })
 
-// ─── API ROUTES ───────────────────────────────────────────────────────────────
-app.get('/api/products', (c) => {
-  const q = c.req.query('q')
-  const cat = c.req.query('category')
-  const setsOnly = c.req.query('sets')
-  let prods = getAllProducts()
-  if (setsOnly === 'true') prods = prods.filter(p => p.isSet)
-  else if (setsOnly === 'false') prods = prods.filter(p => !p.isSet)
-  if (q) prods = searchProducts(q)
-  if (cat) prods = prods.filter(p => p.category === cat)
-  return c.json({ products: prods, total: prods.length })
+app.get('/api/products', c => c.json(getAll()))
+
+app.post('/api/products', async c => {
+  try {
+    const data = await c.req.json()
+    const id = addProduct(data)
+    return c.json({ ok: true, id })
+  } catch { return c.json({ ok: false }, 400) }
 })
-app.get('/api/products/:id', (c) => {
-  const p = getProductById(c.req.param('id'))
-  if (!p) return c.json({ error: 'Not found' }, 404)
-  return c.json(p)
+
+app.put('/api/products/:id', async c => {
+  try {
+    const data = await c.req.json()
+    const ok = updateProduct(c.req.param('id'), data)
+    return c.json({ ok })
+  } catch { return c.json({ ok: false }, 400) }
 })
-app.post('/api/products', async (c) => {
-  const body = await c.req.json()
-  const p = addProduct(body)
-  return c.json(p, 201)
-})
-app.put('/api/products/:id', async (c) => {
-  const body = await c.req.json()
-  const p = updateProduct(c.req.param('id'), body)
-  if (!p) return c.json({ error: 'Not found' }, 404)
-  return c.json(p)
-})
-app.delete('/api/products/:id', (c) => {
+
+app.delete('/api/products/:id', c => {
   const ok = deleteProduct(c.req.param('id'))
-  return c.json({ success: ok })
-})
-app.get('/api/settings', (c) => c.json(getSettings()))
-app.put('/api/settings', async (c) => {
-  const body = await c.req.json()
-  return c.json(updateSettings(body))
-})
-app.post('/api/parse-filename', async (c) => {
-  const { filename } = await c.req.json()
-  const result = parseFilename(filename)
-  if (!result) return c.json({ error: 'Invalid filename format' }, 400)
-  return c.json(result)
+  return c.json({ ok })
 })
 
-// ─── ADMIN ───────────────────────────────────────────────────────────────────
-app.get('/admin', (c) => c.redirect('/admin/login'))
-app.get('/admin/login', (c) => {
-  const body = `
-<div class="admin-login-wrap">
-  <div class="admin-login-box">
-    <div class="admin-logo">
-      <div class="logo-mark">SJ</div>
-      <div class="logo-text"><span class="logo-salford">SALFORD</span><span class="logo-jewelry">jewelry</span></div>
-    </div>
-    <h2>Admin Panel</h2>
-    <form id="login-form" onsubmit="adminLogin(event)">
+app.get('/api/settings', c => c.json(getSettings()))
+
+app.put('/api/settings', async c => {
+  try {
+    const data = await c.req.json()
+    updateSettings(data)
+    return c.json({ ok: true })
+  } catch { return c.json({ ok: false }, 400) }
+})
+
+app.post('/api/parse-filename', async c => {
+  try {
+    const { filename } = await c.req.json()
+    const result = parseFilename(filename)
+    return result ? c.json({ ok: true, ...result }) : c.json({ ok: false, error: 'Invalid format' }, 400)
+  } catch { return c.json({ ok: false }, 400) }
+})
+
+app.post('/api/auth', async c => {
+  try {
+    const { username, password } = await c.req.json()
+    const s = getSettings()
+    if (username === s.adminUser && password === s.adminPass) {
+      return c.json({ ok: true })
+    }
+    return c.json({ ok: false }, 401)
+  } catch { return c.json({ ok: false }, 400) }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ADMIN ROUTES  ← must come BEFORE /:lang/* wildcard routes
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/admin/login', c => {
+  const html = `
+<div class="admin-login-page">
+  <div class="login-box">
+    <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya" class="login-logo"/>
+    <h1>Admin Panel</h1>
+    <p>Salford Libya — Swarovski Store</p>
+    <form id="login-form" onsubmit="doLogin(event)">
       <div class="form-group">
         <label>Username</label>
-        <input type="text" id="admin-user" required placeholder="admin"/>
+        <input type="text" id="login-user" required autocomplete="username"/>
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="admin-pass" required placeholder="••••••••"/>
+        <input type="password" id="login-pass" required autocomplete="current-password"/>
       </div>
-      <div id="login-error" class="login-error" style="display:none"></div>
-      <button type="submit" class="btn-primary full-width">Login <i class="fas fa-arrow-right"></i></button>
+      <div id="login-err" class="login-err" style="display:none">Invalid credentials</div>
+      <button type="submit" class="btn-primary btn-full">Login <i class="fa fa-arrow-right"></i></button>
     </form>
+    <a href="/ar/" class="back-link"><i class="fa fa-arrow-left"></i> Back to Store</a>
   </div>
 </div>`
-  return c.html(shell('Admin Login', body))
+  return c.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Admin | Salford Libya</title><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@400;600&display=swap"/><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/><link rel="stylesheet" href="/static/style.css"/></head><body class="admin-body" data-lang="en">${html}<script src="/static/app.js"></script></body></html>`)
 })
 
-app.get('/admin/dashboard', (c) => {
-  const all = getAllProducts()
-  const sets = getSets()
-  const individuals = getIndividualProducts()
-  const featured = all.filter(p=>p.featured)
-  const inStock = all.filter(p=>p.inStock)
-  const body = `
-<div class="admin-layout">
-  ${adminNav()}
+app.get('/admin/dashboard', c => {
+  const all = getAll()
+  const s = getSettings()
+  const stats = {
+    total: all.length,
+    sets: getSets().length,
+    inStock: all.filter(p => p.inStock).length,
+    featured: all.filter(p => p.featured).length
+  }
+  const cats = ['necklaces','earrings','bracelets','sets']
+
+  const html = `
+<div class="admin-wrap">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">
+      <img src="https://www.genspark.ai/api/files/s/sl2CP5Aq" alt="Salford Libya"/>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#products-tab" class="sidebar-link active" onclick="showTab('products');return false;"><i class="fa fa-box"></i> Products</a>
+      <a href="#settings-tab" class="sidebar-link" onclick="showTab('settings');return false;"><i class="fa fa-cog"></i> Settings</a>
+      <a href="/ar/" class="sidebar-link"><i class="fa fa-store"></i> View Store</a>
+      <a href="#" onclick="adminLogout();return false;" class="sidebar-link sidebar-logout"><i class="fa fa-sign-out-alt"></i> Logout</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
   <main class="admin-main">
-    <div class="admin-header">
-      <h1><i class="fas fa-chart-bar"></i> Dashboard</h1>
-      <div class="admin-actions-top">
-        <button class="btn-primary" onclick="showAddModal()"><i class="fas fa-plus"></i> Add Product</button>
-        <button class="btn-outline" onclick="window.location.href='/ar/'" target="_blank"><i class="fas fa-eye"></i> View Site</button>
-      </div>
+    <!-- Stats -->
+    <div class="admin-stats">
+      <div class="stat-card"><span>${stats.total}</span><label>Total Products</label></div>
+      <div class="stat-card"><span>${stats.sets}</span><label>Sets</label></div>
+      <div class="stat-card"><span>${stats.inStock}</span><label>In Stock</label></div>
+      <div class="stat-card"><span>${stats.featured}</span><label>Featured</label></div>
     </div>
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-icon"><i class="fas fa-gem"></i></div><div class="stat-info"><span class="stat-val">${individuals.length}</span><span class="stat-lbl">Individual Products</span></div></div>
-      <div class="stat-card"><div class="stat-icon"><i class="fas fa-layer-group"></i></div><div class="stat-info"><span class="stat-val">${sets.length}</span><span class="stat-lbl">Sets & Collections</span></div></div>
-      <div class="stat-card"><div class="stat-icon"><i class="fas fa-star"></i></div><div class="stat-info"><span class="stat-val">${featured.length}</span><span class="stat-lbl">Featured Items</span></div></div>
-      <div class="stat-card"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-info"><span class="stat-val">${inStock.length}</span><span class="stat-lbl">In Stock</span></div></div>
-    </div>
-    <div class="admin-table-wrap">
-      <div class="table-toolbar">
-        <h2>Product Management</h2>
-        <input type="text" id="admin-search" placeholder="Search products..." oninput="filterAdminTable(this.value)"/>
+
+    <!-- Products Tab -->
+    <div id="products-tab" class="admin-tab">
+      <div class="tab-head">
+        <h2>Products</h2>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="text" placeholder="Search products..." oninput="filterAdminTable(this.value)"
+            style="padding:8px 14px;border-radius:8px;border:1px solid rgba(201,169,110,0.3);background:#1a1a1f;color:#f5f5f5;font-size:0.85rem;"/>
+          <button class="btn-primary" onclick="openAddModal()"><i class="fa fa-plus"></i> Add Product</button>
+        </div>
       </div>
-      <div class="table-responsive">
-        <table class="admin-table" id="admin-products-table">
-          <thead><tr><th>Image</th><th>Name</th><th>Code(s)</th><th>Category</th><th>Price</th><th>Stock</th><th>Featured</th><th>Actions</th></tr></thead>
+
+      <!-- Filename Parser -->
+      <div class="parser-box">
+        <h4><i class="fa fa-magic"></i> Import by Filename</h4>
+        <p>Paste a filename like: <code>SWAROVSKI-5642976(550)</code> or <code>SWAROVSKI-5416604+5512850(900)</code></p>
+        <div class="parser-row">
+          <input type="text" id="parse-input" placeholder="SWAROVSKI-CODE(PRICE)"/>
+          <button onclick="parseFilename()" class="btn-secondary"><i class="fa fa-wand-magic-sparkles"></i> Parse</button>
+        </div>
+        <div id="parse-result" style="display:none;" class="parse-result"></div>
+      </div>
+
+      <!-- Products Table -->
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Image</th><th>Name</th><th>Code</th><th>Category</th>
+              <th>Price</th><th>Stock</th><th>Featured</th><th>Actions</th>
+            </tr>
+          </thead>
           <tbody>
             ${all.map(p => `
-            <tr data-name="${p.name.toLowerCase()} ${p.nameAr}">
-              <td><img src="${p.images[0]||''}" class="admin-thumb" alt="${p.name}" onerror="this.src='https://via.placeholder.com/50x50/0a0a0a/c9a96e?text=SW'"/></td>
-              <td><strong>${p.name}</strong>${p.isSet?'<span class="badge-set-sm">SET</span>':''}<br/><small>${p.nameAr}</small></td>
-              <td><code>${p.productCodes.join('+')}</code></td>
+            <tr>
+              <td><img src="${p.image}" alt="${p.name}" class="table-thumb" onerror="this.onerror=null;this.style.opacity='0.3'"/></td>
+              <td><strong>${p.name}</strong>${p.isSet?'<span class="set-tag">SET</span>':''}</td>
+              <td><code>${p.code}</code></td>
               <td>${p.category}</td>
-              <td class="price-cell">${p.displayPrice}</td>
-              <td><span class="stock-dot ${p.inStock?'in':'out'}">${p.inStock?'In Stock':'Out'}</span></td>
-              <td><span class="feat-dot ${p.featured?'yes':'no'}">${p.featured?'⭐':'-'}</span></td>
-              <td class="action-cell">
-                <button class="btn-icon edit" onclick="editProduct('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
-                <button class="btn-icon del" onclick="deleteProductAdmin('${p.id}','${p.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+              <td>${p.price} LYD${p.originalPrice?`<br/><small class="text-muted" style="color:#9a9a9a">was ${p.originalPrice}</small>`:''}</td>
+              <td><span class="status-dot ${p.inStock?'dot-green':'dot-red'}"></span> ${p.inStock?'Yes':'No'} (${p.quantity})</td>
+              <td>${p.featured?'<i class="fa fa-star" style="color:#c9a96e"></i>':'<i class="fa fa-star" style="color:#444"></i>'}</td>
+              <td class="action-btns">
+                <button onclick='openEditModal(${JSON.stringify(p)})' class="btn-sm btn-edit" title="Edit"><i class="fa fa-edit"></i></button>
+                <button onclick="confirmDelete('${p.id}','${p.name.replace(/'/g,"\\'")}') " class="btn-sm btn-del" title="Delete"><i class="fa fa-trash"></i></button>
               </td>
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
     </div>
-    <div class="admin-table-wrap" style="margin-top:2rem">
-      <h2><i class="fas fa-cog"></i> Site Settings</h2>
-      <div id="settings-form-area">${settingsForm()}</div>
+
+    <!-- Settings Tab -->
+    <div id="settings-tab" class="admin-tab" style="display:none;">
+      <h2>Site Settings</h2>
+      <form onsubmit="saveSettings(event)" class="settings-form">
+        <div class="settings-grid">
+          <div class="form-group">
+            <label>Facebook Page URL</label>
+            <input type="url" name="facebookUrl" value="${s.facebookUrl}" placeholder="https://www.facebook.com/..."/>
+          </div>
+          <div class="form-group">
+            <label>Instagram Profile URL</label>
+            <input type="url" name="instagramUrl" value="${s.instagramUrl}" placeholder="https://www.instagram.com/..."/>
+          </div>
+          <div class="form-group">
+            <label>Hero Title (Arabic)</label>
+            <input type="text" name="heroTitleAr" value="${s.heroTitleAr}"/>
+          </div>
+          <div class="form-group">
+            <label>Hero Title (English)</label>
+            <input type="text" name="heroTitleEn" value="${s.heroTitleEn}"/>
+          </div>
+          <div class="form-group">
+            <label>Hero Subtitle (Arabic)</label>
+            <input type="text" name="heroSubtitleAr" value="${s.heroSubtitleAr}"/>
+          </div>
+          <div class="form-group">
+            <label>Hero Subtitle (English)</label>
+            <input type="text" name="heroSubtitleEn" value="${s.heroSubtitleEn}"/>
+          </div>
+          <div class="form-group">
+            <label>Admin Username</label>
+            <input type="text" name="adminUser" value="${s.adminUser}"/>
+          </div>
+          <div class="form-group">
+            <label>Admin Password</label>
+            <input type="password" name="adminPass" placeholder="Leave blank to keep current"/>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Save Settings</button>
+      </form>
     </div>
   </main>
 </div>
-<!-- Product Modal -->
-<div id="product-modal" class="modal-overlay" onclick="closeProductModal(event)">
-  <div class="modal-box large" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="document.getElementById('product-modal').style.display='none'"><i class="fas fa-times"></i></button>
+
+<!-- Add/Edit Product Modal -->
+<div id="product-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box modal-large">
+    <button class="modal-close" onclick="closeProductModal()"><i class="fa fa-times"></i></button>
     <h2 id="modal-title">Add Product</h2>
-    <form id="product-form" onsubmit="saveProduct(event)">
+    <form id="product-form" onsubmit="saveProduct(event)" class="product-form">
+      <input type="hidden" id="pf-id"/>
       <div class="form-grid">
-        <div class="form-group"><label>Product Code(s) <small>(use + for sets, e.g. 5647946+5642977)</small></label><input type="text" id="f-codes" required placeholder="5647946"/></div>
-        <div class="form-group"><label>Price (numeric)</label><input type="number" id="f-price" required placeholder="500"/></div>
-        <div class="form-group"><label>English Name</label><input type="text" id="f-name" required placeholder="Swan Necklace"/></div>
-        <div class="form-group"><label>Arabic Name</label><input type="text" id="f-nameAr" required placeholder="قلادة البجعة"/></div>
-        <div class="form-group full"><label>Category</label>
-          <select id="f-category">
-            <option value="Necklaces">Necklaces</option>
-            <option value="Earrings">Earrings</option>
-            <option value="Bracelets">Bracelets</option>
-            <option value="Rings">Rings</option>
-            <option value="Sets">Sets</option>
+        <div class="form-group">
+          <label>Product Name *</label>
+          <input type="text" id="pf-name" required placeholder="e.g. Iconic Swan Stud Earrings"/>
+        </div>
+        <div class="form-group">
+          <label>Product Code * <small style="color:#9a9a9a">(use + for sets)</small></label>
+          <input type="text" id="pf-code" required placeholder="e.g. 5642976 or 5416604+5512850"/>
+        </div>
+        <div class="form-group">
+          <label>Price (LYD) *</label>
+          <input type="number" id="pf-price" required min="0" placeholder="e.g. 550"/>
+        </div>
+        <div class="form-group">
+          <label>Original Price <small style="color:#9a9a9a">(for savings display)</small></label>
+          <input type="number" id="pf-orig-price" min="0" placeholder="Optional — shows crossed-out price"/>
+        </div>
+        <div class="form-group">
+          <label>Category *</label>
+          <select id="pf-cat">
+            ${cats.map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group full"><label>Image URL(s) <small>(one per line)</small></label><textarea id="f-images" rows="3" placeholder="https://example.com/image.jpg"></textarea></div>
-        <div class="form-group full"><label>Description (English)</label><textarea id="f-description" rows="4" placeholder="Product description..."></textarea></div>
-        <div class="form-group full"><label>Short Description</label><input type="text" id="f-short" placeholder="Brief description for cards"/></div>
-        <div class="form-group"><label>Stock Quantity</label><input type="number" id="f-qty" value="10"/></div>
-        <div class="form-group"><label><input type="checkbox" id="f-featured"/> Featured Product</label></div>
-        <div class="form-group"><label><input type="checkbox" id="f-instock" checked/> In Stock</label></div>
-        <div class="form-group"><label><input type="checkbox" id="f-isset"/> Is a Set</label></div>
+        <div class="form-group">
+          <label>Quantity in Stock</label>
+          <input type="number" id="pf-qty" value="10" min="0"/>
+        </div>
+        <div class="form-group form-full">
+          <label>Image URL *</label>
+          <input type="url" id="pf-image" required placeholder="https://www.genspark.ai/api/files/s/..."/>
+        </div>
+        <div class="form-group form-full">
+          <label>Short Description <small style="color:#9a9a9a">(one line)</small></label>
+          <input type="text" id="pf-short-desc" placeholder="e.g. Swan pavé studs, rhodium plated"/>
+        </div>
+        <div class="form-group form-full">
+          <label>Full Description</label>
+          <textarea id="pf-desc" rows="4" placeholder="Detailed product description..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="pf-instock" checked/> In Stock
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="pf-featured"/> Featured on Homepage
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="pf-isset"/> Is a Set (bundle)
+          </label>
+        </div>
       </div>
-      <input type="hidden" id="f-id"/>
       <div class="form-actions">
-        <button type="button" class="btn-outline" onclick="document.getElementById('product-modal').style.display='none'">Cancel</button>
-        <button type="submit" class="btn-primary">Save Product</button>
+        <button type="button" onclick="closeProductModal()" class="btn-outline"><i class="fa fa-times"></i> Cancel</button>
+        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Save Product</button>
       </div>
     </form>
-    <div class="filename-parser">
-      <h4><i class="fas fa-file-import"></i> Parse from Filename</h4>
-      <div class="parse-row">
-        <input type="text" id="parse-filename" placeholder="SWAROVSKI-5647946(500 دينار).jpg"/>
-        <button type="button" class="btn-outline" onclick="parseFilenameAdmin()">Parse</button>
-      </div>
-      <p class="parse-hint">Format: SWAROVSKI-[CODE(S)]([PRICE] دينار)</p>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div id="delete-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box modal-small">
+    <h3><i class="fa fa-triangle-exclamation" style="color:#e74c3c"></i> Delete Product</h3>
+    <p id="delete-msg" style="margin:16px 0;"></p>
+    <div class="form-actions">
+      <button onclick="closeDeleteModal()" class="btn-outline">Cancel</button>
+      <button id="confirm-delete-btn" class="btn-danger"><i class="fa fa-trash"></i> Delete</button>
     </div>
   </div>
 </div>`
-  return c.html(shell('Admin Dashboard', body))
+
+  return c.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Admin Dashboard | Salford Libya</title><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@400;600&display=swap"/><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/><link rel="stylesheet" href="/static/style.css"/></head><body class="admin-body" data-lang="en">${html}<script src="/static/app.js"></script></body></html>`)
 })
 
-function adminNav(): string {
-  return `<aside class="admin-sidebar">
-    <div class="admin-brand">
-      <div class="logo-mark small">SJ</div>
-      <span>Admin Panel</span>
-    </div>
-    <nav class="admin-nav">
-      <a href="/admin/dashboard" class="admin-nav-link active"><i class="fas fa-chart-bar"></i> Dashboard</a>
-      <a href="/ar/" target="_blank" class="admin-nav-link"><i class="fas fa-eye"></i> View Site (AR)</a>
-      <a href="/en/" target="_blank" class="admin-nav-link"><i class="fas fa-eye"></i> View Site (EN)</a>
-    </nav>
-    <button class="admin-logout" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
-  </aside>`
-}
+// ══════════════════════════════════════════════════════════════════════════════
+//  PAGE ROUTES  (/:lang/* — wildcard, must come LAST)
+// ══════════════════════════════════════════════════════════════════════════════
 
-function settingsForm(): string {
+app.get('/', c => c.redirect('/ar/'))
+app.get('/:lang', c => {
+  const lang = c.req.param('lang')
+  if (lang !== 'ar' && lang !== 'en') return c.redirect('/ar/')
+  return c.redirect(`/${lang}/`)
+})
+
+// ─── HOME ─────────────────────────────────────────────────────────────────────
+app.get('/:lang/', c => {
+  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
   const s = getSettings()
-  return `<form onsubmit="saveSettings(event)" class="settings-form">
-    <div class="form-grid">
-      <div class="form-group"><label>Facebook URL</label><input type="url" id="s-facebook" value="${s.facebookUrl}"/></div>
-      <div class="form-group"><label>Instagram URL</label><input type="url" id="s-instagram" value="${s.instagramUrl}"/></div>
-      <div class="form-group"><label>WhatsApp Number</label><input type="text" id="s-whatsapp" value="${s.whatsappNumber}"/></div>
-      <div class="form-group"><label>Hero Title (Arabic)</label><input type="text" id="s-heroAr" value="${s.heroTitleAr}"/></div>
-      <div class="form-group"><label>Hero Title (English)</label><input type="text" id="s-heroEn" value="${s.heroTitleEn}"/></div>
+  const featured = getFeatured().slice(0, 8)
+  const featuredSets = getFeaturedSets()
+  const cats = [
+    { key: 'necklaces', icon: 'fa-circle-dot', label: tr('necklaces', lang), count: byCategory('necklaces').length },
+    { key: 'earrings',  icon: 'fa-circle-dot', label: tr('earrings', lang),  count: byCategory('earrings').length  },
+    { key: 'bracelets', icon: 'fa-circle-dot', label: tr('bracelets', lang), count: byCategory('bracelets').length },
+  ]
+
+  const html = `
+${nav(lang, 'home')}
+<main>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg" id="particles"></div>
+    <div class="hero-content">
+      <p class="hero-tag">✦ ${tr('heroTagline', lang)} ✦</p>
+      <h1 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h1>
+      <p class="hero-sub">${lang === 'ar' ? s.heroSubtitleAr : s.heroSubtitleEn}</p>
+      <div class="hero-actions">
+        <a href="/${lang}/products" class="btn-primary"><i class="fa fa-gem"></i> ${tr('shopNow', lang)}</a>
+        <a href="/${lang}/sets" class="btn-outline"><i class="fa fa-layer-group"></i> ${tr('setsTitle', lang)}</a>
+      </div>
     </div>
-    <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Save Settings</button>
-  </form>`
-}
+    <div class="hero-scroll"><i class="fa fa-chevron-down"></i></div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title">${tr('categories', lang)}</h2>
+      <div class="cat-grid">
+        ${cats.map(cat => `
+        <a href="/${lang}/products?cat=${cat.key}" class="cat-card">
+          <div class="cat-icon"><i class="fa ${cat.icon}"></i></div>
+          <h3>${cat.label}</h3>
+          <span>${cat.count} ${lang === 'ar' ? 'منتج' : 'items'}</span>
+        </a>`).join('')}
+        <a href="/${lang}/sets" class="cat-card cat-sets">
+          <div class="cat-icon"><i class="fa fa-gem"></i></div>
+          <h3>${tr('setsTitle', lang)}</h3>
+          <span>${featuredSets.length} ${lang === 'ar' ? 'طقم' : 'sets'}</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURED SETS -->
+  ${featuredSets.length > 0 ? `
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">${tr('setsTitle', lang)}</h2>
+        <a href="/${lang}/sets" class="view-all">${tr('viewAll', lang)} <i class="fa fa-arrow-right"></i></a>
+      </div>
+      <div class="sets-grid">
+        ${featuredSets.map(p => {
+          const savings = p.originalPrice ? p.originalPrice - p.price : 0
+          const safeName = p.name.replace(/'/g, "\\'")
+          return `
+        <article class="set-card" onclick="window.location='/${lang}/product/${p.id}'">
+          <div class="set-imgs">
+            ${p.images.slice(0,2).map((img,i) => `<img src="${img}" alt="${p.name}" class="set-img set-img-${i+1}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.3'"/>`).join('')}
+          </div>
+          <div class="set-body">
+            <p class="card-code">SET · ${p.code}</p>
+            <h3>${p.name}</h3>
+            <p class="set-items-list">${(p.setItems||[]).map(i=>`<span>${i.split('(')[0].trim()}</span>`).join(' + ')}</p>
+            <div class="set-price-row">
+              <div>
+                ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
+                <span class="price-now">${p.price} ${tr('currency',lang)}</span>
+              </div>
+              ${savings > 0 ? `<span class="save-badge">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>` : ''}
+            </div>
+            <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
+              <i class="fab fa-instagram"></i> ${tr('buyNow', lang)}
+            </button>
+          </div>
+        </article>`}).join('')}
+      </div>
+    </div>
+  </section>` : ''}
+
+  <!-- FEATURED PRODUCTS -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">${tr('featured', lang)}</h2>
+        <a href="/${lang}/products" class="view-all">${tr('viewAll', lang)} <i class="fa fa-arrow-right"></i></a>
+      </div>
+      <div class="product-grid">
+        ${featured.map(p => productCard(p, lang)).join('')}
+      </div>
+    </div>
+  </section>
+
+  <!-- SOCIAL STRIP -->
+  <section class="social-strip">
+    <div class="container">
+      <p>${lang === 'ar' ? 'تابعنا على منصاتنا' : 'Follow us on our platforms'}</p>
+      <div class="social-btns">
+        <a href="${getSettings().facebookUrl}" target="_blank" rel="noopener" class="social-btn fb">
+          <i class="fab fa-facebook"></i> Facebook
+        </a>
+        <a href="${getSettings().instagramUrl}" target="_blank" rel="noopener" class="social-btn ig">
+          <i class="fab fa-instagram"></i> Instagram
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+${footer(lang)}`
+  return c.html(shell(html, lang))
+})
+
+// ─── PRODUCTS PAGE ────────────────────────────────────────────────────────────
+app.get('/:lang/products', c => {
+  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
+  const q    = c.req.query('q')   || ''
+  const cat  = c.req.query('cat') || ''
+  const sort = c.req.query('sort')|| 'newest'
+
+  let items = getIndividual()
+  if (q)   items = items.filter(p =>
+    p.name.toLowerCase().includes(q.toLowerCase()) ||
+    p.code.toLowerCase().includes(q.toLowerCase()) ||
+    p.shortDesc.toLowerCase().includes(q.toLowerCase())
+  )
+  if (cat) items = items.filter(p => p.category === cat)
+  if (sort === 'low')  items = [...items].sort((a, b) => a.price - b.price)
+  else if (sort === 'high') items = [...items].sort((a, b) => b.price - a.price)
+
+  const catList = ['necklaces', 'earrings', 'bracelets']
+  const html = `
+${nav(lang, 'products')}
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <h1>${q ? `"${q}"` : cat ? tr(cat, lang) : tr('allProducts', lang)}</h1>
+      <p>${items.length} ${lang === 'ar' ? 'منتج' : 'products'}</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="filter-bar">
+        <div class="filter-cats">
+          <a href="/${lang}/products" class="filter-tag ${!cat?'active':''}">${tr('filterAll',lang)}</a>
+          ${catList.map(c => `<a href="/${lang}/products?cat=${c}" class="filter-tag ${cat===c?'active':''}">${tr(c,lang)}</a>`).join('')}
+        </div>
+        <div class="filter-sort">
+          <select onchange="location='/${lang}/products?${cat?'cat='+cat+'&':''}${q?'q='+encodeURIComponent(q)+'&':''}sort='+this.value">
+            <option value="newest" ${sort==='newest'?'selected':''}>${tr('sortNewest',lang)}</option>
+            <option value="low"    ${sort==='low'?'selected':''}>${tr('sortLow',lang)}</option>
+            <option value="high"   ${sort==='high'?'selected':''}>${tr('sortHigh',lang)}</option>
+          </select>
+        </div>
+      </div>
+      ${items.length === 0
+        ? `<div class="empty-state"><i class="fa fa-search"></i><p>${tr('noResults',lang)}</p></div>`
+        : `<div class="product-grid">${items.map(p => productCard(p, lang)).join('')}</div>`}
+    </div>
+  </section>
+</main>
+${footer(lang)}`
+  return c.html(shell(html, lang, tr('allProducts', lang)))
+})
+
+// ─── SETS PAGE ────────────────────────────────────────────────────────────────
+app.get('/:lang/sets', c => {
+  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
+  const sets = getSets()
+  const html = `
+${nav(lang, 'sets')}
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <h1>${tr('setsTitle', lang)}</h1>
+      <p>${sets.length} ${lang === 'ar' ? 'طقم' : 'sets'}</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="sets-grid sets-grid-lg">
+        ${sets.map(p => {
+          const savings = p.originalPrice ? p.originalPrice - p.price : 0
+          const safeName = p.name.replace(/'/g, "\\'")
+          return `
+        <article class="set-card set-card-lg" onclick="window.location='/${lang}/product/${p.id}'">
+          <div class="set-imgs">
+            ${p.images.slice(0,2).map((img,i) => `<img src="${img}" alt="${p.name}" class="set-img set-img-${i+1}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.3'"/>`).join('')}
+          </div>
+          <div class="set-body">
+            <p class="card-code">SET · ${p.code}</p>
+            <h3>${p.name}</h3>
+            <div class="set-items-detail">
+              <p class="set-includes-label">${tr('setContains', lang)}:</p>
+              <ul>${(p.setItems||[]).map(item => `<li><i class="fa fa-check"></i> ${item.split('(')[0].trim()}</li>`).join('')}</ul>
+            </div>
+            <div class="set-price-row">
+              <div>
+                ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
+                <span class="price-now">${p.price} ${tr('currency',lang)}</span>
+              </div>
+              ${savings > 0 ? `<span class="save-badge">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>` : ''}
+            </div>
+            <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
+              <i class="fab fa-instagram"></i> ${tr('buyNow', lang)}
+            </button>
+          </div>
+        </article>`}).join('')}
+      </div>
+    </div>
+  </section>
+</main>
+${footer(lang)}`
+  return c.html(shell(html, lang, tr('setsTitle', lang)))
+})
+
+// ─── PRODUCT DETAIL ───────────────────────────────────────────────────────────
+app.get('/:lang/product/:id', c => {
+  const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
+  const p    = getById(c.req.param('id'))
+  if (!p) return c.redirect(`/${lang}/products`)
+
+  const savings = p.originalPrice ? p.originalPrice - p.price : 0
+  const related = getAll()
+    .filter(r => r.id !== p.id && r.category === p.category && !r.isSet)
+    .slice(0, 4)
+
+  const html = `
+${nav(lang)}
+<main>
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="/${lang}/">${tr('home',lang)}</a>
+      <i class="fa fa-chevron-right fa-xs"></i>
+      <a href="/${lang}/${p.isSet?'sets':'products'}">${p.isSet?tr('setsTitle',lang):tr('products',lang)}</a>
+      <i class="fa fa-chevron-right fa-xs"></i>
+      <span>${p.name}</span>
+    </div>
+  </div>
+
+  <section class="product-detail section">
+    <div class="container">
+      <div class="detail-grid">
+        <!-- Gallery -->
+        <div class="detail-gallery">
+          <div class="gallery-main">
+            <img src="${p.image}" alt="${p.name}" id="main-img"
+              onclick="openLightbox(this.src)"
+              onerror="this.onerror=null;this.style.opacity='0.3'"
+              style="cursor:zoom-in;transition:opacity 0.15s;"/>
+          </div>
+          ${p.images.length > 1 ? `
+          <div class="gallery-thumbs">
+            ${p.images.map((img,i) => `
+            <img src="${img}" alt="${p.name} ${i+1}"
+              onclick="switchImg('${img}')"
+              class="${i===0?'thumb-active':''}"
+              loading="lazy"
+              onerror="this.onerror=null;this.style.opacity='0.2'"/>`).join('')}
+          </div>` : ''}
+        </div>
+
+        <!-- Info -->
+        <div class="detail-info">
+          <p class="detail-code">SWAROVSKI · ${p.code}</p>
+          <h1 class="detail-name">${p.name}</h1>
+          <div class="detail-price">
+            ${p.originalPrice ? `<span class="price-old">${p.originalPrice} ${tr('currency',lang)}</span>` : ''}
+            <span class="price-big">${p.price} ${tr('currency',lang)}</span>
+            ${savings > 0 ? `<span class="save-badge">${tr('save',lang)} ${savings} ${tr('currency',lang)}</span>` : ''}
+          </div>
+
+          <p class="detail-stock ${p.inStock?'stock-in':'stock-out'}">
+            <i class="fa fa-circle fa-xs"></i>
+            ${p.inStock ? tr('inStock',lang) : tr('outOfStock',lang)}
+            ${p.inStock && p.quantity > 0 ? ` · ${p.quantity} ${lang==='ar'?'قطعة متبقية':'remaining'}` : ''}
+          </p>
+
+          ${p.inStock ? `
+          <div class="buy-btns">
+            <a href="${getSettings().facebookUrl}" target="_blank" rel="noopener"
+               class="btn-channel fb-channel" onclick="trackBuy('${p.id}','fb')">
+              <i class="fab fa-facebook-messenger"></i>
+              <div>
+                <span>${tr('buyNow',lang)}</span>
+                <small>Facebook</small>
+              </div>
+            </a>
+            <a href="${getSettings().instagramUrl}" target="_blank" rel="noopener"
+               class="btn-channel ig-channel" onclick="trackBuy('${p.id}','ig')">
+              <i class="fab fa-instagram"></i>
+              <div>
+                <span>${tr('buyNow',lang)}</span>
+                <small>Instagram</small>
+              </div>
+            </a>
+          </div>` : `<div class="out-of-stock-notice"><i class="fa fa-clock"></i> ${tr('outOfStock',lang)}</div>`}
+
+          <div class="detail-desc">
+            <p>${p.description}</p>
+          </div>
+
+          ${p.isSet && p.setItems ? `
+          <div class="set-includes-box">
+            <h4><i class="fa fa-box-open"></i> ${tr('setContains', lang)}</h4>
+            <ul>${p.setItems.map(item => `<li><i class="fa fa-check"></i> ${item.split('(')[0].trim()}</li>`).join('')}</ul>
+          </div>` : ''}
+
+          <div class="detail-meta">
+            <span><i class="fa fa-gem"></i> SWAROVSKI</span>
+            <span><i class="fa fa-tag"></i> ${p.code}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  ${related.length > 0 ? `
+  <section class="section section-dark">
+    <div class="container">
+      <h2 class="section-title">${lang==='ar'?'منتجات مشابهة':'Similar Products'}</h2>
+      <div class="product-grid">
+        ${related.map(r => productCard(r, lang)).join('')}
+      </div>
+    </div>
+  </section>` : ''}
+</main>
+${footer(lang)}`
+  return c.html(shell(html, lang, p.name))
+})
 
 export default app

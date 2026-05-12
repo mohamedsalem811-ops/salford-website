@@ -1,310 +1,358 @@
 /* ══════════════════════════════════════════════════════════════
-   SALFORD LIBYA – SWAROVSKI SHOWCASE
+   SALFORD LIBYA — SWAROVSKI SHOWCASE
    Frontend JavaScript: Bilingual, RTL/LTR, Modals, Admin
    ══════════════════════════════════════════════════════════════ */
+
+'use strict';
 
 // ── Language & Direction ──────────────────────────────────────
 const lang = document.documentElement.getAttribute('data-lang') || 'ar';
 const dir  = lang === 'ar' ? 'rtl' : 'ltr';
 
-// ── Settings (loaded from DOM context) ──────────────────────
-let siteSettings = {};
+// ── Cached settings ───────────────────────────────────────────
+let _settings = null;
 
-async function loadSettings() {
+async function fetchSettings() {
+  if (_settings) return _settings;
   try {
     const res = await fetch('/api/settings');
-    siteSettings = await res.json();
-  } catch(e) {}
+    _settings = await res.json();
+  } catch(e) { _settings = {}; }
+  return _settings;
 }
 
-// ── Particles ────────────────────────────────────────────────
-function initParticles() {
-  const container = document.getElementById('particles');
-  if (!container) return;
-  const colors = ['#c9a96e','#e8d5a3','#6b4dff','#ffffff','#9a7a4a'];
-  for (let i = 0; i < 40; i++) {
-    const p = document.createElement('div');
-    p.className = 'particle';
-    p.style.cssText = `
-      left: ${Math.random() * 100}%;
-      top: ${Math.random() * 100}%;
-      width: ${Math.random() * 4 + 1}px;
-      height: ${Math.random() * 4 + 1}px;
-      background: ${colors[Math.floor(Math.random() * colors.length)]};
-      animation-duration: ${Math.random() * 8 + 4}s;
-      animation-delay: ${Math.random() * 6}s;
-      opacity: 0;
-    `;
-    container.appendChild(p);
-  }
-}
+// ═══════════════════════════════════════════════════════════════
+//  HEADER EFFECTS
+// ═══════════════════════════════════════════════════════════════
 
-// ── Header scroll effect ─────────────────────────────────────
 function initHeaderScroll() {
-  const header = document.getElementById('site-header');
+  const header = document.querySelector('.site-header');
   if (!header) return;
   window.addEventListener('scroll', () => {
     if (window.scrollY > 60) {
-      header.style.background = 'rgba(5,5,5,0.97)';
-      header.style.boxShadow = '0 4px 30px rgba(0,0,0,0.5)';
+      header.style.background = 'rgba(5,5,5,0.98)';
+      header.style.boxShadow  = '0 4px 30px rgba(0,0,0,0.6)';
     } else {
-      header.style.background = 'rgba(5,5,5,0.9)';
-      header.style.boxShadow = 'none';
+      header.style.background = 'rgba(8,8,8,0.95)';
+      header.style.boxShadow  = 'none';
     }
-  });
+  }, { passive: true });
 }
 
-// ── Mobile Menu ──────────────────────────────────────────────
-function toggleMobileMenu() {
+// ── Search bar toggle ─────────────────────────────────────────
+let searchOpen = false;
+function toggleSearch() {
+  const bar = document.getElementById('search-bar');
+  if (!bar) return;
+  searchOpen = !searchOpen;
+  bar.style.display = searchOpen ? 'block' : 'none';
+  if (searchOpen) {
+    const inp = bar.querySelector('input');
+    if (inp) setTimeout(() => inp.focus(), 50);
+  }
+}
+// Close search on outside click
+document.addEventListener('click', e => {
+  if (!searchOpen) return;
+  const bar  = document.getElementById('search-bar');
+  const btn  = document.querySelector('.search-toggle');
+  if (bar && btn && !bar.contains(e.target) && !btn.contains(e.target)) {
+    bar.style.display = 'none';
+    searchOpen = false;
+  }
+});
+
+// ── Mobile menu toggle ────────────────────────────────────────
+let menuOpen = false;
+function toggleMenu() {
+  menuOpen ? closeMenu() : openMenu();
+}
+function openMenu() {
   let overlay = document.getElementById('mobile-nav-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'mobile-nav-overlay';
-    overlay.className = 'mobile-nav';
-    overlay.innerHTML = `
-      <button class="mobile-nav-close" onclick="closeMobileMenu()"><i class="fas fa-times"></i></button>
-      <a href="/${lang}/" class="nav-link" onclick="closeMobileMenu()">${lang==='ar'?'الرئيسية':'Home'}</a>
-      <a href="/${lang}/products" class="nav-link" onclick="closeMobileMenu()">${lang==='ar'?'جميع المنتجات':'All Products'}</a>
-      <a href="/${lang}/sets" class="nav-link" onclick="closeMobileMenu()">${lang==='ar'?'الأطقم والمجموعات':'Sets & Collections'}</a>
-      <a href="/${lang}/products?category=Necklaces" class="nav-link" onclick="closeMobileMenu()">${lang==='ar'?'القلائد':'Necklaces'}</a>
-      <a href="/${lang}/products?category=Earrings" class="nav-link" onclick="closeMobileMenu()">${lang==='ar'?'الأقراط':'Earrings'}</a>
-      <a href="/${lang}/products?category=Bracelets" class="nav-link" onclick="closeMobileMenu()">${lang==='ar'?'الأساور':'Bracelets'}</a>
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:9000;
+      background:rgba(8,8,8,0.97);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:2rem;padding:2rem;
+      animation:fadeInMenu 0.25s ease;
     `;
+    const style = document.createElement('style');
+    style.textContent = '@keyframes fadeInMenu{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}';
+    document.head.appendChild(style);
+
+    const close = document.createElement('button');
+    close.style.cssText = 'position:absolute;top:1.5rem;right:1.5rem;font-size:1.8rem;color:#c9a96e;background:none;border:none;cursor:pointer;';
+    close.innerHTML = '<i class="fa fa-times"></i>';
+    close.onclick = closeMenu;
+    overlay.appendChild(close);
+
+    const links = [
+      { href: `/${lang}/`,                 label: lang==='ar' ? 'الرئيسية'           : 'Home'               },
+      { href: `/${lang}/products`,          label: lang==='ar' ? 'جميع المنتجات'      : 'All Products'        },
+      { href: `/${lang}/sets`,              label: lang==='ar' ? 'الأطقم والمجموعات'  : 'Sets & Collections'  },
+      { href: `/${lang}/products?cat=necklaces`, label: lang==='ar' ? 'القلائد'       : 'Necklaces'           },
+      { href: `/${lang}/products?cat=earrings`,  label: lang==='ar' ? 'الأقراط'       : 'Earrings'            },
+      { href: `/${lang}/products?cat=bracelets`, label: lang==='ar' ? 'الأساور'       : 'Bracelets'           },
+    ];
+    links.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.href;
+      a.textContent = l.label;
+      a.style.cssText = 'color:#c9a96e;font-size:1.4rem;font-weight:600;letter-spacing:0.05em;transition:color 0.2s;';
+      a.onmouseenter = () => a.style.color = '#e8d5a3';
+      a.onmouseleave = () => a.style.color = '#c9a96e';
+      overlay.appendChild(a);
+    });
+
     document.body.appendChild(overlay);
   }
-  overlay.classList.add('open');
+  overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-}
+  menuOpen = true;
 
-function closeMobileMenu() {
+  // Toggle hamburger icon
+  const ham = document.getElementById('hamburger');
+  if (ham) ham.classList.add('open');
+}
+function closeMenu() {
   const overlay = document.getElementById('mobile-nav-overlay');
-  if (overlay) {
-    overlay.classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (overlay) overlay.style.display = 'none';
+  document.body.style.overflow = '';
+  menuOpen = false;
+  const ham = document.getElementById('hamburger');
+  if (ham) ham.classList.remove('open');
 }
 
-// ── Live Search ──────────────────────────────────────────────
-let searchTimeout;
-function doSearch(lang) {
-  const input = document.getElementById('header-search');
-  if (!input) return;
-  const q = input.value.trim();
-  if (!q) {
-    window.location.href = `/${lang}/products`;
-    return;
-  }
-  window.location.href = `/${lang}/products?q=${encodeURIComponent(q)}`;
-}
+// ═══════════════════════════════════════════════════════════════
+//  BUY MODAL  (FB + IG only — no WhatsApp)
+// ═══════════════════════════════════════════════════════════════
 
-function initLiveSearch() {
-  const input = document.getElementById('header-search');
-  const dropdown = document.getElementById('search-dropdown');
-  if (!input || !dropdown) return;
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doSearch(lang);
-  });
-
-  input.addEventListener('input', () => {
-    clearTimeout(searchTimeout);
-    const q = input.value.trim();
-    if (!q) { dropdown.style.display = 'none'; return; }
-    searchTimeout = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/products?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        const items = (data.products || []).slice(0, 5);
-        if (!items.length) { dropdown.style.display = 'none'; return; }
-        dropdown.innerHTML = items.map(p => `
-          <div class="search-item" onclick="window.location.href='/${lang}/product/${p.id}'">
-            <img src="${p.images[0] || ''}" alt="${p.name}" onerror="this.src='https://via.placeholder.com/40x40/0a0a0a/c9a96e?text=SW'"/>
-            <div class="search-item-info">
-              <div class="search-item-name">${p.name}</div>
-              <div class="search-item-price">${p.displayPrice}</div>
-            </div>
-          </div>
-        `).join('');
-        dropdown.style.display = 'block';
-      } catch(e) { dropdown.style.display = 'none'; }
-    }, 300);
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.style.display = 'none';
-    }
-  });
-}
-
-// ── Gallery ──────────────────────────────────────────────────
-function switchImg(thumb, src) {
-  const mainImg = document.getElementById('main-img');
-  if (mainImg) mainImg.src = src;
-  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
-  thumb.classList.add('active');
-}
-
-// ── Buy Modal ────────────────────────────────────────────────
-let currentProductData = null;
-
-async function openBuyModal(id, name, codes, isSet, lang) {
+async function openBuy(id, name, code) {
   const modal = document.getElementById('buy-modal');
-  const content = document.getElementById('modal-content');
-  if (!modal || !content) return;
+  if (!modal) return;
 
-  // Fetch product data for image and price
-  let product = null;
-  try {
-    const res = await fetch(`/api/products/${id}`);
-    product = await res.json();
-  } catch(e) {}
+  // Update product name label
+  const nameEl = document.getElementById('modal-product-name');
+  if (nameEl) nameEl.textContent = name;
 
-  const settings = await fetchSettings();
-  const fbUrl    = settings.facebookUrl    || 'https://www.facebook.com/SalfordLibya';
-  const igUrl    = settings.instagramUrl   || 'https://www.instagram.com/SalfordLibya';
-  const waNumber = (settings.whatsappNumber || '+218911234567').replace(/\D/g,'');
+  // Build prefilled message
+  const msg = lang === 'ar'
+    ? `مرحباً، أريد الاستفسار عن: SWAROVSKI-${code} — ${name}`
+    : `Hi! I'm interested in: SWAROVSKI-${code} — ${name}`;
+  const enc = encodeURIComponent(msg);
 
-  const isSetBool = isSet === 'true' || isSet === true;
-  const codesDisplay = `SWAROVSKI-${codes}`;
+  // Fetch settings for social URLs
+  const s = await fetchSettings();
+  const fbBase = (s.facebookUrl || 'https://www.facebook.com/salfordlibya').replace(/\/$/, '');
+  const igUrl  = s.instagramUrl  || 'https://www.instagram.com/salford.libya/';
 
-  // Pre-filled message
-  const msgAr = isSetBool
-    ? `مرحباً، أريد الاستفسار عن الطقم: ${codesDisplay} - ${name}`
-    : `مرحباً، أريد الاستفسار عن: ${codesDisplay} - ${name}`;
-  const msgEn = isSetBool
-    ? `Hi! I'm interested in the set: ${codesDisplay} - ${name}`
-    : `Hi! I'm interested in: ${codesDisplay} - ${name}`;
-  const msg = lang === 'ar' ? msgAr : msgEn;
-  const encodedMsg = encodeURIComponent(msg);
+  // Build FB Messenger deep link
+  const fbPageId = fbBase.split('/').pop();
+  const fbLink   = `https://m.me/${fbPageId}?text=${enc}`;
 
-  const fbMsgUrl = `https://m.me/${fbUrl.split('/').pop()}?text=${encodedMsg}`;
-  const igMsgUrl = igUrl;
-  const waMsgUrl = `https://wa.me/${waNumber}?text=${encodedMsg}`;
+  // IG direct message (IG doesn't support pre-filled text via URL, just link to profile)
+  const igLink = igUrl;
 
-  const img = product?.images?.[0] || '';
-  const price = product?.displayPrice || '';
+  const fbBtn = document.getElementById('modal-fb-btn');
+  const igBtn = document.getElementById('modal-ig-btn');
+  if (fbBtn) { fbBtn.href = fbLink; }
+  if (igBtn) { igBtn.href = igLink; }
 
-  const contactTitle = lang === 'ar'
-    ? (isSetBool ? 'اشتري هذا الطقم الآن' : 'اشتري الآن')
-    : (isSetBool ? 'Buy This Set Now' : 'Buy Now');
-  const contactSub = lang === 'ar'
-    ? 'تواصل معنا عبر إحدى منصاتنا لإتمام الشراء'
-    : 'Contact us on any of our platforms to complete your purchase';
-
-  content.innerHTML = `
-    <div class="modal-product">
-      ${img ? `<img src="${img}" alt="${name}" onerror="this.style.display='none'"/>` : ''}
-      <div class="modal-product-info">
-        <p class="brand">SWAROVSKI</p>
-        <h4>${name}</h4>
-        <p class="code">${codesDisplay}</p>
-        ${price ? `<p class="mprice">${price}</p>` : ''}
-        ${isSetBool ? `<span style="font-size:0.7rem;color:#6b4dff;letter-spacing:1.5px;text-transform:uppercase;"><i class="fas fa-layer-group"></i> SET</span>` : ''}
-      </div>
-    </div>
-    <div class="modal-cta">
-      <h3>${contactTitle}</h3>
-      <p>${contactSub}</p>
-      <div class="modal-btns">
-        <a href="${igMsgUrl}" target="_blank" class="modal-btn ig">
-          <i class="fab fa-instagram"></i>
-          ${lang === 'ar' ? 'تواصل عبر إنستغرام' : 'Contact via Instagram'}
-        </a>
-        <a href="${fbMsgUrl}" target="_blank" class="modal-btn fb">
-          <i class="fab fa-facebook-f"></i>
-          ${lang === 'ar' ? 'تواصل عبر فيسبوك' : 'Contact via Facebook'}
-        </a>
-        <a href="${waMsgUrl}" target="_blank" class="modal-btn wa">
-          <i class="fab fa-whatsapp"></i>
-          ${lang === 'ar' ? 'تواصل عبر واتساب' : 'Contact via WhatsApp'}
-        </a>
-      </div>
-    </div>
-  `;
-
-  modal.classList.add('active');
+  // Show modal
+  modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
+
+  // Trap focus
+  setTimeout(() => { const first = modal.querySelector('a,button'); if (first) first.focus(); }, 50);
 }
 
-function closeModal() {
+function closeBuyModal() {
   const modal = document.getElementById('buy-modal');
-  if (modal) modal.classList.remove('active');
+  if (modal) modal.style.display = 'none';
   document.body.style.overflow = '';
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { closeModal(); closeProductModal(null, true); }
+// Close on backdrop click
+document.addEventListener('click', e => {
+  const modal = document.getElementById('buy-modal');
+  if (modal && e.target === modal) closeBuyModal();
 });
 
-async function fetchSettings() {
-  if (Object.keys(siteSettings).length) return siteSettings;
+// ── Track buy events (lightweight) ───────────────────────────
+function trackBuy(productId, channel) {
   try {
-    const res = await fetch('/api/settings');
-    siteSettings = await res.json();
-    return siteSettings;
-  } catch(e) { return {}; }
+    const key = `salford_track_${productId}_${channel}`;
+    const count = parseInt(localStorage.getItem(key) || '0') + 1;
+    localStorage.setItem(key, count);
+  } catch(e) {}
 }
 
-// ── Catalog Filters toggle ───────────────────────────────────
-function toggleFilters() {
-  const filters = document.getElementById('catalog-filters');
-  if (filters) filters.classList.toggle('hidden');
+// ═══════════════════════════════════════════════════════════════
+//  GALLERY & LIGHTBOX
+// ═══════════════════════════════════════════════════════════════
+
+function switchImg(src) {
+  const mainImg = document.getElementById('main-img');
+  if (mainImg) {
+    mainImg.style.opacity = '0';
+    setTimeout(() => {
+      mainImg.src = src;
+      mainImg.style.opacity = '1';
+    }, 150);
+  }
+  document.querySelectorAll('.gallery-thumbs img').forEach(t => {
+    t.classList.toggle('thumb-active', t.src.endsWith(src) || t.getAttribute('src') === src);
+  });
 }
 
-// ── Intersection Observer for animations ────────────────────
+function openLightbox(src) {
+  let lb = document.getElementById('lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'lightbox';
+    lb.style.cssText = `
+      position:fixed;inset:0;z-index:9999;
+      background:rgba(0,0,0,0.92);
+      display:flex;align-items:center;justify-content:center;
+      cursor:zoom-out;
+    `;
+    lb.innerHTML = '<img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,0.8);"/>';
+    lb.onclick = closeLightbox;
+    document.body.appendChild(lb);
+  }
+  document.getElementById('lightbox-img').src = src;
+  lb.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  if (lb) lb.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PRODUCT CARD ANIMATIONS
+// ═══════════════════════════════════════════════════════════════
+
 function initAnimations() {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
         entry.target.style.opacity = '1';
         entry.target.style.transform = 'translateY(0)';
+        observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.1 });
+  }, { threshold: 0.08 });
 
-  document.querySelectorAll('.product-card, .set-card, .cat-card, .set-detail-card').forEach(el => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(30px)';
-    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease, border-color 0.3s, box-shadow 0.3s';
+  document.querySelectorAll('.product-card, .set-card, .cat-card').forEach((el, i) => {
+    el.style.cssText += `
+      opacity:0;transform:translateY(28px);
+      transition:opacity 0.5s ease ${i * 0.06}s, transform 0.5s ease ${i * 0.06}s,
+                 border-color 0.3s, box-shadow 0.3s;
+    `;
     observer.observe(el);
   });
 }
 
-// ══════════════════════════════════════════════════════════════
-//   ADMIN PANEL
-// ══════════════════════════════════════════════════════════════
-
-// ── Admin Auth ───────────────────────────────────────────────
-async function adminLogin(e) {
-  e.preventDefault();
-  const user = document.getElementById('admin-user')?.value;
-  const pass = document.getElementById('admin-pass')?.value;
-  const errEl = document.getElementById('login-error');
-
-  try {
-    const settings = await fetchSettings();
-    if (user === settings.adminUsername && pass === settings.adminPasswordHash) {
-      sessionStorage.setItem('salford_admin', 'authenticated');
-      window.location.href = '/admin/dashboard';
-    } else {
-      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Invalid username or password'; }
-    }
-  } catch(err) {
-    // Fallback: check against defaults
-    if (user === 'admin' && pass === 'salford2024') {
-      sessionStorage.setItem('salford_admin', 'authenticated');
-      window.location.href = '/admin/dashboard';
-    } else {
-      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Login failed. Try: admin / salford2024'; }
-    }
+// ── Hero particles ────────────────────────────────────────────
+function initParticles() {
+  const container = document.getElementById('particles');
+  if (!container) return;
+  const colors = ['#c9a96e','#e8d5a3','#6b4dff','#ffffff80','#9a7a4a'];
+  for (let i = 0; i < 36; i++) {
+    const p = document.createElement('div');
+    p.style.cssText = `
+      position:absolute;border-radius:50%;pointer-events:none;
+      left:${Math.random()*100}%;top:${Math.random()*100}%;
+      width:${Math.random()*3+1}px;height:${Math.random()*3+1}px;
+      background:${colors[i % colors.length]};
+      animation:floatUp ${Math.random()*8+6}s ${Math.random()*6}s infinite ease-in-out;
+      opacity:0;
+    `;
+    container.appendChild(p);
   }
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes floatUp {
+      0%   { opacity:0; transform:translateY(0) scale(1); }
+      20%  { opacity:0.8; }
+      80%  { opacity:0.4; }
+      100% { opacity:0; transform:translateY(-80px) scale(0.6); }
+    }
+  `;
+  document.head.appendChild(style);
 }
 
-function adminLogout() {
-  sessionStorage.removeItem('salford_admin');
-  window.location.href = '/admin/login';
+// ── Smooth scroll ─────────────────────────────────────────────
+function initSmoothScroll() {
+  document.querySelectorAll('a[href^="#"]').forEach(link => {
+    link.addEventListener('click', e => {
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { e.preventDefault(); el.scrollIntoView({ behavior:'smooth', block:'start' }); }
+    });
+  });
 }
+
+// ── Image error fallback ──────────────────────────────────────
+function initImageFallbacks() {
+  document.querySelectorAll('img').forEach(img => {
+    img.addEventListener('error', function() {
+      if (!this.dataset.errored) {
+        this.dataset.errored = '1';
+        this.src = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect width="400" height="400" fill="%230a0a0a"/><text x="200" y="210" text-anchor="middle" fill="%23c9a96e" font-family="serif" font-size="18" letter-spacing="4">SWAROVSKI</text></svg>';
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOAST NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+
+function showToast(message, type = 'success') {
+  const old = document.getElementById('toast-msg');
+  if (old) old.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'toast-msg';
+  const isSuccess = type === 'success';
+  toast.style.cssText = `
+    position:fixed;bottom:2rem;${lang==='ar'?'left':'right'}:2rem;z-index:99999;
+    padding:1rem 1.5rem;border-radius:12px;
+    display:flex;align-items:center;gap:0.6rem;
+    font-size:0.875rem;font-weight:600;
+    color:#fff;max-width:340px;word-break:break-word;
+    background:${isSuccess
+      ? 'linear-gradient(135deg,#1a6b1a,#2d9e2d)'
+      : 'linear-gradient(135deg,#6b1a1a,#9e2d2d)'};
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    animation:toastIn 0.3s ease;
+  `;
+  toast.innerHTML = `<i class="fas fa-${isSuccess?'check-circle':'exclamation-circle'}"></i>${message}`;
+  document.body.appendChild(toast);
+
+  if (!document.getElementById('toast-style')) {
+    const s = document.createElement('style');
+    s.id = 'toast-style';
+    s.textContent = '@keyframes toastIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}';
+    document.head.appendChild(s);
+  }
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN AUTHENTICATION
+// ═══════════════════════════════════════════════════════════════
 
 function checkAdminAuth() {
   if (window.location.pathname.startsWith('/admin/dashboard')) {
@@ -314,322 +362,387 @@ function checkAdminAuth() {
   }
 }
 
-// ── Admin Table Filter ────────────────────────────────────────
-function filterAdminTable(query) {
-  const q = query.toLowerCase();
-  document.querySelectorAll('#admin-products-table tbody tr').forEach(row => {
-    const name = row.getAttribute('data-name') || '';
-    row.style.display = name.includes(q) ? '' : 'none';
+async function doLogin(e) {
+  e.preventDefault();
+  const userEl = document.getElementById('login-user');
+  const passEl = document.getElementById('login-pass');
+  const errEl  = document.getElementById('login-err');
+  if (!userEl || !passEl) return;
+
+  const username = userEl.value.trim();
+  const password = passEl.value;
+
+  try {
+    const res = await fetch('/api/auth', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      sessionStorage.setItem('salford_admin', 'yes');
+      window.location.href = '/admin/dashboard';
+    } else {
+      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Invalid username or password'; }
+      passEl.value = '';
+      passEl.focus();
+    }
+  } catch(err) {
+    if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Connection error — please retry'; }
+  }
+}
+
+function adminLogout() {
+  sessionStorage.removeItem('salford_admin');
+  window.location.href = '/admin/login';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN TABS
+// ═══════════════════════════════════════════════════════════════
+
+function showTab(tabName) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+
+  const tab = document.getElementById(tabName + '-tab');
+  if (tab) tab.style.display = 'block';
+
+  // Highlight sidebar link
+  document.querySelectorAll('.sidebar-link').forEach(l => {
+    if (l.getAttribute('href') === '#' + tabName + '-tab') l.classList.add('active');
   });
 }
 
-// ── Product Modal ────────────────────────────────────────────
-function showAddModal() {
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN FILENAME PARSER
+// ═══════════════════════════════════════════════════════════════
+
+async function parseFilename() {
+  const inp = document.getElementById('parse-input');
+  const res = document.getElementById('parse-result');
+  if (!inp) return;
+  const filename = inp.value.trim();
+  if (!filename) { showToast('Enter a filename first', 'error'); return; }
+
+  try {
+    const r = await fetch('/api/parse-filename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename })
+    });
+    if (!r.ok) { showToast('Invalid filename format. Example: SWAROVSKI-5642976(550)', 'error'); return; }
+    const data = await r.json();
+
+    // Auto-fill form if open
+    const codeF  = document.getElementById('pf-code');
+    const priceF = document.getElementById('pf-price');
+    const isSetF = document.getElementById('pf-isset');
+    const catF   = document.getElementById('pf-cat');
+    if (codeF)  codeF.value  = data.codes.join('+');
+    if (priceF) priceF.value = data.price;
+    if (isSetF) isSetF.checked = data.isSet;
+    if (catF && data.isSet) catF.value = 'sets';
+
+    // Show result
+    if (res) {
+      res.style.display = 'block';
+      res.innerHTML = `
+        <strong><i class="fa fa-check" style="color:#27ae60"></i> Parsed!</strong><br/>
+        Code(s): <code>${data.codes.join(' + ')}</code><br/>
+        Price: <strong>${data.price} LYD</strong><br/>
+        ${data.isSet ? '<em>Detected as a SET</em>' : ''}
+      `;
+    }
+    showToast(`Code: ${data.codes.join('+')} · Price: ${data.price} LYD`, 'success');
+  } catch(err) { showToast('Parse failed: ' + err.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN PRODUCT MODAL  (Add / Edit)
+// ═══════════════════════════════════════════════════════════════
+
+function openAddModal() {
   const modal = document.getElementById('product-modal');
   if (!modal) return;
-  document.getElementById('modal-title').textContent = 'Add New Product';
-  document.getElementById('product-form').reset();
-  document.getElementById('f-id').value = '';
-  document.getElementById('f-instock').checked = true;
+  const title = document.getElementById('modal-title');
+  const form  = document.getElementById('product-form');
+  if (title) title.textContent = 'Add New Product';
+  if (form)  form.reset();
+  setField('pf-id', '');
+  setCheck('pf-instock', true);
+  setCheck('pf-featured', false);
+  setCheck('pf-isset', false);
+  setField('pf-qty', '10');
   modal.style.display = 'flex';
 }
 
-async function editProduct(id) {
+function openEditModal(product) {
   const modal = document.getElementById('product-modal');
   if (!modal) return;
-  try {
-    const res = await fetch(`/api/products/${id}`);
-    const p = await res.json();
-    document.getElementById('modal-title').textContent = 'Edit Product';
-    document.getElementById('f-id').value = p.id;
-    document.getElementById('f-codes').value = p.productCodes.join('+');
-    document.getElementById('f-price').value = p.price;
-    document.getElementById('f-name').value = p.name;
-    document.getElementById('f-nameAr').value = p.nameAr;
-    document.getElementById('f-category').value = p.category;
-    document.getElementById('f-images').value = p.images.join('\n');
-    document.getElementById('f-description').value = p.description;
-    document.getElementById('f-short').value = p.shortDescription;
-    document.getElementById('f-qty').value = p.quantity;
-    document.getElementById('f-featured').checked = p.featured;
-    document.getElementById('f-instock').checked = p.inStock;
-    document.getElementById('f-isset').checked = p.isSet;
-    modal.style.display = 'flex';
-  } catch(err) { alert('Failed to load product: ' + err.message); }
+  const title = document.getElementById('modal-title');
+  if (title) title.textContent = 'Edit Product';
+
+  setField('pf-id',         product.id);
+  setField('pf-code',       product.code);
+  setField('pf-price',      product.price);
+  setField('pf-orig-price', product.originalPrice || '');
+  setField('pf-name',       product.name);
+  setField('pf-short-desc', product.shortDesc || '');
+  setField('pf-desc',       product.description || '');
+  setField('pf-image',      product.image || (product.images && product.images[0]) || '');
+  setField('pf-qty',        product.quantity);
+  setCheck('pf-instock',    product.inStock);
+  setCheck('pf-featured',   product.featured);
+  setCheck('pf-isset',      product.isSet);
+
+  const catF = document.getElementById('pf-cat');
+  if (catF) catF.value = product.category || 'necklaces';
+
+  modal.style.display = 'flex';
 }
 
-function closeProductModal(e, force = false) {
-  if (force) {
-    const modal = document.getElementById('product-modal');
-    if (modal) modal.style.display = 'none';
-  }
+function closeProductModal() {
+  const modal = document.getElementById('product-modal');
+  if (modal) modal.style.display = 'none';
 }
 
 async function saveProduct(e) {
   e.preventDefault();
-  const id = document.getElementById('f-id').value;
-  const codesRaw = document.getElementById('f-codes').value.trim();
-  const price = parseInt(document.getElementById('f-price').value);
-  const isSet = document.getElementById('f-isset').checked || codesRaw.includes('+');
-  const productCodes = codesRaw.split('+').map(c => c.trim()).filter(Boolean);
-  const images = document.getElementById('f-images').value.split('\n').map(s => s.trim()).filter(Boolean);
-  const category = document.getElementById('f-category').value;
+  const id       = getField('pf-id');
+  const codeRaw  = getField('pf-code').trim();
+  const price    = parseInt(getField('pf-price')) || 0;
+  const origP    = parseInt(getField('pf-orig-price')) || undefined;
+  const isSet    = getChecked('pf-isset') || codeRaw.includes('+');
+  const codes    = codeRaw.split('+').map(c => c.trim()).filter(Boolean);
+  const image    = getField('pf-image').trim();
+  const category = isSet ? 'sets' : (getField('pf-cat') || 'necklaces');
 
-  const productData = {
+  if (!codeRaw || !price || !image) {
+    showToast('Code, Price, and Image are required', 'error');
+    return;
+  }
+
+  const payload = {
+    code:          codes.join('+'),
+    setCodes:      isSet ? codes : undefined,
     isSet,
-    productCodes,
-    brand: 'SWAROVSKI',
-    name: document.getElementById('f-name').value.trim(),
-    nameAr: document.getElementById('f-nameAr').value.trim(),
-    description: document.getElementById('f-description').value.trim(),
-    shortDescription: document.getElementById('f-short').value.trim(),
-    category: isSet ? 'Sets' : category,
+    name:          getField('pf-name').trim(),
+    shortDesc:     getField('pf-short-desc').trim(),
+    description:   getField('pf-desc').trim(),
+    category,
     price,
-    currency: 'دينار',
-    displayPrice: `${price} دينار`,
-    images,
-    originalImage: images[0] || '',
-    inStock: document.getElementById('f-instock').checked,
-    quantity: parseInt(document.getElementById('f-qty').value) || 0,
-    featured: document.getElementById('f-featured').checked,
+    originalPrice: origP,
+    image,
+    images:        [image],
+    inStock:       getChecked('pf-instock'),
+    quantity:      parseInt(getField('pf-qty')) || 0,
+    featured:      getChecked('pf-featured'),
   };
 
   try {
-    let res;
-    if (id) {
-      res = await fetch(`/api/products/${id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(productData)
-      });
+    const url    = id ? `/api/products/${id}` : '/api/products';
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+    if (r.ok) {
+      showToast(id ? 'Product updated!' : 'Product added!', 'success');
+      closeProductModal();
+      setTimeout(() => location.reload(), 900);
     } else {
-      res = await fetch('/api/products', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(productData)
-      });
-    }
-    if (res.ok) {
-      showToast(id ? 'Product updated successfully!' : 'Product added successfully!', 'success');
-      setTimeout(() => window.location.reload(), 1200);
-    } else {
-      const err = await res.json();
-      showToast('Error: ' + (err.error || 'Save failed'), 'error');
+      const err = await r.json().catch(() => ({}));
+      showToast('Save failed: ' + (err.error || r.status), 'error');
     }
   } catch(err) { showToast('Network error: ' + err.message, 'error'); }
 }
 
-async function deleteProductAdmin(id, name) {
-  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+// ── Delete confirm modal ──────────────────────────────────────
+let _deleteId = null;
+
+function confirmDelete(id, name) {
+  _deleteId = id;
+  const modal = document.getElementById('delete-modal');
+  const msg   = document.getElementById('delete-msg');
+  if (!modal) return;
+  if (msg) msg.innerHTML = `Are you sure you want to delete <strong>"${name}"</strong>?<br/><small style="color:#e74c3c">This action cannot be undone.</small>`;
+  modal.style.display = 'flex';
+}
+
+function closeDeleteModal() {
+  _deleteId = null;
+  const modal = document.getElementById('delete-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function executeDelete() {
+  if (!_deleteId) return;
+  const btn = document.getElementById('confirm-delete-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Deleting...'; }
   try {
-    const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-    if (res.ok) {
+    const r = await fetch(`/api/products/${_deleteId}`, { method: 'DELETE' });
+    if (r.ok) {
       showToast('Product deleted!', 'success');
-      setTimeout(() => window.location.reload(), 1000);
+      closeDeleteModal();
+      setTimeout(() => location.reload(), 800);
     } else {
       showToast('Delete failed', 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-trash"></i> Delete'; }
     }
-  } catch(err) { showToast('Network error', 'error'); }
+  } catch(err) {
+    showToast('Network error', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-trash"></i> Delete'; }
+  }
 }
 
-// ── Filename Parser ──────────────────────────────────────────
-async function parseFilenameAdmin() {
-  const filename = document.getElementById('parse-filename')?.value?.trim();
-  if (!filename) { showToast('Please enter a filename', 'error'); return; }
-  try {
-    const res = await fetch('/api/parse-filename', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ filename })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      showToast('Parse error: ' + err.error, 'error');
-      return;
-    }
-    const data = await res.json();
-    // Fill in the form
-    document.getElementById('f-codes').value = data.productCodes.join('+');
-    document.getElementById('f-price').value = data.price;
-    document.getElementById('f-isset').checked = data.isSet;
-    if (data.isSet) document.getElementById('f-category').value = 'Sets';
-    showToast(`Parsed! Code(s): ${data.productCodes.join('+')} | Price: ${data.price} دينار`, 'success');
-  } catch(err) { showToast('Parse failed: ' + err.message, 'error'); }
-}
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN SETTINGS FORM
+// ═══════════════════════════════════════════════════════════════
 
-// ── Settings ─────────────────────────────────────────────────
 async function saveSettings(e) {
   e.preventDefault();
+  const form = e.target;
   const data = {
-    facebookUrl:    document.getElementById('s-facebook')?.value,
-    instagramUrl:   document.getElementById('s-instagram')?.value,
-    whatsappNumber: document.getElementById('s-whatsapp')?.value,
-    heroTitleAr:    document.getElementById('s-heroAr')?.value,
-    heroTitleEn:    document.getElementById('s-heroEn')?.value,
+    facebookUrl:    form.facebookUrl?.value?.trim()    || '',
+    instagramUrl:   form.instagramUrl?.value?.trim()   || '',
+    heroTitleAr:    form.heroTitleAr?.value?.trim()    || '',
+    heroTitleEn:    form.heroTitleEn?.value?.trim()    || '',
+    heroSubtitleAr: form.heroSubtitleAr?.value?.trim() || '',
+    heroSubtitleEn: form.heroSubtitleEn?.value?.trim() || '',
+    adminUser:      form.adminUser?.value?.trim()      || '',
   };
+  // Only include password if changed
+  const newPass = form.adminPass?.value;
+  if (newPass) data.adminPass = newPass;
+
   try {
-    const res = await fetch('/api/settings', {
+    const r = await fetch('/api/settings', {
       method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (res.ok) {
-      showToast('Settings saved!', 'success');
-      siteSettings = {};
+    if (r.ok) {
+      _settings = null; // invalidate cache
+      showToast('Settings saved successfully!', 'success');
     } else {
-      showToast('Save failed', 'error');
+      showToast('Failed to save settings', 'error');
     }
-  } catch(err) { showToast('Network error', 'error'); }
+  } catch(err) { showToast('Network error: ' + err.message, 'error'); }
 }
 
-// ── Toast Notifications ──────────────────────────────────────
-function showToast(message, type = 'success') {
-  const existing = document.getElementById('toast-notification');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'toast-notification';
-  toast.style.cssText = `
-    position:fixed;bottom:2rem;${lang==='ar'?'left':'right'}:2rem;z-index:9999;
-    padding:1rem 1.5rem;border-radius:12px;font-size:0.85rem;font-weight:600;
-    display:flex;align-items:center;gap:0.6rem;
-    animation:slideInToast 0.3s ease;
-    ${type === 'success'
-      ? 'background:linear-gradient(135deg,#1a6b1a,#2d9e2d);color:#fff;'
-      : 'background:linear-gradient(135deg,#6b1a1a,#9e2d2d);color:#fff;'}
-    box-shadow:0 8px 30px rgba(0,0,0,0.4);
-  `;
-  toast.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':'exclamation-circle'}"></i> ${message}`;
-  document.body.appendChild(toast);
-
-  const style = document.createElement('style');
-  style.textContent = '@keyframes slideInToast{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}';
-  document.head.appendChild(style);
-
-  setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.3s'; setTimeout(()=>toast.remove(),300); }, 3500);
-}
-
-// ── Smooth scroll to sections ────────────────────────────────
-function initSmoothScroll() {
-  document.querySelectorAll('a[href^="#"]').forEach(link => {
-    link.addEventListener('click', e => {
-      const id = link.getAttribute('href').slice(1);
-      const el = document.getElementById(id);
-      if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
-    });
-  });
-}
-
-// ── Image lazy loading fallback ──────────────────────────────
-function initImageFallbacks() {
-  document.querySelectorAll('img[onerror]').forEach(img => {
-    if (!img.complete || img.naturalHeight === 0) {
-      img.onerror = () => {
-        img.src = 'https://via.placeholder.com/400x400/0a0a0a/c9a96e?text=SWAROVSKI';
-      };
-    }
-  });
-}
-
-// ── Hero number counter animation ─────────────────────────────
-function initCounters() {
-  const counters = document.querySelectorAll('.stat-num');
-  counters.forEach(counter => {
-    const target = parseInt(counter.textContent.replace(/\D/g,''));
-    if (!target) return;
-    const suffix = counter.textContent.replace(/\d/g,'');
-    let current = 0;
-    const step = Math.ceil(target / 40);
-    const timer = setInterval(() => {
-      current = Math.min(current + step, target);
-      counter.textContent = current + suffix;
-      if (current >= target) clearInterval(timer);
-    }, 40);
-  });
-}
-
-// ── Admin: Toggle stock status quickly ───────────────────────
+// ── Quick toggle stock inline ─────────────────────────────────
 async function toggleStock(id, current) {
   try {
     await fetch(`/api/products/${id}`, {
       method: 'PUT',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inStock: !current })
     });
-    window.location.reload();
-  } catch(e) {}
+    location.reload();
+  } catch(e) { showToast('Update failed', 'error'); }
 }
 
-// ── Admin: Toggle featured quickly ─────────────────────────────
+// ── Quick toggle featured inline ──────────────────────────────
 async function toggleFeatured(id, current) {
   try {
     await fetch(`/api/products/${id}`, {
       method: 'PUT',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ featured: !current })
     });
-    window.location.reload();
-  } catch(e) {}
+    location.reload();
+  } catch(e) { showToast('Update failed', 'error'); }
 }
 
-// ── Keyboard navigation ──────────────────────────────────────
-function initKeyboard() {
-  document.addEventListener('keydown', e => {
-    // Close modals on Escape
-    if (e.key === 'Escape') {
-      closeModal();
-      const pm = document.getElementById('product-modal');
-      if (pm) pm.style.display = 'none';
-    }
+// ── Table search filter ───────────────────────────────────────
+function filterAdminTable(q) {
+  const query = q.toLowerCase();
+  document.querySelectorAll('.admin-table tbody tr').forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(query) ? '' : 'none';
   });
 }
 
-// ── Initialize all ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function getField(id)        { const el = document.getElementById(id); return el ? el.value : ''; }
+function setField(id, val)   { const el = document.getElementById(id); if (el) el.value = val; }
+function getChecked(id)      { const el = document.getElementById(id); return el ? el.checked : false; }
+function setCheck(id, val)   { const el = document.getElementById(id); if (el) el.checked = !!val; }
+
+// ═══════════════════════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════════
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeBuyModal();
+    closeProductModal();
+    closeDeleteModal();
+    closeLightbox();
+    if (menuOpen) closeMenu();
+    const sb = document.getElementById('search-bar');
+    if (sb && searchOpen) { sb.style.display = 'none'; searchOpen = false; }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+
 document.addEventListener('DOMContentLoaded', () => {
   checkAdminAuth();
-  initParticles();
   initHeaderScroll();
-  initLiveSearch();
+  initParticles();
   initAnimations();
   initSmoothScroll();
   initImageFallbacks();
-  initKeyboard();
 
-  // Counter animation on hero
-  if (document.querySelector('.stat-num')) {
-    setTimeout(initCounters, 500);
+  // Wire up admin confirm-delete button dynamically
+  const confirmBtn = document.getElementById('confirm-delete-btn');
+  if (confirmBtn) confirmBtn.addEventListener('click', executeDelete);
+
+  // Wire up admin login form
+  const loginForm = document.getElementById('login-form');
+  if (loginForm) loginForm.addEventListener('submit', doLogin);
+
+  // Language preference storage
+  if (lang) {
+    localStorage.setItem('salford_lang', lang);
   }
-
-  // Auto-detect language if none set and redirect
-  const storedLang = localStorage.getItem('salford_lang');
-  if (storedLang && storedLang !== lang) {
-    const path = window.location.pathname;
-    if (path === '/' || path === '/ar/' || path === '/en/') {
-      window.location.href = `/${storedLang}/`;
-    }
-  }
-
-  // Store language preference
-  if (lang) localStorage.setItem('salford_lang', lang);
 });
 
-// ── Public API ────────────────────────────────────────────────
-window.openBuyModal     = openBuyModal;
-window.closeModal       = closeModal;
-window.closeProductModal= closeProductModal;
+// ═══════════════════════════════════════════════════════════════
+//  GLOBAL EXPORTS (called from inline onclick attributes)
+// ═══════════════════════════════════════════════════════════════
+
+window.openBuy          = openBuy;
+window.closeBuyModal    = closeBuyModal;
+window.trackBuy         = trackBuy;
 window.switchImg        = switchImg;
-window.toggleMobileMenu = toggleMobileMenu;
-window.closeMobileMenu  = closeMobileMenu;
-window.doSearch         = doSearch;
-window.toggleFilters    = toggleFilters;
-window.adminLogin       = adminLogin;
+window.openLightbox     = openLightbox;
+window.closeLightbox    = closeLightbox;
+window.toggleSearch     = toggleSearch;
+window.toggleMenu       = toggleMenu;
+window.closeMenu        = closeMenu;
+
+// Admin
+window.doLogin          = doLogin;
 window.adminLogout      = adminLogout;
-window.filterAdminTable = filterAdminTable;
-window.showAddModal     = showAddModal;
-window.editProduct      = editProduct;
-window.deleteProductAdmin = deleteProductAdmin;
+window.showTab          = showTab;
+window.openAddModal     = openAddModal;
+window.openEditModal    = openEditModal;
+window.closeProductModal= closeProductModal;
 window.saveProduct      = saveProduct;
+window.confirmDelete    = confirmDelete;
+window.closeDeleteModal = closeDeleteModal;
+window.executeDelete    = executeDelete;
+window.parseFilename    = parseFilename;
 window.saveSettings     = saveSettings;
-window.parseFilenameAdmin = parseFilenameAdmin;
+window.filterAdminTable = filterAdminTable;
 window.toggleStock      = toggleStock;
 window.toggleFeatured   = toggleFeatured;
