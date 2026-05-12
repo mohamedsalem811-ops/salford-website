@@ -205,6 +205,7 @@ function productCard(p: Product, lang: string) {
   <div class="card-body">
     <p class="card-code"><span class="authentic-dot">✦</span> ${p.code}</p>
     <h3 class="card-name">${p.name}</h3>
+    ${p.shortDesc ? `<p class="card-short-desc">${p.shortDesc}</p>` : ''}
     ${p.price > 0 ? `<p class="card-price">${p.price.toLocaleString()} <span class="card-price-cur">LYD</span>${p.originalPrice && p.originalPrice > p.price ? ` <s class="card-price-orig">${p.originalPrice.toLocaleString()}</s>` : ''}</p>` : ''}
     <div class="card-footer">
       ${p.inStock
@@ -377,8 +378,18 @@ app.get('/admin/dashboard', c => {
 
   const html = `
 <div class="admin-wrap">
+  <!-- ─── Mobile Admin Header ─── -->
+  <div class="admin-mobile-header">
+    <div class="admin-mobile-brand">
+      <span class="sb-logo-s" style="font-family:'Playfair Display',serif;font-weight:700;font-size:1.4rem;">S</span><span style="color:#f0e8eb;font-size:0.95rem;font-family:'Playfair Display',serif;">alford</span>
+    </div>
+    <button class="admin-mobile-menu-btn" onclick="toggleAdminSidebar()" aria-label="Menu">
+      <i class="fa fa-bars"></i>
+    </button>
+  </div>
+
   <!-- ─── Sidebar ─── -->
-  <aside class="admin-sidebar">
+  <aside class="admin-sidebar" id="admin-sidebar">
     <div class="sidebar-brand">
       <div class="sidebar-logo-wordmark">
         <span class="sb-logo-s">S</span><span class="sb-logo-rest">alford</span>
@@ -720,24 +731,30 @@ app.get('/admin/dashboard', c => {
           <label>Original Price (LYD) <small>crossed-out if higher</small></label>
           <input type="number" id="pf-orig-price" min="0" placeholder="e.g. 680"/>
         </div>
-        <!-- Image Upload -->
+        <!-- Multi-Media Upload -->
         <div class="form-group form-full">
-          <label><i class="fa fa-image"></i> Product Image *</label>
-          <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('pf-image-file').click()">
-            <div class="upload-placeholder" id="upload-placeholder">
-              <i class="fa fa-cloud-arrow-up"></i>
-              <p>Click to upload image</p>
-              <small>JPG, PNG, WEBP — max 5MB</small>
-            </div>
-            <img id="upload-preview" style="display:none;max-height:180px;border-radius:8px;object-fit:contain;"/>
-          </div>
-          <input type="file" id="pf-image-file" accept="image/*" style="display:none;" onchange="handleImageUpload(this)"/>
+          <label>
+            <i class="fa fa-photo-film"></i> Photos &amp; Video
+            <span id="media-count" style="font-weight:400;text-transform:none;font-size:0.75rem;margin-left:8px;color:#B76E79;">0 / 5</span>
+          </label>
+          <div id="media-strip" class="media-strip"></div>
+          <button type="button" class="media-add-btn" onclick="document.getElementById('pf-media-file').click()">
+            <i class="fa fa-plus"></i> Add Photo or Video
+          </button>
+          <input type="file" id="pf-media-file" accept="image/*,video/*" multiple style="display:none;"
+            onchange="handleMediaFiles(this)"/>
           <input type="hidden" id="pf-image"/>
-          <div style="margin-top:8px;">
-            <small style="color:#888;">Or paste URL directly:</small>
-            <input type="url" id="pf-image-url" placeholder="https://..." style="margin-top:4px;"
-              oninput="handleImageUrl(this.value)"/>
+          <input type="hidden" id="pf-images-json" value="[]"/>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+            <small style="color:#b89aa0;white-space:nowrap;">Or add by URL:</small>
+            <input type="url" id="pf-media-url" placeholder="https://... (image or video URL)"
+              style="flex:1;" />
+            <button type="button" onclick="handleMediaUrl(document.getElementById('pf-media-url').value)"
+              class="btn-secondary btn-sm"><i class="fa fa-plus"></i></button>
           </div>
+          <small style="color:#b89aa0;margin-top:6px;display:block;">
+            Up to 5 items &nbsp;·&nbsp; Images max 10 MB &nbsp;·&nbsp; Videos max 200 MB (Full HD MP4)
+          </small>
         </div>
         <div class="form-group form-full">
           <label>Short Description <small>(one line)</small></label>
@@ -1146,7 +1163,7 @@ ${nav(lang)}
               <div><span>${tr('buyNow',lang)}</span><small>Instagram</small></div>
             </a>
           </div>` : `<div class="out-of-stock-notice"><i class="fa fa-clock"></i> ${tr('outOfStock',lang)}</div>`}
-          <div class="detail-desc"><p>${p.description}</p></div>
+          <div class="detail-desc"><p style="direction:ltr;text-align:left;">${p.description}</p></div>
           ${p.isSet && p.setItems ? `
           <div class="set-includes-box">
             <h4><i class="fa fa-box-open"></i> ${tr('setContains', lang)}</h4>

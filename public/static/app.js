@@ -30,11 +30,11 @@ function initHeaderScroll() {
   if (!header) return;
   window.addEventListener('scroll', () => {
     if (window.scrollY > 60) {
-      header.style.background = 'rgba(0,0,0,0.98)';
-      header.style.boxShadow  = '0 4px 30px rgba(0,0,0,0.8)';
+      header.style.background = 'rgba(247,241,236,0.98)';
+      header.style.boxShadow  = '0 4px 20px rgba(183,110,121,0.15)';
     } else {
-      header.style.background = 'rgba(0,0,0,0.92)';
-      header.style.boxShadow  = 'none';
+      header.style.background = 'rgba(247,241,236,0.94)';
+      header.style.boxShadow  = '0 2px 20px rgba(183,110,121,0.08)';
     }
   }, { passive: true });
 }
@@ -51,7 +51,6 @@ function toggleSearch() {
     if (inp) setTimeout(() => inp.focus(), 50);
   }
 }
-// Close search on outside click
 document.addEventListener('click', e => {
   if (!searchOpen) return;
   const bar  = document.getElementById('search-bar');
@@ -62,7 +61,7 @@ document.addEventListener('click', e => {
   }
 });
 
-// ── Mobile menu toggle ────────────────────────────────────────
+// ── Mobile menu toggle — iOS compatible ──────────────────────
 let menuOpen = false;
 function toggleMenu() {
   menuOpen ? closeMenu() : openMenu();
@@ -72,53 +71,104 @@ function openMenu() {
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'mobile-nav-overlay';
+    // iOS: use -webkit-overflow-scrolling and avoid fixed positioning issues
     overlay.style.cssText = `
-      position:fixed;inset:0;z-index:9000;
-      background:rgba(0,0,0,0.97);
+      position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000;
+      background:rgba(247,241,236,0.98);
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       gap:2rem;padding:2rem;
-      animation:fadeInMenu 0.25s ease;
+      -webkit-overflow-scrolling:touch;
+      overflow-y:auto;
     `;
-    const style = document.createElement('style');
-    style.textContent = '@keyframes fadeInMenu{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}';
-    document.head.appendChild(style);
+
+    // inject animation style once
+    if (!document.getElementById('mobile-nav-style')) {
+      const style = document.createElement('style');
+      style.id = 'mobile-nav-style';
+      style.textContent = `
+        @keyframes fadeInMenu{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
+        #mobile-nav-overlay { animation: fadeInMenu 0.22s ease; }
+        #mobile-nav-overlay a:hover { color: #B76E79 !important; }
+        .hamburger.open span:nth-child(1){transform:rotate(45deg) translate(5px,5px);}
+        .hamburger.open span:nth-child(2){opacity:0;}
+        .hamburger.open span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px);}
+      `;
+      document.head.appendChild(style);
+    }
 
     const close = document.createElement('button');
-    close.style.cssText = 'position:absolute;top:1.5rem;right:1.5rem;font-size:1.8rem;color:#bfd7ff;background:none;border:none;cursor:pointer;';
+    close.style.cssText = 'position:absolute;top:1.2rem;right:1.2rem;font-size:1.6rem;color:#B76E79;background:none;border:none;cursor:pointer;padding:8px;-webkit-tap-highlight-color:transparent;';
     close.innerHTML = '<i class="fa fa-times"></i>';
-    close.onclick = closeMenu;
+    close.setAttribute('aria-label', 'Close menu');
+    // use touchend for instant iOS response
+    close.addEventListener('touchend', e => { e.preventDefault(); closeMenu(); });
+    close.addEventListener('click', closeMenu);
     overlay.appendChild(close);
 
+    // Rose gold divider
+    const divider = document.createElement('div');
+    divider.style.cssText = 'width:48px;height:2px;background:linear-gradient(90deg,transparent,#B76E79,transparent);border-radius:2px;margin-bottom:0.5rem;';
+    overlay.appendChild(divider);
+
     const links = [
-      { href: `/${lang}/`,                      label: lang==='ar' ? 'الرئيسية'           : 'Home'              },
-      { href: `/${lang}/products`,               label: lang==='ar' ? 'جميع المنتجات'      : 'All Products'       },
-      { href: `/${lang}/sets`,                   label: lang==='ar' ? 'الأطقم والمجموعات'  : 'Sets & Collections' },
-      { href: `/${lang}/products?cat=necklaces`, label: lang==='ar' ? 'القلائد'            : 'Necklaces'          },
-      { href: `/${lang}/products?cat=earrings`,  label: lang==='ar' ? 'الأقراط'            : 'Earrings'           },
-      { href: `/${lang}/products?cat=bracelets`, label: lang==='ar' ? 'الأساور'            : 'Bracelets'          },
+      { href: `/${lang}/`,                      icon:'fa-home',        label: lang==='ar' ? 'الرئيسية'           : 'Home'              },
+      { href: `/${lang}/products`,               icon:'fa-gem',         label: lang==='ar' ? 'جميع المنتجات'      : 'All Products'       },
+      { href: `/${lang}/sets`,                   icon:'fa-layer-group', label: lang==='ar' ? 'الأطقم والمجموعات'  : 'Sets & Collections' },
+      { href: `/${lang}/products?cat=necklaces`, icon:'fa-diamond',     label: lang==='ar' ? 'القلائد'            : 'Necklaces'          },
+      { href: `/${lang}/products?cat=earrings`,  icon:'fa-star',        label: lang==='ar' ? 'الأقراط'            : 'Earrings'           },
+      { href: `/${lang}/products?cat=bracelets`, icon:'fa-link',        label: lang==='ar' ? 'الأساور'            : 'Bracelets'          },
     ];
+
     links.forEach(l => {
       const a = document.createElement('a');
       a.href = l.href;
-      a.textContent = l.label;
-      a.style.cssText = 'color:#bfd7ff;font-size:1.4rem;font-weight:600;letter-spacing:0.05em;transition:color 0.2s;';
-      a.onmouseenter = () => a.style.color = '#ffffff';
-      a.onmouseleave = () => a.style.color = '#bfd7ff';
+      a.innerHTML = `<i class="fa ${l.icon}" style="width:22px;text-align:center;color:#B76E79;margin-${lang==='ar'?'left':'right'}:10px;"></i>${l.label}`;
+      a.style.cssText = `
+        color:#2F2A2C;font-size:1.25rem;font-weight:600;letter-spacing:0.03em;
+        display:flex;align-items:center;padding:10px 20px;
+        border-radius:12px;width:100%;max-width:300px;
+        transition:background 0.2s,color 0.2s;
+        -webkit-tap-highlight-color:transparent;
+        text-decoration:none;
+      `;
+      // Touch-friendly active state
+      a.addEventListener('touchstart', () => { a.style.background='rgba(183,110,121,0.10)'; }, {passive:true});
+      a.addEventListener('touchend',   () => { a.style.background=''; });
       overlay.appendChild(a);
     });
 
+    // Language switch at bottom
+    const otherLang = lang === 'ar' ? 'en' : 'ar';
+    const otherLabel = lang === 'ar' ? 'English' : 'العربية';
+    const langBtn = document.createElement('a');
+    langBtn.href = `/${otherLang}/`;
+    langBtn.innerHTML = `<i class="fa fa-globe" style="margin-${lang==='ar'?'left':'right'}:8px;"></i>${otherLabel}`;
+    langBtn.style.cssText = `
+      margin-top:1rem;color:#B76E79;font-size:0.95rem;font-weight:700;
+      border:1.5px solid rgba(183,110,121,0.35);border-radius:20px;
+      padding:8px 24px;display:flex;align-items:center;
+      -webkit-tap-highlight-color:transparent;
+    `;
+    overlay.appendChild(langBtn);
+
     document.body.appendChild(overlay);
   }
+
   overlay.style.display = 'flex';
+  // iOS scroll lock: use position fixed on body
+  document.body.style.position = 'fixed';
+  document.body.style.width = '100%';
   document.body.style.overflow = 'hidden';
   menuOpen = true;
-
   const ham = document.getElementById('hamburger');
   if (ham) ham.classList.add('open');
 }
+
 function closeMenu() {
   const overlay = document.getElementById('mobile-nav-overlay');
   if (overlay) overlay.style.display = 'none';
+  document.body.style.position = '';
+  document.body.style.width = '';
   document.body.style.overflow = '';
   menuOpen = false;
   const ham = document.getElementById('hamburger');
@@ -126,13 +176,12 @@ function closeMenu() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  BUY MODAL  (FB + IG only)
+//  BUY MODAL
 // ═══════════════════════════════════════════════════════════════
 
 async function openBuy(id, name, code) {
   const modal = document.getElementById('buy-modal');
   if (!modal) return;
-
   const nameEl = document.getElementById('modal-product-name');
   if (nameEl) nameEl.textContent = name;
 
@@ -140,23 +189,18 @@ async function openBuy(id, name, code) {
     ? `مرحباً، أريد الاستفسار عن: ${code} — ${name}`
     : `Hi! I'm interested in: ${code} — ${name}`;
   const enc = encodeURIComponent(msg);
-
   const s = await fetchSettings();
   const fbBase = (s.facebookUrl || 'https://www.facebook.com/salfordlibya').replace(/\/$/, '');
   const igUrl  = s.instagramUrl  || 'https://www.instagram.com/salford.libya/';
-
   const fbPageId = fbBase.split('/').pop();
-  const fbLink   = `https://m.me/${fbPageId}?text=${enc}`;
-  const igLink   = igUrl;
 
   const fbBtn = document.getElementById('modal-fb-btn');
   const igBtn = document.getElementById('modal-ig-btn');
-  if (fbBtn) fbBtn.href = fbLink;
-  if (igBtn) igBtn.href = igLink;
+  if (fbBtn) fbBtn.href = `https://m.me/${fbPageId}?text=${enc}`;
+  if (igBtn) igBtn.href = igUrl;
 
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-
   setTimeout(() => { const first = modal.querySelector('a,button'); if (first) first.focus(); }, 50);
 }
 
@@ -165,7 +209,6 @@ function closeBuyModal() {
   if (modal) modal.style.display = 'none';
   document.body.style.overflow = '';
 }
-
 document.addEventListener('click', e => {
   const modal = document.getElementById('buy-modal');
   if (modal && e.target === modal) closeBuyModal();
@@ -180,20 +223,37 @@ function trackBuy(productId, channel) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  GALLERY & LIGHTBOX  (storefront)
+//  GALLERY & LIGHTBOX
 // ═══════════════════════════════════════════════════════════════
 
 function switchImg(src) {
   const mainImg = document.getElementById('main-img');
   if (mainImg) {
     mainImg.style.opacity = '0';
-    setTimeout(() => {
-      mainImg.src = src;
-      mainImg.style.opacity = '1';
-    }, 150);
+    setTimeout(() => { mainImg.src = src; mainImg.style.opacity = '1'; }, 150);
   }
-  document.querySelectorAll('.gallery-thumbs img').forEach(t => {
-    t.classList.toggle('thumb-active', t.src.endsWith(src) || t.getAttribute('src') === src);
+  document.querySelectorAll('.gallery-thumbs img, .gallery-thumbs video').forEach(t => {
+    t.classList.toggle('thumb-active', t.src === src || t.getAttribute('src') === src);
+  });
+}
+
+function switchMedia(src, type) {
+  const mainImg   = document.getElementById('main-img');
+  const mainVideo = document.getElementById('main-video');
+  if (type === 'video') {
+    if (mainImg)   { mainImg.style.display = 'none'; }
+    if (mainVideo) {
+      mainVideo.style.display = 'block';
+      mainVideo.src = src;
+      mainVideo.load();
+      mainVideo.style.opacity = '1';
+    }
+  } else {
+    if (mainVideo) { mainVideo.style.display = 'none'; mainVideo.pause(); }
+    if (mainImg)   { mainImg.style.display = 'block'; mainImg.src = src; }
+  }
+  document.querySelectorAll('.gallery-thumbs .thumb-item').forEach(t => {
+    t.classList.toggle('thumb-active', t.dataset.src === src);
   });
 }
 
@@ -202,13 +262,8 @@ function openLightbox(src) {
   if (!lb) {
     lb = document.createElement('div');
     lb.id = 'lightbox';
-    lb.style.cssText = `
-      position:fixed;inset:0;z-index:9999;
-      background:rgba(0,0,0,0.95);
-      display:flex;align-items:center;justify-content:center;
-      cursor:zoom-out;
-    `;
-    lb.innerHTML = '<img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,0.8);"/>';
+    lb.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(47,42,44,0.95);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+    lb.innerHTML = '<img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,0.6);"/>';
     lb.onclick = closeLightbox;
     document.body.appendChild(lb);
   }
@@ -216,27 +271,19 @@ function openLightbox(src) {
   lb.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
-
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
   if (lb) lb.style.display = 'none';
   document.body.style.overflow = '';
 }
-
-// ── Admin lightbox (separate from storefront) ─────────────────
 function openLightboxAdmin(src) {
   const lb  = document.getElementById('admin-lightbox');
   const img = document.getElementById('admin-lightbox-img');
-  if (!lb || !img) {
-    // Fallback: create dynamically if not in HTML
-    openLightbox(src);
-    return;
-  }
+  if (!lb || !img) { openLightbox(src); return; }
   img.src = src;
   lb.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
-
 function closeAdminLightbox() {
   const lb = document.getElementById('admin-lightbox');
   if (lb) lb.style.display = 'none';
@@ -251,53 +298,32 @@ function initAnimations() {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        entry.target.style.opacity    = '1';
-        entry.target.style.transform  = 'translateY(0)';
+        entry.target.style.opacity   = '1';
+        entry.target.style.transform = 'translateY(0)';
         observer.unobserve(entry.target);
       }
     });
   }, { threshold: 0.08 });
-
   document.querySelectorAll('.product-card, .set-card, .cat-card').forEach((el, i) => {
-    el.style.cssText += `
-      opacity:0;transform:translateY(28px);
-      transition:opacity 0.5s ease ${i * 0.06}s, transform 0.5s ease ${i * 0.06}s,
-                 border-color 0.3s, box-shadow 0.3s;
-    `;
+    el.style.cssText += `opacity:0;transform:translateY(28px);transition:opacity 0.5s ease ${i*0.06}s,transform 0.5s ease ${i*0.06}s,border-color 0.3s,box-shadow 0.3s;`;
     observer.observe(el);
   });
 }
 
-// ── Hero particles (icy blue palette) ────────────────────────
 function initParticles() {
   const container = document.getElementById('particles');
   if (!container) return;
-  const colors = ['#bfd7ff','#ffffff','#4a7ab5','#e8f0ff','#8ab4f8'];
-  for (let i = 0; i < 36; i++) {
+  const colors = ['#B76E79','#F3C6CF','#8B4A53','#F0A0AD','#EAA8B4'];
+  for (let i = 0; i < 32; i++) {
     const p = document.createElement('div');
-    p.style.cssText = `
-      position:absolute;border-radius:50%;pointer-events:none;
-      left:${Math.random()*100}%;top:${Math.random()*100}%;
-      width:${Math.random()*3+1}px;height:${Math.random()*3+1}px;
-      background:${colors[i % colors.length]};
-      animation:floatUp ${Math.random()*8+6}s ${Math.random()*6}s infinite ease-in-out;
-      opacity:0;
-    `;
+    p.style.cssText = `position:absolute;border-radius:50%;pointer-events:none;left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*3+1}px;height:${Math.random()*3+1}px;background:${colors[i%colors.length]};animation:floatUp ${Math.random()*8+6}s ${Math.random()*6}s infinite ease-in-out;opacity:0;`;
     container.appendChild(p);
   }
   const style = document.createElement('style');
-  style.textContent = `
-    @keyframes floatUp {
-      0%   { opacity:0; transform:translateY(0) scale(1); }
-      20%  { opacity:0.8; }
-      80%  { opacity:0.4; }
-      100% { opacity:0; transform:translateY(-80px) scale(0.6); }
-    }
-  `;
+  style.textContent = '@keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(1)}20%{opacity:0.8}80%{opacity:0.4}100%{opacity:0;transform:translateY(-80px) scale(0.6)}}';
   document.head.appendChild(style);
 }
 
-// ── Smooth scroll ─────────────────────────────────────────────
 function initSmoothScroll() {
   document.querySelectorAll('a[href^="#"]').forEach(link => {
     link.addEventListener('click', e => {
@@ -308,13 +334,12 @@ function initSmoothScroll() {
   });
 }
 
-// ── Image error fallback ──────────────────────────────────────
 function initImageFallbacks() {
   document.querySelectorAll('img').forEach(img => {
     img.addEventListener('error', function() {
       if (!this.dataset.errored) {
         this.dataset.errored = '1';
-        this.src = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect width="400" height="400" fill="%23000000"/><text x="200" y="210" text-anchor="middle" fill="%23bfd7ff" font-family="serif" font-size="18" letter-spacing="4">SALFORD</text></svg>';
+        this.src = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect width="400" height="400" fill="%23F7F1EC"/><text x="200" y="210" text-anchor="middle" fill="%23B76E79" font-family="serif" font-size="18" letter-spacing="4">SALFORD</text></svg>';
       }
     });
   });
@@ -327,7 +352,6 @@ function initImageFallbacks() {
 function showToast(message, type = 'success') {
   const old = document.getElementById('toast-msg');
   if (old) old.remove();
-
   const toast = document.createElement('div');
   toast.id = 'toast-msg';
   const isSuccess = type === 'success';
@@ -337,15 +361,12 @@ function showToast(message, type = 'success') {
     display:flex;align-items:center;gap:0.6rem;
     font-size:0.875rem;font-weight:600;
     color:#fff;max-width:340px;word-break:break-word;
-    background:${isSuccess
-      ? 'linear-gradient(135deg,#1a4a1a,#2d7e2d)'
-      : 'linear-gradient(135deg,#4a1a1a,#8e2d2d)'};
-    box-shadow:0 8px 32px rgba(0,0,0,0.6);
+    background:${isSuccess?'linear-gradient(135deg,#7a3d45,#B76E79)':'linear-gradient(135deg,#4a1a1a,#8e2d2d)'};
+    box-shadow:0 8px 32px rgba(0,0,0,0.25);
     animation:toastIn 0.3s ease;
   `;
   toast.innerHTML = `<i class="fas fa-${isSuccess?'check-circle':'exclamation-circle'}"></i> ${message}`;
   document.body.appendChild(toast);
-
   if (!document.getElementById('toast-style')) {
     const s = document.createElement('style');
     s.id = 'toast-style';
@@ -360,87 +381,200 @@ function showToast(message, type = 'success') {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  IMAGE UPLOAD — BASE64 HANDLER
+//  MULTI-IMAGE + VIDEO UPLOAD  (up to 5 media items)
 // ═══════════════════════════════════════════════════════════════
 
-function handleImageUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
+// Stores array of { type:'image'|'video', data: base64|url, name: string }
+let _mediaSlots = [];   // max 5
+const MAX_SLOTS  = 5;
+const MAX_IMG_MB = 10;
+const MAX_VID_MB = 200; // full HD video
 
-  // Size check (5 MB max)
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Image too large — max 5 MB', 'error');
-    input.value = '';
+/**
+ * Rebuild the visual media strip from _mediaSlots.
+ * Called after every add / remove operation.
+ */
+function renderMediaStrip() {
+  const strip = document.getElementById('media-strip');
+  const count = document.getElementById('media-count');
+  if (!strip) return;
+
+  strip.innerHTML = '';
+
+  _mediaSlots.forEach((slot, idx) => {
+    const item = document.createElement('div');
+    item.className = 'media-slot';
+    item.style.cssText = `
+      position:relative;width:90px;height:90px;border-radius:10px;overflow:hidden;
+      border:2px solid rgba(183,110,121,0.35);background:#1a1215;flex-shrink:0;
+      cursor:pointer;transition:border-color 0.2s;
+    `;
+    item.title = slot.name || '';
+
+    if (slot.type === 'video') {
+      item.innerHTML = `
+        <video src="${slot.data}" style="width:100%;height:100%;object-fit:cover;" muted playsinline preload="metadata"></video>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);">
+          <i class="fa fa-play-circle" style="font-size:1.8rem;color:#fff;"></i>
+        </div>
+      `;
+    } else {
+      item.innerHTML = `<img src="${slot.data}" style="width:100%;height:100%;object-fit:cover;" />`;
+    }
+
+    // Remove button
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.style.cssText = `
+      position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;
+      background:rgba(231,76,60,0.85);color:#fff;border:none;cursor:pointer;
+      font-size:0.65rem;display:flex;align-items:center;justify-content:center;
+      z-index:2;line-height:1;
+    `;
+    rm.innerHTML = '<i class="fa fa-times"></i>';
+    rm.onclick = (e) => { e.stopPropagation(); removeMediaSlot(idx); };
+    item.appendChild(rm);
+
+    // Primary badge on first item
+    if (idx === 0) {
+      const badge = document.createElement('div');
+      badge.style.cssText = `
+        position:absolute;bottom:3px;left:3px;background:rgba(183,110,121,0.9);
+        color:#fff;font-size:0.55rem;font-weight:700;padding:2px 5px;
+        border-radius:4px;letter-spacing:0.04em;text-transform:uppercase;
+      `;
+      badge.textContent = 'MAIN';
+      item.appendChild(badge);
+    }
+
+    strip.appendChild(item);
+  });
+
+  // Add more slot (if under max)
+  if (_mediaSlots.length < MAX_SLOTS) {
+    const addBtn = document.createElement('div');
+    addBtn.style.cssText = `
+      width:90px;height:90px;border-radius:10px;flex-shrink:0;
+      border:2px dashed rgba(183,110,121,0.35);background:rgba(183,110,121,0.04);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      cursor:pointer;transition:border-color 0.2s,background 0.2s;
+      color:#B76E79;font-size:0.7rem;font-weight:600;gap:6px;
+    `;
+    addBtn.innerHTML = '<i class="fa fa-plus" style="font-size:1.2rem;"></i><span>Add</span>';
+    addBtn.onmouseenter = () => { addBtn.style.borderColor='#B76E79'; addBtn.style.background='rgba(183,110,121,0.08)'; };
+    addBtn.onmouseleave = () => { addBtn.style.borderColor='rgba(183,110,121,0.35)'; addBtn.style.background='rgba(183,110,121,0.04)'; };
+    addBtn.onclick = () => document.getElementById('pf-media-file').click();
+    strip.appendChild(addBtn);
+  }
+
+  // Update count badge
+  if (count) count.textContent = `${_mediaSlots.length} / ${MAX_SLOTS}`;
+
+  // Sync hidden fields
+  syncMediaToFields();
+}
+
+function removeMediaSlot(idx) {
+  _mediaSlots.splice(idx, 1);
+  renderMediaStrip();
+}
+
+/**
+ * Sync _mediaSlots → hidden pf-image (primary) and pf-images-json (all)
+ */
+function syncMediaToFields() {
+  const primary = _mediaSlots[0] ? _mediaSlots[0].data : '';
+  setField('pf-image', primary);
+
+  const allData = _mediaSlots.map(s => ({ type: s.type, data: s.data }));
+  setField('pf-images-json', JSON.stringify(allData));
+}
+
+/**
+ * Handle file input change — supports images and videos.
+ */
+function handleMediaFiles(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+
+  const remaining = MAX_SLOTS - _mediaSlots.length;
+  const toProcess = files.slice(0, remaining);
+
+  if (files.length > remaining) {
+    showToast(`Max ${MAX_SLOTS} media items — only first ${remaining} added`, 'error');
+  }
+
+  let processed = 0;
+  toProcess.forEach(file => {
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+
+    if (!isVideo && !isImage) {
+      showToast(`Unsupported file: ${file.name}`, 'error');
+      processed++;
+      if (processed === toProcess.length) renderMediaStrip();
+      return;
+    }
+
+    const maxMB = isVideo ? MAX_VID_MB : MAX_IMG_MB;
+    if (file.size > maxMB * 1024 * 1024) {
+      showToast(`${file.name} too large — max ${maxMB}MB`, 'error');
+      processed++;
+      if (processed === toProcess.length) renderMediaStrip();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      _mediaSlots.push({ type: isVideo ? 'video' : 'image', data: e.target.result, name: file.name });
+      processed++;
+      if (processed === toProcess.length) {
+        renderMediaStrip();
+        showToast(`${toProcess.length} file(s) added`, 'success');
+      }
+    };
+    reader.onerror = () => {
+      showToast(`Failed to read: ${file.name}`, 'error');
+      processed++;
+      if (processed === toProcess.length) renderMediaStrip();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Reset input so same files can be re-selected
+  input.value = '';
+}
+
+/**
+ * Add a media item by URL (image or video).
+ */
+function handleMediaUrl(url) {
+  const trimmed = (url || '').trim();
+  const urlInput = document.getElementById('pf-media-url');
+
+  if (!trimmed) return;
+  if (_mediaSlots.length >= MAX_SLOTS) {
+    showToast(`Max ${MAX_SLOTS} media items reached`, 'error');
     return;
   }
 
-  // Type check
-  if (!file.type.startsWith('image/')) {
-    showToast('Please select a valid image file', 'error');
-    input.value = '';
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const base64 = e.target.result;
-
-    // Store in hidden field
-    setField('pf-image', base64);
-
-    // Show preview
-    const preview     = document.getElementById('upload-preview');
-    const placeholder = document.getElementById('upload-placeholder');
-    if (preview) {
-      preview.src          = base64;
-      preview.style.display = 'block';
-    }
-    if (placeholder) placeholder.style.display = 'none';
-
-    // Clear URL field to avoid conflict
-    const urlField = document.getElementById('pf-image-url');
-    if (urlField) urlField.value = '';
-
-    showToast('Image uploaded successfully', 'success');
-  };
-  reader.onerror = () => showToast('Failed to read image file', 'error');
-  reader.readAsDataURL(file);
+  // Detect if it's a video URL by extension
+  const isVideo = /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(trimmed);
+  _mediaSlots.push({ type: isVideo ? 'video' : 'image', data: trimmed, name: trimmed.split('/').pop() });
+  renderMediaStrip();
+  showToast('URL added to media', 'success');
+  if (urlInput) urlInput.value = '';
 }
 
-function handleImageUrl(url) {
-  const preview     = document.getElementById('upload-preview');
-  const placeholder = document.getElementById('upload-placeholder');
-
-  if (url && url.trim()) {
-    setField('pf-image', url.trim());
-    if (preview) {
-      preview.src           = url.trim();
-      preview.style.display = 'block';
-      preview.onerror       = () => {
-        preview.style.display  = 'none';
-        if (placeholder) placeholder.style.display = 'flex';
-        showToast('Could not load image from URL', 'error');
-      };
-    }
-    if (placeholder) placeholder.style.display = 'none';
-  } else {
-    setField('pf-image', '');
-    if (preview)     { preview.style.display = 'none'; preview.src = ''; }
-    if (placeholder)   placeholder.style.display = 'flex';
-  }
+function resetMediaSlots() {
+  _mediaSlots = [];
+  renderMediaStrip();
 }
 
-function resetImageUpload() {
-  setField('pf-image', '');
-  const preview     = document.getElementById('upload-preview');
-  const placeholder = document.getElementById('upload-placeholder');
-  const fileInput   = document.getElementById('pf-image-file');
-  const urlInput    = document.getElementById('pf-image-url');
-  if (preview)     { preview.style.display = 'none'; preview.src = ''; }
-  if (placeholder)   placeholder.style.display = 'flex';
-  if (fileInput)     fileInput.value = '';
-  if (urlInput)      urlInput.value  = '';
-}
+// Legacy compat shims (used by old onclick handlers)
+function handleImageUpload(input) { handleMediaFiles(input); }
+function handleImageUrl(url)       { handleMediaUrl(url); }
+function resetImageUpload()        { resetMediaSlots(); }
 
 // ═══════════════════════════════════════════════════════════════
 //  ADMIN AUTHENTICATION
@@ -460,27 +594,21 @@ async function doLogin(e) {
   const passEl = document.getElementById('login-pass');
   const errEl  = document.getElementById('login-err');
   if (!userEl || !passEl) return;
-
-  const username = userEl.value.trim();
-  const password = passEl.value;
-
   try {
     const res  = await fetch('/api/auth', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ username, password })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: userEl.value.trim(), password: passEl.value })
     });
     const data = await res.json();
     if (data.ok) {
       sessionStorage.setItem('salford_admin', 'yes');
       window.location.href = '/admin/dashboard';
     } else {
-      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Invalid username or password'; }
-      passEl.value = '';
-      passEl.focus();
+      if (errEl) { errEl.style.display = 'flex'; errEl.textContent = 'Invalid username or password'; }
+      passEl.value = ''; passEl.focus();
     }
   } catch(err) {
-    if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Connection error — please retry'; }
+    if (errEl) { errEl.style.display = 'flex'; errEl.textContent = 'Connection error — please retry'; }
   }
 }
 
@@ -496,17 +624,52 @@ function adminLogout() {
 function showTab(tabName) {
   document.querySelectorAll('.admin-tab').forEach(t => t.style.display = 'none');
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-
   const tab = document.getElementById(tabName + '-tab');
   if (tab) tab.style.display = 'block';
-
   document.querySelectorAll('.sidebar-link').forEach(l => {
     if (l.getAttribute('href') === '#' + tabName + '-tab') l.classList.add('active');
   });
+  // Close mobile sidebar if open
+  const sidebar = document.getElementById('mobile-admin-sidebar');
+  if (sidebar) sidebar.style.display = 'none';
+}
+
+// ─── Mobile admin sidebar toggle ─────────────────────────────
+function toggleAdminSidebar() {
+  let sidebar = document.getElementById('mobile-admin-sidebar');
+  if (!sidebar) {
+    // Clone the desktop sidebar content
+    const desktopSidebar = document.querySelector('.admin-sidebar');
+    if (!desktopSidebar) return;
+
+    sidebar = document.createElement('div');
+    sidebar.id = 'mobile-admin-sidebar';
+    sidebar.style.cssText = `
+      position:fixed;top:0;left:0;width:280px;height:100%;z-index:8000;
+      background:#211619;border-right:1px solid rgba(183,110,121,0.20);
+      overflow-y:auto;-webkit-overflow-scrolling:touch;
+      box-shadow:4px 0 30px rgba(0,0,0,0.5);
+      transition:transform 0.28s ease;
+    `;
+    sidebar.innerHTML = desktopSidebar.innerHTML;
+    document.body.appendChild(sidebar);
+
+    // Backdrop
+    const backdrop = document.createElement('div');
+    backdrop.id = 'admin-sidebar-backdrop';
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:7999;background:rgba(0,0,0,0.5);';
+    backdrop.onclick = () => { sidebar.style.display='none'; backdrop.style.display='none'; };
+    document.body.appendChild(backdrop);
+  }
+
+  const backdrop = document.getElementById('admin-sidebar-backdrop');
+  const isVisible = sidebar.style.display === 'flex' || sidebar.style.display === 'block';
+  sidebar.style.display   = isVisible ? 'none' : 'block';
+  if (backdrop) backdrop.style.display = isVisible ? 'none' : 'block';
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ADMIN FILENAME PARSER  (renamed to parseFilenameAdmin)
+//  ADMIN FILENAME PARSER
 // ═══════════════════════════════════════════════════════════════
 
 async function parseFilenameAdmin() {
@@ -515,17 +678,13 @@ async function parseFilenameAdmin() {
   if (!inp) return;
   const filename = inp.value.trim();
   if (!filename) { showToast('Enter a filename first', 'error'); return; }
-
   try {
     const r = await fetch('/api/parse-filename', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ filename })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename })
     });
     if (!r.ok) { showToast('Invalid filename format. Example: 5642976(550)', 'error'); return; }
     const data = await r.json();
-
-    // Auto-fill form if modal is open
     const codeF  = document.getElementById('pf-code');
     const priceF = document.getElementById('pf-price');
     const isSetF = document.getElementById('pf-isset');
@@ -533,29 +692,19 @@ async function parseFilenameAdmin() {
     if (codeF)  codeF.value   = data.codes.join('+');
     if (priceF) priceF.value  = data.price;
     if (isSetF) isSetF.checked = data.isSet;
-    if (catF && data.isSet)  catF.value = 'sets';
-
+    if (catF && data.isSet) catF.value = 'sets';
     if (res) {
       res.style.display = 'block';
-      res.innerHTML = `
-        <strong><i class="fa fa-check" style="color:#27ae60"></i> Parsed!</strong><br/>
-        Code(s): <code>${data.codes.join(' + ')}</code><br/>
-        Price: <strong>${data.price} LYD</strong><br/>
-        ${data.isSet ? '<em>Detected as a SET</em>' : ''}
-      `;
+      res.innerHTML = `<strong><i class="fa fa-check" style="color:#27ae60"></i> Parsed!</strong><br/>Code(s): <code>${data.codes.join(' + ')}</code><br/>Price: <strong>${data.price} LYD</strong>${data.isSet?'<br/><em>Detected as a SET</em>':''}`;
     }
     showToast(`Code: ${data.codes.join('+')} · Price: ${data.price} LYD`, 'success');
   } catch(err) { showToast('Parse failed: ' + err.message, 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ADMIN PRODUCT MODAL  (Add / Edit)
+//  ADMIN PRODUCT MODAL  — FIXED Edit + Multi-media
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * Open the Add Product modal.
- * @param {boolean} isSet — pre-check the "Is Set" checkbox when true
- */
 function openAddModal(isSet = false) {
   const modal = document.getElementById('product-modal');
   if (!modal) return;
@@ -565,16 +714,17 @@ function openAddModal(isSet = false) {
   if (title) title.textContent = isSet ? 'Add New Set' : 'Add New Product';
   if (form)  form.reset();
 
-  // Clear all fields explicitly
-  setField('pf-id', '');
+  setField('pf-id',      '');
+  setField('pf-image',   '');
+  setField('pf-images-json', '[]');
   setCheck('pf-instock',  true);
   setCheck('pf-featured', false);
   setCheck('pf-isset',    isSet);
 
-  // Reset image upload area
-  resetImageUpload();
+  // Reset media slots
+  _mediaSlots = [];
+  renderMediaStrip();
 
-  // If opening as a set, also set category
   if (isSet) {
     const catF = document.getElementById('pf-cat');
     if (catF) catF.value = 'sets';
@@ -582,8 +732,15 @@ function openAddModal(isSet = false) {
 
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  // Scroll modal to top on reopen
+  const box = modal.querySelector('.modal-box');
+  if (box) box.scrollTop = 0;
 }
 
+/**
+ * openEditModal — FIXED: properly loads ALL existing images/videos
+ * Works for both newly added products and existing ones.
+ */
 function openEditModal(product) {
   const modal = document.getElementById('product-modal');
   if (!modal) return;
@@ -591,50 +748,60 @@ function openEditModal(product) {
   const title = document.getElementById('modal-title');
   if (title) title.textContent = product.isSet ? 'Edit Set' : 'Edit Product';
 
-  setField('pf-id',         product.id);
-  setField('pf-code',       product.code);
-  setField('pf-price',      product.price   || '');
+  // ── Text fields ──
+  setField('pf-id',         product.id           || '');
+  setField('pf-code',       product.code         || '');
+  setField('pf-price',      product.price > 0 ? product.price : '');
   setField('pf-orig-price', product.originalPrice || '');
-  setField('pf-name',       product.name);
-  setField('pf-short-desc', product.shortDesc   || '');
-  setField('pf-desc',       product.description || '');
-  setCheck('pf-instock',    product.inStock);
-  setCheck('pf-featured',   product.featured);
-  setCheck('pf-isset',      product.isSet);
+  setField('pf-name',       product.name         || '');
+  setField('pf-short-desc', product.shortDesc    || '');
+  setField('pf-desc',       product.description  || '');
+  setCheck('pf-instock',    !!product.inStock);
+  setCheck('pf-featured',   !!product.featured);
+  setCheck('pf-isset',      !!product.isSet);
 
   const catF = document.getElementById('pf-cat');
   if (catF) catF.value = product.category || 'necklaces';
 
-  // Restore image into upload area
-  const existingImg = product.image || (product.images && product.images[0]) || '';
-  setField('pf-image', existingImg);
+  // ── Restore media slots from product data ──
+  _mediaSlots = [];
 
-  const preview     = document.getElementById('upload-preview');
-  const placeholder = document.getElementById('upload-placeholder');
-  const urlField    = document.getElementById('pf-image-url');
+  // Support both new format (mediaItems array) and old format (images array)
+  const mediaItems = product.mediaItems || [];
+  const imagesList = product.images     || [];
+  const primaryImg = product.image      || '';
 
-  if (existingImg) {
-    if (preview) {
-      preview.src           = existingImg;
-      preview.style.display = 'block';
-    }
-    if (placeholder) placeholder.style.display = 'none';
-    // Only populate URL field if it's a real URL (not base64)
-    if (urlField && !existingImg.startsWith('data:')) {
-      urlField.value = existingImg;
-    }
-  } else {
-    if (preview)     { preview.style.display = 'none'; preview.src = ''; }
-    if (placeholder)   placeholder.style.display = 'flex';
-    if (urlField)      urlField.value = '';
+  if (mediaItems.length > 0) {
+    // New multi-media format
+    mediaItems.forEach(m => {
+      if (m && m.data) {
+        _mediaSlots.push({ type: m.type || 'image', data: m.data, name: m.name || '' });
+      }
+    });
+  } else if (imagesList.length > 0) {
+    // Old images[] format — treat all as images
+    imagesList.forEach((img, i) => {
+      if (img) _mediaSlots.push({ type: 'image', data: img, name: `image-${i+1}` });
+    });
+  } else if (primaryImg) {
+    // Fallback: just the single image
+    _mediaSlots.push({ type: 'image', data: primaryImg, name: 'image-1' });
   }
 
+  renderMediaStrip();
+
   // Clear file input
-  const fileInput = document.getElementById('pf-image-file');
+  const fileInput = document.getElementById('pf-media-file');
   if (fileInput) fileInput.value = '';
+
+  const urlInput = document.getElementById('pf-media-url');
+  if (urlInput) urlInput.value = '';
 
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  // Scroll to top
+  const box = modal.querySelector('.modal-box');
+  if (box) box.scrollTop = 0;
 }
 
 function closeProductModal() {
@@ -646,24 +813,24 @@ function closeProductModal() {
 async function saveProduct(e) {
   e.preventDefault();
 
-  const id       = getField('pf-id');
-  const codeRaw  = getField('pf-code').trim();
-  const price    = parseInt(getField('pf-price'))      || 0;
-  const origP    = parseInt(getField('pf-orig-price')) || undefined;
-  const isSet    = getChecked('pf-isset') || codeRaw.includes('+');
-  const codes    = codeRaw.split('+').map(c => c.trim()).filter(Boolean);
-  const image    = getField('pf-image').trim();
+  const id      = getField('pf-id');
+  const codeRaw = getField('pf-code').trim();
+  const price   = parseInt(getField('pf-price'))      || 0;
+  const origP   = parseInt(getField('pf-orig-price')) || undefined;
+  const isSet   = getChecked('pf-isset') || codeRaw.includes('+');
+  const codes   = codeRaw.split('+').map(c => c.trim()).filter(Boolean);
   const category = isSet ? 'sets' : (getField('pf-cat') || 'necklaces');
 
-  // Validation — code and image are required; price is optional
-  if (!codeRaw) {
-    showToast('Product code is required', 'error');
+  if (!codeRaw) { showToast('Product code is required', 'error'); return; }
+  if (_mediaSlots.length === 0) {
+    showToast('Please add at least one image or video', 'error');
     return;
   }
-  if (!image) {
-    showToast('Please upload an image or enter an image URL', 'error');
-    return;
-  }
+
+  const primaryMedia = _mediaSlots[0];
+  const primaryImage = primaryMedia.type === 'image' ? primaryMedia.data : '';
+  const allImages    = _mediaSlots.filter(s => s.type === 'image').map(s => s.data);
+  const mediaItems   = _mediaSlots.map(s => ({ type: s.type, data: s.data, name: s.name || '' }));
 
   const payload = {
     code:          codes.join('+'),
@@ -675,13 +842,13 @@ async function saveProduct(e) {
     category,
     price,
     originalPrice: origP,
-    image,
-    images:        [image],
+    image:         allImages[0] || primaryMedia.data,
+    images:        allImages.length > 0 ? allImages : [primaryMedia.data],
+    mediaItems,   // new field: full array incl. videos
     inStock:       getChecked('pf-instock'),
     featured:      getChecked('pf-featured'),
   };
 
-  // Show saving state
   const saveBtn = document.getElementById('save-product-btn');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...'; }
 
@@ -689,9 +856,8 @@ async function saveProduct(e) {
     const url    = id ? `/api/products/${id}` : '/api/products';
     const method = id ? 'PUT' : 'POST';
     const r = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload)
+      method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
     if (r.ok) {
       showToast(id ? 'Product updated!' : 'Product added!', 'success');
@@ -710,7 +876,6 @@ async function saveProduct(e) {
 
 // ── Delete confirm modal ──────────────────────────────────────
 let _deleteId = null;
-
 function confirmDelete(id, name) {
   _deleteId = id;
   const modal = document.getElementById('delete-modal');
@@ -719,13 +884,11 @@ function confirmDelete(id, name) {
   if (msg) msg.innerHTML = `Are you sure you want to delete <strong>"${name}"</strong>?<br/><small style="color:#e74c3c">This action cannot be undone.</small>`;
   modal.style.display = 'flex';
 }
-
 function closeDeleteModal() {
   _deleteId = null;
   const modal = document.getElementById('delete-modal');
   if (modal) modal.style.display = 'none';
 }
-
 async function executeDelete() {
   if (!_deleteId) return;
   const btn = document.getElementById('confirm-delete-btn');
@@ -747,7 +910,7 @@ async function executeDelete() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ADMIN SETTINGS FORM
+//  ADMIN SETTINGS
 // ═══════════════════════════════════════════════════════════════
 
 async function saveSettings(e) {
@@ -762,74 +925,60 @@ async function saveSettings(e) {
     heroSubtitleEn: form.heroSubtitleEn?.value?.trim() || '',
     adminUser:      form.adminUser?.value?.trim()      || '',
   };
-  // Only include password if changed
   const newPass = form.adminPass?.value;
   if (newPass) data.adminPass = newPass;
-
   const btn = form.querySelector('[type=submit]');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...'; }
-
   try {
     const r = await fetch('/api/settings', {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(data)
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
-    if (r.ok) {
-      _settings = null; // invalidate cache
-      showToast('Settings saved successfully!', 'success');
-    } else {
-      showToast('Failed to save settings', 'error');
-    }
+    if (r.ok) { _settings = null; showToast('Settings saved!', 'success'); }
+    else showToast('Failed to save settings', 'error');
   } catch(err) { showToast('Network error: ' + err.message, 'error'); }
-  finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> Save Settings'; }
-  }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> Save Settings'; } }
 }
 
-// ── Quick toggle stock inline ─────────────────────────────────
+// ── Stock / Featured quick toggles ───────────────────────────
 async function toggleStock(id, current) {
   try {
     const r = await fetch(`/api/products/${id}`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ inStock: !current })
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inStock: !current })
     });
-    if (r.ok) {
-      location.reload();
-    } else {
-      showToast('Update failed', 'error');
-    }
+    if (r.ok) location.reload();
+    else showToast('Update failed', 'error');
   } catch(e) { showToast('Update failed', 'error'); }
 }
-
-// ── Quick toggle featured inline ──────────────────────────────
 async function toggleFeatured(id, current) {
   try {
     const r = await fetch(`/api/products/${id}`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ featured: !current })
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ featured: !current })
     });
-    if (r.ok) {
-      location.reload();
-    } else {
-      showToast('Update failed', 'error');
-    }
+    if (r.ok) location.reload();
+    else showToast('Update failed', 'error');
   } catch(e) { showToast('Update failed', 'error'); }
 }
+async function toggleFeaturedCard(id, current) {
+  const btn = document.querySelector(`[data-feat-id="${id}"]`);
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+  try {
+    const r = await fetch(`/api/products/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ featured: !current })
+    });
+    if (r.ok) { showToast(!current ? 'Marked as Featured ★' : 'Removed from Featured', 'success'); setTimeout(() => location.reload(), 700); }
+    else { showToast('Update failed', 'error'); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
+  } catch(e) { showToast('Network error', 'error'); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
+}
 
-// ── Table search filter ───────────────────────────────────────
-/**
- * Filter an admin table by text query.
- * @param {string} q       — search query
- * @param {string} tableId — id of the <table> element (default: 'products-table')
- */
+// ── Table filter ──────────────────────────────────────────────
 function filterAdminTable(q, tableId = 'products-table') {
   const query = q.toLowerCase().trim();
   const table = document.getElementById(tableId);
   if (!table) {
-    // Fallback: search all admin tables
     document.querySelectorAll('.admin-table tbody tr').forEach(row => {
       row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
     });
@@ -838,30 +987,6 @@ function filterAdminTable(q, tableId = 'products-table') {
   table.querySelectorAll('tbody tr').forEach(row => {
     row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
   });
-}
-
-// ── Featured grid card toggle (Featured tab) ──────────────────
-async function toggleFeaturedCard(id, current) {
-  const btn = document.querySelector(`[data-feat-id="${id}"]`);
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
-
-  try {
-    const r = await fetch(`/api/products/${id}`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ featured: !current })
-    });
-    if (r.ok) {
-      showToast(!current ? 'Marked as Featured ★' : 'Removed from Featured', 'success');
-      setTimeout(() => location.reload(), 700);
-    } else {
-      showToast('Update failed', 'error');
-      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-    }
-  } catch(e) {
-    showToast('Network error', 'error');
-    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -879,11 +1004,8 @@ function setCheck(id, val) { const el = document.getElementById(id); if (el) el.
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    closeBuyModal();
-    closeProductModal();
-    closeDeleteModal();
-    closeLightbox();
-    closeAdminLightbox();
+    closeBuyModal(); closeProductModal(); closeDeleteModal();
+    closeLightbox(); closeAdminLightbox();
     if (menuOpen) closeMenu();
     const sb = document.getElementById('search-bar');
     if (sb && searchOpen) { sb.style.display = 'none'; searchOpen = false; }
@@ -902,71 +1024,60 @@ document.addEventListener('DOMContentLoaded', () => {
   initSmoothScroll();
   initImageFallbacks();
 
-  // Wire up confirm-delete button
+  // Initialize media strip if modal exists on page
+  if (document.getElementById('media-strip')) {
+    _mediaSlots = [];
+    renderMediaStrip();
+  }
+
   const confirmBtn = document.getElementById('confirm-delete-btn');
   if (confirmBtn) confirmBtn.addEventListener('click', executeDelete);
 
-  // Wire up admin login form
   const loginForm = document.getElementById('login-form');
   if (loginForm) loginForm.addEventListener('submit', doLogin);
 
-  // Admin lightbox backdrop click to close
   const adminLb = document.getElementById('admin-lightbox');
-  if (adminLb) adminLb.addEventListener('click', e => {
-    if (e.target === adminLb) closeAdminLightbox();
-  });
+  if (adminLb) adminLb.addEventListener('click', e => { if (e.target === adminLb) closeAdminLightbox(); });
 
-  // Language preference storage
   if (lang) localStorage.setItem('salford_lang', lang);
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  GLOBAL EXPORTS  (called from inline onclick attributes)
+//  GLOBAL EXPORTS
 // ═══════════════════════════════════════════════════════════════
 
-// ── Storefront ────────────────────────────────────────────────
-window.openBuy           = openBuy;
-window.closeBuyModal     = closeBuyModal;
-window.trackBuy          = trackBuy;
-window.switchImg         = switchImg;
-window.openLightbox      = openLightbox;
-window.closeLightbox     = closeLightbox;
-window.toggleSearch      = toggleSearch;
-window.toggleMenu        = toggleMenu;
-window.closeMenu         = closeMenu;
-
-// ── Admin — auth & nav ────────────────────────────────────────
-window.doLogin           = doLogin;
-window.adminLogout       = adminLogout;
-window.showTab           = showTab;
-
-// ── Admin — product modal ─────────────────────────────────────
-window.openAddModal      = openAddModal;
-window.openEditModal     = openEditModal;
-window.closeProductModal = closeProductModal;
-window.saveProduct       = saveProduct;
-
-// ── Admin — image upload ──────────────────────────────────────
-window.handleImageUpload = handleImageUpload;
-window.handleImageUrl    = handleImageUrl;
-window.resetImageUpload  = resetImageUpload;
-
-// ── Admin — lightbox ─────────────────────────────────────────
-window.openLightboxAdmin  = openLightboxAdmin;
-window.closeAdminLightbox = closeAdminLightbox;
-
-// ── Admin — delete ────────────────────────────────────────────
-window.confirmDelete     = confirmDelete;
-window.closeDeleteModal  = closeDeleteModal;
-window.executeDelete     = executeDelete;
-
-// ── Admin — filename parser (renamed) ─────────────────────────
-window.parseFilenameAdmin = parseFilenameAdmin;
-
-// ── Admin — settings ─────────────────────────────────────────
-window.saveSettings      = saveSettings;
-
-// ── Admin — table & toggles ───────────────────────────────────
+window.openBuy              = openBuy;
+window.closeBuyModal        = closeBuyModal;
+window.trackBuy             = trackBuy;
+window.switchImg            = switchImg;
+window.switchMedia          = switchMedia;
+window.openLightbox         = openLightbox;
+window.closeLightbox        = closeLightbox;
+window.toggleSearch         = toggleSearch;
+window.toggleMenu           = toggleMenu;
+window.closeMenu            = closeMenu;
+window.toggleAdminSidebar   = toggleAdminSidebar;
+window.doLogin              = doLogin;
+window.adminLogout          = adminLogout;
+window.showTab              = showTab;
+window.openAddModal         = openAddModal;
+window.openEditModal        = openEditModal;
+window.closeProductModal    = closeProductModal;
+window.saveProduct          = saveProduct;
+window.handleImageUpload    = handleImageUpload;
+window.handleImageUrl       = handleImageUrl;
+window.resetImageUpload     = resetImageUpload;
+window.handleMediaFiles     = handleMediaFiles;
+window.handleMediaUrl       = handleMediaUrl;
+window.resetMediaSlots      = resetMediaSlots;
+window.removeMediaSlot      = removeMediaSlot;
+window.openLightboxAdmin    = openLightboxAdmin;
+window.closeAdminLightbox   = closeAdminLightbox;
+window.confirmDelete        = confirmDelete;
+window.closeDeleteModal     = closeDeleteModal;
+window.executeDelete        = executeDelete;
+window.parseFilenameAdmin   = parseFilenameAdmin;
+window.saveSettings         = saveSettings;
 window.filterAdminTable     = filterAdminTable;
 window.toggleStock          = toggleStock;
 window.toggleFeatured       = toggleFeatured;

@@ -16,6 +16,7 @@ export interface Product {
   quantity: number;
   featured: boolean;
   setItems?: string[];     // names of items in a set
+  mediaItems?: Array<{type: 'image' | 'video', data: string, name: string}>;
 }
 
 export interface SiteSettings {

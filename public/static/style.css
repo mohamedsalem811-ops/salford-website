@@ -100,21 +100,22 @@ ul { list-style: none; }
   filter: drop-shadow(0 0 8px rgba(183,110,121,0.3));
 }
 .logo-alford {
-  font-size: 1.2rem;
+  font-size: 1.55rem;
   color: var(--text);
+  line-height: 1;
+  vertical-align: baseline;
 }
 .logo-dot {
   font-size: 0.6rem; color: var(--gold);
   margin-left: 3px; opacity: 0.8;
 }
 
-/* Arabic logo — full name, no split */
+/* Arabic logo — full name, no split — solid color so diacritics (dots) render correctly */
 .logo-ar-name {
   font-family: 'Cairo', sans-serif;
   font-size: 1.25rem; font-weight: 700;
-  background: linear-gradient(135deg, var(--rose-dim) 0%, var(--rose) 60%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--rose-dim);
+  /* NO gradient-clip here: -webkit-text-fill-color:transparent hides Arabic diacritic dots */
   letter-spacing: 0;
 }
 
@@ -286,16 +287,15 @@ ul { list-style: none; }
   background-clip: text;
   filter: drop-shadow(0 0 14px rgba(183,110,121,0.40));
 }
-/* Arabic hero name — full word styling */
+/* Arabic hero name — solid color so diacritic dots (نقاط) render correctly.
+   -webkit-text-fill-color:transparent kills dots on iOS/Safari — use color instead. */
 .hero-store-name-ar {
   font-family: 'Cairo', sans-serif;
   font-size: clamp(3rem, 8vw, 7rem);
-  font-weight: 900; line-height: 1;
+  font-weight: 900; line-height: 1.1;
   letter-spacing: 0; margin-bottom: 0;
-  background: linear-gradient(135deg, var(--rose-dim) 0%, var(--rose) 60%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 14px rgba(183,110,121,0.30));
+  color: var(--rose-dim);
+  text-shadow: 0 2px 20px rgba(183,110,121,0.25);
 }
 .hero-store-sub {
   font-family: 'Playfair Display', Georgia, serif;
@@ -729,6 +729,7 @@ ul { list-style: none; }
   margin-bottom: 24px;
 }
 .detail-desc { color: var(--text-soft); line-height: 1.85; margin-bottom: 20px; opacity: 0.85; }
+.detail-desc p { direction: ltr !important; text-align: left !important; }
 .detail-meta {
   display: flex; gap: 16px; flex-wrap: wrap;
   font-size: 0.8rem; color: var(--text-muted); opacity: 0.6;
@@ -781,10 +782,9 @@ ul { list-style: none; }
 .modal-brand-name-ar {
   font-family: 'Cairo', sans-serif;
   font-size: 1.6rem; font-weight: 800;
-  background: linear-gradient(135deg, var(--rose-dim) 0%, var(--rose) 60%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1;
+  /* solid color — gradient-clip breaks Arabic diacritic dot visibility */
+  color: var(--rose-dim);
+  line-height: 1.3;
 }
 .modal-brand-sub {
   font-family: 'Playfair Display', Georgia, serif;
@@ -843,13 +843,11 @@ ul { list-style: none; }
   background-clip: text;
 }
 .footer-logo-alford { font-size: 1.2rem; color: var(--text); }
-/* Arabic footer name */
+/* Arabic footer name — solid color so diacritics render correctly */
 .footer-logo-ar {
   font-family: 'Cairo', sans-serif;
   font-size: 1.4rem; font-weight: 800;
-  background: linear-gradient(135deg, var(--rose-dim) 0%, var(--rose) 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--rose-dim);
   margin-bottom: 4px;
 }
 .footer-store-sub {
@@ -1205,7 +1203,65 @@ ul { list-style: none; }
 .modal-small h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; color: #f0e8eb; }
 .modal-small p { color: #b89aa0; font-size: 0.9rem; margin-bottom: 0; opacity: 0.7; font-family: 'Inter', sans-serif; }
 
-/* Image upload area */
+/* ─── Multi-Media Strip (admin product form) ─── */
+.media-strip {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  min-height: 80px; margin-bottom: 10px;
+  padding: 8px; border-radius: var(--radius);
+  border: 2px dashed rgba(183,110,121,0.20);
+  background: #1a1215;
+}
+.media-strip:empty::before {
+  content: 'No media added yet';
+  color: #b89aa0; opacity: 0.35; font-size: 0.82rem;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; font-family: 'Inter', sans-serif;
+}
+.media-slot {
+  position: relative; width: 90px; height: 90px;
+  border-radius: var(--radius-sm); overflow: hidden;
+  border: 1px solid rgba(183,110,121,0.25);
+  background: #271920; flex-shrink: 0;
+  transition: var(--trans);
+}
+.media-slot:hover { border-color: var(--rose); }
+.media-slot img, .media-slot video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.media-slot-main {
+  position: absolute; top: 4px; left: 4px;
+  background: var(--rose); color: #fff;
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 4px;
+  font-family: 'Inter', sans-serif; pointer-events: none;
+}
+.media-slot-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,0.7); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; cursor: pointer; border: none;
+  transition: var(--trans); z-index: 2;
+}
+.media-slot-remove:hover { background: var(--red); }
+.media-slot-video-icon {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.35); color: #fff; font-size: 1.4rem;
+  pointer-events: none;
+}
+.media-add-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(183,110,121,0.30);
+  background: rgba(183,110,121,0.06); color: var(--rose);
+  font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: var(--trans);
+  font-family: 'Inter', sans-serif;
+}
+.media-add-btn:hover { background: rgba(183,110,121,0.14); border-color: var(--rose); }
+
+/* Image upload area (kept for backward compat) */
 .image-upload-area {
   border: 2px dashed rgba(183,110,121,0.30); border-radius: var(--radius);
   padding: 32px 20px; text-align: center; cursor: pointer;
@@ -1255,6 +1311,54 @@ ul { list-style: none; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; }
 .product-form { padding-top: 4px; }
 
+/* ─── Card short description ─── */
+.card-short-desc {
+  font-size: 0.75rem; color: var(--text-muted); opacity: 0.72;
+  line-height: 1.4; margin-top: 2px; margin-bottom: 6px;
+  font-family: 'Inter', sans-serif; font-style: italic;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ─── Admin mobile header ─── */
+.admin-mobile-header {
+  display: none; /* hidden on desktop */
+  align-items: center; justify-content: space-between;
+  padding: 14px 20px;
+  background: #211619;
+  border-bottom: 1px solid rgba(183,110,121,0.18);
+  position: sticky; top: 0; z-index: 300;
+}
+.admin-mobile-brand {
+  display: flex; align-items: baseline; gap: 2px;
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.admin-mobile-menu-btn {
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  background: rgba(183,110,121,0.10); color: var(--rose);
+  border: 1px solid rgba(183,110,121,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; cursor: pointer; transition: var(--trans);
+}
+.admin-mobile-menu-btn:hover { background: rgba(183,110,121,0.20); }
+
+/* Mobile sidebar overlay */
+.admin-sidebar-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+}
+.admin-sidebar-mobile {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: 260px; z-index: 401;
+  background: #211619;
+  border-right: 1px solid rgba(183,110,121,0.22);
+  overflow-y: auto;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  transform: translateX(-100%);
+  transition: transform 0.28s ease;
+}
+.admin-sidebar-mobile.open { transform: translateX(0); }
+
 /* ─── RESPONSIVE ──────────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .admin-stats { grid-template-columns: repeat(3, 1fr); }
@@ -1268,7 +1372,10 @@ ul { list-style: none; }
   .sets-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 900px) {
+  .admin-wrap { flex-direction: column; }
   .admin-sidebar { display: none; }
+  .admin-mobile-header { display: flex; }
+  .admin-main { padding: 20px 16px; }
   .detail-grid { grid-template-columns: 1fr; gap: 36px; }
   .admin-stats { grid-template-columns: repeat(2, 1fr); }
   .settings-grid { grid-template-columns: 1fr; }
@@ -1305,4 +1412,5 @@ ul { list-style: none; }
   .featured-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-store-name { font-size: clamp(3rem, 18vw, 6rem); }
   .hero-store-name-ar { font-size: clamp(2.4rem, 14vw, 5rem); }
+  .media-slot { width: 76px; height: 76px; }
 }
