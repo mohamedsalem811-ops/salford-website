@@ -1265,6 +1265,12 @@ ${nav(lang)}
             <i class="fa fa-certificate"></i>
             ${lang === 'ar' ? 'منتج أصلي 100٪' : '100% Authentic Product'}
           </div>
+          ${p.price > 0 ? `
+          <div class="detail-price">
+            <span class="detail-price-amount">${p.price.toLocaleString()}</span>
+            <span class="detail-price-cur">LYD</span>
+            ${p.originalPrice && p.originalPrice > p.price ? `<s class="detail-price-orig">${p.originalPrice.toLocaleString()} LYD</s>` : ''}
+          </div>` : ''}
           <p class="detail-stock ${p.inStock?'stock-in':'stock-out'}">
             <i class="fa fa-circle fa-xs"></i>
             ${p.inStock ? tr('inStock',lang) : tr('outOfStock',lang)}

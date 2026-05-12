@@ -540,6 +540,25 @@ ul { list-style: none; }
   font-size: 0.78rem; color: var(--text-muted); opacity: 0.55;
   font-weight: 400; text-decoration: line-through;
 }
+/* Detail page price */
+.detail-price {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 14px 0 10px;
+}
+.detail-price-amount {
+  font-size: 1.75rem; font-weight: 800;
+  color: var(--rose); letter-spacing: 0.01em;
+  font-family: 'Inter', sans-serif;
+}
+.detail-price-cur {
+  font-size: 0.85rem; font-weight: 600;
+  color: var(--rose); opacity: 0.7;
+  font-family: 'Inter', sans-serif;
+}
+.detail-price-orig {
+  font-size: 1rem; color: var(--text-muted);
+  font-weight: 400; text-decoration: line-through; opacity: 0.55;
+}
 .card-code {
   font-size: 0.7rem; color: var(--rose); opacity: 0.75;
   margin-bottom: 6px; letter-spacing: 0.08em;

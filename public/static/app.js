@@ -388,7 +388,45 @@ function showToast(message, type = 'success') {
 let _mediaSlots = [];   // max 5
 const MAX_SLOTS  = 5;
 const MAX_IMG_MB = 10;
-const MAX_VID_MB = 200; // full HD video
+const MAX_VID_MB = 50; // video stored as URL only — base64 videos not supported in D1
+
+/**
+ * Compress an image File using Canvas → JPEG, targeting ≤ 200 KB.
+ * Returns a base64 data URL string.
+ */
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      // Scale down so longest side ≤ 1200px
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      const MAX_DIM = 1200;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        if (w >= h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+        else        { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Iteratively lower quality until size ≤ 200 KB
+      let quality = 0.82;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (dataUrl.length > 200 * 1024 * (4/3) && quality > 0.3) {
+        quality -= 0.08;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve(dataUrl);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
 
 /**
  * Rebuild the visual media strip from _mediaSlots.
@@ -505,6 +543,7 @@ function handleMediaFiles(input) {
   }
 
   let processed = 0;
+
   toProcess.forEach(file => {
     const isVideo = file.type.startsWith('video/');
     const isImage = file.type.startsWith('image/');
@@ -516,29 +555,38 @@ function handleMediaFiles(input) {
       return;
     }
 
-    const maxMB = isVideo ? MAX_VID_MB : MAX_IMG_MB;
-    if (file.size > maxMB * 1024 * 1024) {
-      showToast(`${file.name} too large — max ${maxMB}MB`, 'error');
+    if (isVideo) {
+      // Videos cannot be base64-stored in D1 (too large).
+      // Require the user to paste a URL instead.
+      showToast(`Videos must be added via URL — paste a direct link below`, 'error');
       processed++;
       if (processed === toProcess.length) renderMediaStrip();
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = e => {
-      _mediaSlots.push({ type: isVideo ? 'video' : 'image', data: e.target.result, name: file.name });
-      processed++;
-      if (processed === toProcess.length) {
-        renderMediaStrip();
-        showToast(`${toProcess.length} file(s) added`, 'success');
-      }
-    };
-    reader.onerror = () => {
-      showToast(`Failed to read: ${file.name}`, 'error');
+    // Images — compress via Canvas before storing
+    if (file.size > MAX_IMG_MB * 1024 * 1024) {
+      showToast(`${file.name} too large — max ${MAX_IMG_MB} MB`, 'error');
       processed++;
       if (processed === toProcess.length) renderMediaStrip();
-    };
-    reader.readAsDataURL(file);
+      return;
+    }
+
+    showToast('Compressing image…', 'success');
+    compressImage(file)
+      .then(dataUrl => {
+        _mediaSlots.push({ type: 'image', data: dataUrl, name: file.name });
+        processed++;
+        if (processed === toProcess.length) {
+          renderMediaStrip();
+          showToast(`${toProcess.length} image(s) added`, 'success');
+        }
+      })
+      .catch(() => {
+        showToast(`Failed to compress: ${file.name}`, 'error');
+        processed++;
+        if (processed === toProcess.length) renderMediaStrip();
+      });
   });
 
   // Reset input so same files can be re-selected
