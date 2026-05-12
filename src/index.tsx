@@ -10,7 +10,7 @@ app.use('/static/*', serveStatic({ root: './public' }))
 app.use('/api/*', cors())
 
 // ─── Hero image ───────────────────────────────────────────────────────────────
-const HERO_IMAGE = 'https://www.genspark.ai/api/files/s/wr394uj9?cache_control=3600'
+const HERO_IMAGE = 'https://www.genspark.ai/api/files/s/Wl5b6Moi'
 
 // ─── D1 helpers ───────────────────────────────────────────────────────────────
 function rowToProduct(r: Record<string, unknown>): Product {
@@ -247,84 +247,53 @@ function nav(lang: string, active = '') {
   const otherLabel = lang === 'ar' ? 'EN' : 'عربي'
   return `
 <header class="site-header" id="site-header">
-  <!-- Top bar: promo strip -->
-  <div class="nav-top-bar">
-    <span>${lang === 'ar' ? '✦ مجوهرات أصلية 100٪ · Swarovski · Pandora · Tiffany &amp; Co ✦' : '✦ 100% Authentic · Swarovski · Pandora · Tiffany &amp; Co ✦'}</span>
-  </div>
-  <!-- Main nav row -->
   <div class="header-inner">
-    <!-- Left links -->
-    <nav class="main-nav main-nav-left" id="main-nav">
-      <a href="/${lang}/" class="${active==='home'?'nav-active':''}">${tr('home',lang)}</a>
-      <a href="/${lang}/products" class="${active==='products'?'nav-active':''}">${tr('products',lang)}</a>
-      <div class="nav-dropdown">
-        <a href="#" class="dropdown-trigger">${tr('categories',lang)}</a>
-        <div class="dropdown-menu">
-          <a href="/${lang}/products?cat=necklaces">${tr('necklaces',lang)}</a>
-          <a href="/${lang}/products?cat=earrings">${tr('earrings',lang)}</a>
-          <a href="/${lang}/products?cat=bracelets">${tr('bracelets',lang)}</a>
-        </div>
-      </div>
-    </nav>
-    <!-- Center logo -->
-    <a href="/${lang}/" class="logo-link logo-center">
+    <a href="/${lang}/" class="logo-link">
       <div class="logo-wordmark">
         ${lang === 'ar'
           ? `<span class="logo-ar-name">سالفورد ليبيا</span>`
           : `<span class="logo-s">S</span><span class="logo-alford">alford</span><span class="logo-dot">✦</span>`
         }
       </div>
-      <div class="logo-sub">${lang === 'ar' ? 'مجوهرات فاخرة' : 'L I B Y A'}</div>
     </a>
-    <!-- Right links -->
-    <nav class="main-nav main-nav-right">
-      <a href="/${lang}/sets" class="${active==='sets'?'nav-active':''}">${tr('sets',lang)}</a>
+    <nav class="main-nav" id="main-nav">
+      <a href="/${lang}/" class="${active==='home'?'active':''}">${tr('home',lang)}</a>
+      <a href="/${lang}/products" class="${active==='products'?'active':''}">${tr('products',lang)}</a>
+      <a href="/${lang}/sets" class="${active==='sets'?'active':''}">${tr('sets',lang)}</a>
       <div class="nav-dropdown">
-        <a href="#" class="dropdown-trigger">${tr('brands',lang)}</a>
-        <div class="dropdown-menu dropdown-menu-left">
-          <a href="/${lang}/products" class="brand-active-link">Swarovski</a>
-          <a href="#" class="brand-soon-link" onclick="return false;">Pandora <span class="coming-soon-tag">${tr('comingSoon',lang)}</span></a>
-          <a href="#" class="brand-soon-link" onclick="return false;">Tiffany &amp; Co. <span class="coming-soon-tag">${tr('comingSoon',lang)}</span></a>
+        <a href="#" class="dropdown-trigger">${tr('categories',lang)} <i class="fa fa-chevron-down fa-xs"></i></a>
+        <div class="dropdown-menu">
+          <a href="/${lang}/products?cat=necklaces"><i class="fa fa-circle-dot"></i> ${tr('necklaces',lang)}</a>
+          <a href="/${lang}/products?cat=earrings"><i class="fa fa-circle-dot"></i> ${tr('earrings',lang)}</a>
+          <a href="/${lang}/products?cat=bracelets"><i class="fa fa-circle-dot"></i> ${tr('bracelets',lang)}</a>
         </div>
       </div>
-      <div class="header-actions">
-        <button class="search-toggle" onclick="toggleSearch()" aria-label="Search"><i class="fa fa-search"></i></button>
-        <a href="/${other}/" class="lang-switch">${otherLabel}</a>
-        <a href="/admin/login" class="admin-icon" title="Admin"><i class="fa fa-lock"></i></a>
+      <div class="nav-dropdown">
+        <a href="#" class="dropdown-trigger">${tr('brands',lang)} <i class="fa fa-chevron-down fa-xs"></i></a>
+        <div class="dropdown-menu">
+          <a href="/${lang}/products" class="brand-active-link">
+            <span class="brand-dot brand-sw"></span> Swarovski
+          </a>
+          <a href="#" class="brand-soon-link" onclick="return false;">
+            <span class="brand-dot brand-pd"></span> Pandora
+            <span class="coming-soon-tag">${tr('comingSoon',lang)}</span>
+          </a>
+          <a href="#" class="brand-soon-link" onclick="return false;">
+            <span class="brand-dot brand-tf"></span> Tiffany &amp; Co.
+            <span class="coming-soon-tag">${tr('comingSoon',lang)}</span>
+          </a>
+        </div>
       </div>
     </nav>
-    <!-- Hamburger (mobile only) -->
-    <div class="mobile-header-actions">
+    <div class="header-actions">
       <button class="search-toggle" onclick="toggleSearch()" aria-label="Search"><i class="fa fa-search"></i></button>
+      <a href="/${other}/" class="lang-switch">${otherLabel}</a>
+      <a href="/admin/login" class="admin-icon" title="Admin"><i class="fa fa-lock"></i></a>
       <button class="hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
         <span></span><span></span><span></span>
       </button>
     </div>
   </div>
-  <!-- Mobile drawer -->
-  <div class="mobile-nav-overlay" id="mobile-nav-overlay" onclick="closeMenu()"></div>
-  <div class="mobile-nav-drawer" id="mobile-nav-drawer">
-    <div class="mobile-nav-header">
-      <div class="logo-wordmark">
-        ${lang === 'ar'
-          ? `<span class="logo-ar-name">سالفورد ليبيا</span>`
-          : `<span class="logo-s">S</span><span class="logo-alford">alford</span>`
-        }
-      </div>
-      <button onclick="closeMenu()" class="mobile-nav-close"><i class="fa fa-times"></i></button>
-    </div>
-    <nav class="mobile-nav-links">
-      <a href="/${lang}/">${tr('home',lang)}</a>
-      <a href="/${lang}/products">${tr('products',lang)}</a>
-      <a href="/${lang}/sets">${tr('sets',lang)}</a>
-      <a href="/${lang}/products?cat=necklaces">${tr('necklaces',lang)}</a>
-      <a href="/${lang}/products?cat=earrings">${tr('earrings',lang)}</a>
-      <a href="/${lang}/products?cat=bracelets">${tr('bracelets',lang)}</a>
-      <div class="mobile-nav-divider"></div>
-      <a href="/${other}/" class="mobile-lang">${otherLabel}</a>
-    </nav>
-  </div>
-  <!-- Search bar -->
   <div class="search-bar" id="search-bar" style="display:none;">
     <form action="/${lang}/products" method="get" class="search-form">
       <input type="text" name="q" placeholder="${tr('searchPlaceholder',lang)}" autocomplete="off"/>
@@ -369,46 +338,41 @@ function productCard(p: Product, lang: string) {
 // ─── FOOTER ───────────────────────────────────────────────────────────────────
 function footer(lang: string, s: SiteSettings) {
   return `
-<footer class="site-footer-apm">
-  <div class="footer-apm-top">
-    <div class="footer-apm-logo">
-      ${lang === 'ar'
-        ? `<div class="footer-logo-ar">سالفورد ليبيا</div>`
-        : `<div class="footer-logo-wordmark"><span class="footer-logo-s">S</span><span class="footer-logo-alford">alford</span></div>
-           <p class="footer-logo-sub">L I B Y A</p>`
-      }
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        ${lang === 'ar'
+          ? `<div class="footer-logo-ar">سالفورد ليبيا</div>`
+          : `<div class="footer-logo-wordmark">
+          <span class="footer-logo-s">S</span><span class="footer-logo-alford">alford</span>
+        </div>
+        <p class="footer-store-sub">Libya</p>`
+        }
+        <p class="footer-tagline">${lang === 'ar' ? 'مجوهرات أصلية فاخرة في ليبيا' : 'Authentic Luxury Jewelry in Libya'}</p>
+        <div class="footer-authentic-badge">
+          <i class="fa fa-certificate"></i>
+          ${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}
+        </div>
+      </div>
+      <div class="footer-links">
+        <h4>${lang==='ar'?'روابط':'Links'}</h4>
+        <a href="/${lang}/">${tr('home',lang)}</a>
+        <a href="/${lang}/products">${tr('products',lang)}</a>
+        <a href="/${lang}/sets">${tr('sets',lang)}</a>
+      </div>
+      <div class="footer-social">
+        <h4>${lang==='ar'?'تابعنا':'Follow Us'}</h4>
+        <a href="${s.facebookUrl}" target="_blank" rel="noopener"><i class="fab fa-facebook"></i> Facebook</a>
+        <a href="${s.instagramUrl}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> Instagram</a>
+      </div>
     </div>
-    <p class="footer-apm-tagline">${lang === 'ar' ? 'مجوهرات أصيلة فاخرة · Swarovski · Pandora · Tiffany & Co' : 'Authentic Luxury Jewelry · Swarovski · Pandora · Tiffany & Co'}</p>
-  </div>
-  <div class="footer-apm-mid">
-    <div class="footer-apm-col">
-      <h5>${lang==='ar'?'روابط':'Navigation'}</h5>
-      <a href="/${lang}/">${tr('home',lang)}</a>
-      <a href="/${lang}/products">${tr('products',lang)}</a>
-      <a href="/${lang}/sets">${tr('sets',lang)}</a>
-      <a href="/${lang}/products?cat=necklaces">${tr('necklaces',lang)}</a>
-      <a href="/${lang}/products?cat=earrings">${tr('earrings',lang)}</a>
-      <a href="/${lang}/products?cat=bracelets">${tr('bracelets',lang)}</a>
+    <div class="footer-bottom">
+      <p>© ${new Date().getFullYear()} <strong>${lang === 'ar' ? 'سالفورد ليبيا' : 'Salford Libya'}</strong> · ${tr('copyright', lang)}</p>
     </div>
-    <div class="footer-apm-col">
-      <h5>${lang==='ar'?'العلامات التجارية':'Our Brands'}</h5>
-      <a href="/${lang}/products">Swarovski</a>
-      <span class="footer-brand-soon">Pandora <em>${lang==='ar'?'قريباً':'Soon'}</em></span>
-      <span class="footer-brand-soon">Tiffany &amp; Co <em>${lang==='ar'?'قريباً':'Soon'}</em></span>
-    </div>
-    <div class="footer-apm-col">
-      <h5>${lang==='ar'?'تواصلي معنا':'Contact'}</h5>
-      <a href="${s.facebookUrl}" target="_blank" rel="noopener"><i class="fab fa-facebook"></i> Facebook</a>
-      <a href="${s.instagramUrl}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> Instagram</a>
-    </div>
-  </div>
-  <div class="footer-apm-bottom">
-    <span class="footer-apm-auth">✦ ${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</span>
-    <span>© ${new Date().getFullYear()} ${lang === 'ar' ? 'سالفورد ليبيا' : 'Salford Libya'} · ${tr('copyright', lang)}</span>
   </div>
 </footer>`
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  API ROUTES
@@ -968,148 +932,138 @@ app.get('/:lang/', async c => {
     { key: 'bracelets', icon: 'fa-link',    label: tr('bracelets',lang), count: all.filter(p=>p.category==='bracelets').length },
   ]
 
-  const MODEL_IMAGE = 'https://www.genspark.ai/api/files/s/QR2kjBZR'
   const html = `
 ${nav(lang, 'home')}
 <main>
-
-  <!-- ═══ HERO — Split panel ═══ -->
-  <section class="hero-apm">
-    <div class="hero-apm-text">
-      <p class="hero-eyebrow">✦ ${lang === 'ar' ? 'مجوهرات أصلية' : 'Authentic Luxury'}</p>
+  <section class="hero">
+    <div class="hero-bg-img" style="background-image:url('${HERO_IMAGE}')"></div>
+    <div class="hero-bg-overlay"></div>
+    <div class="hero-content">
+      <div class="hero-authentic-pill">
+        <i class="fa fa-certificate"></i>
+        ${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}
+      </div>
       ${lang === 'ar'
-        ? `<h1 class="hero-apm-title-ar">سالفورد<br><em>ليبيا</em></h1>`
-        : `<h1 class="hero-apm-title">Salford<br><em>Libya</em></h1>`
+        ? `<h1 class="hero-store-name-ar">سالفورد ليبيا</h1>`
+        : `<h1 class="hero-store-name"><span class="hero-name-s">S</span>alford</h1>
+      <p class="hero-store-sub">Libya</p>`
       }
-      <p class="hero-apm-sub">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</p>
-      <div class="hero-apm-brands">
-        <span>Swarovski</span><span class="hap-sep">·</span>
-        <span>Pandora</span><span class="hap-sep">·</span>
-        <span>Tiffany &amp; Co</span>
+      <h2 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h2>
+      <p class="hero-sub">${lang === 'ar' ? s.heroSubtitleAr : s.heroSubtitleEn}</p>
+      <div class="hero-brands-row">
+        <span class="hero-brand-item"><span class="hb-dot hb-sw"></span> Swarovski</span>
+        <span class="hero-brand-sep">·</span>
+        <span class="hero-brand-item"><span class="hb-dot hb-pd"></span> Pandora</span>
+        <span class="hero-brand-sep">·</span>
+        <span class="hero-brand-item"><span class="hb-dot hb-tf"></span> Tiffany &amp; Co</span>
       </div>
-      <div class="hero-apm-actions">
-        <a href="/${lang}/products" class="btn-apm-primary">${tr('shopNow', lang)}</a>
-        <a href="/${lang}/sets" class="btn-apm-ghost">${tr('setsTitle', lang)}</a>
+      <div class="hero-actions">
+        <a href="/${lang}/products" class="btn-hero-primary">
+          <i class="fa fa-gem"></i> ${tr('shopNow', lang)}
+        </a>
+        <a href="/${lang}/sets" class="btn-hero-outline">
+          <i class="fa fa-layer-group"></i> ${tr('setsTitle', lang)}
+        </a>
       </div>
     </div>
-    <div class="hero-apm-media">
-      <img src="${HERO_IMAGE}" alt="${lang === 'ar' ? 'سالفورد ليبيا — مجوهرات فاخرة' : 'Salford Libya — Luxury Jewelry'}" loading="eager"/>
-    </div>
+    <div class="hero-scroll"><i class="fa fa-chevron-down"></i></div>
   </section>
 
-  <!-- ═══ MARQUEE STRIP ═══ -->
-  <div class="marquee-strip">
-    <div class="marquee-track">
-      ${[
-        lang==='ar'?'مجوهرات أصلية 100٪':'100% Authentic','Swarovski',
-        lang==='ar'?'جودة مضمونة':'Guaranteed Quality','Pandora',
-        lang==='ar'?'نخدم ليبيا كاملاً':'All of Libya','Tiffany &amp; Co',
-        lang==='ar'?'طلب عبر إنستغرام':'Order via Instagram','✦',
-        lang==='ar'?'مجوهرات أصلية 100٪':'100% Authentic','Swarovski',
-        lang==='ar'?'جودة مضمونة':'Guaranteed Quality','Pandora',
-        lang==='ar'?'نخدم ليبيا كاملاً':'All of Libya','Tiffany &amp; Co',
-        lang==='ar'?'طلب عبر إنستغرام':'Order via Instagram','✦',
-      ].map(t=>`<span class="marquee-item">${t}</span>`).join('')}
+  <div class="trust-bar">
+    <div class="container">
+      <div class="trust-items">
+        <div class="trust-item"><i class="fa fa-certificate"></i><span>${lang==='ar'?'مجوهرات أصلية 100٪':'100% Authentic Jewelry'}</span></div>
+        <div class="trust-divider"></div>
+        <div class="trust-item"><i class="fa fa-gem"></i><span>${lang==='ar'?'جودة مضمونة':'Guaranteed Quality'}</span></div>
+        <div class="trust-divider"></div>
+        <div class="trust-item"><i class="fab fa-instagram"></i><span>${lang==='ar'?'طلب عبر السوشيال ميديا':'Order via Social Media'}</span></div>
+        <div class="trust-divider"></div>
+        <div class="trust-item"><i class="fa fa-map-marker-alt"></i><span>${lang==='ar'?'نخدم ليبيا كاملاً':'Serving All of Libya'}</span></div>
+      </div>
     </div>
   </div>
 
-  <!-- ═══ CATEGORIES — editorial tiles ═══ -->
-  <section class="section-editorial">
-    <div class="editorial-head">
-      <p class="editorial-eyebrow">${lang==='ar'?'تسوقي حسب الفئة':'Shop by Category'}</p>
-      <h2 class="editorial-title">${tr('categories', lang)}</h2>
-    </div>
-    <div class="cat-editorial-grid">
-      ${cats.map((cat, i) => `
-      <a href="/${lang}/products?cat=${cat.key}" class="cat-editorial-tile cat-tile-${i+1}">
-        <div class="cat-tile-overlay"></div>
-        <div class="cat-tile-body">
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">${tr('categories', lang)}</h2>
+      </div>
+      <div class="cat-grid">
+        ${cats.map(cat => `
+        <a href="/${lang}/products?cat=${cat.key}" class="cat-card">
+          <div class="cat-icon"><i class="fa ${cat.icon}"></i></div>
           <h3>${cat.label}</h3>
-          <span>${cat.count} ${lang === 'ar' ? 'منتج' : 'pieces'}</span>
-          <div class="cat-tile-cta">${lang==='ar'?'اكتشفي':'Discover'} <i class="fa fa-arrow-right fa-xs"></i></div>
-        </div>
-      </a>`).join('')}
-      <a href="/${lang}/sets" class="cat-editorial-tile cat-tile-sets">
-        <div class="cat-tile-overlay"></div>
-        <div class="cat-tile-body">
+          <span>${cat.count} ${lang === 'ar' ? 'منتج' : 'items'}</span>
+        </a>`).join('')}
+        <a href="/${lang}/sets" class="cat-card cat-sets">
+          <div class="cat-icon"><i class="fa fa-box-open"></i></div>
           <h3>${tr('setsTitle', lang)}</h3>
-          <span>${all.filter(p=>p.isSet).length} ${lang === 'ar' ? 'طقم' : 'sets'}</span>
-          <div class="cat-tile-cta">${lang==='ar'?'اكتشفي':'Discover'} <i class="fa fa-arrow-right fa-xs"></i></div>
-        </div>
-      </a>
+          <span>${featuredSets.length} ${lang === 'ar' ? 'طقم' : 'sets'}</span>
+        </a>
+      </div>
     </div>
   </section>
 
-  <!-- ═══ FEATURED PRODUCTS ═══ -->
   ${featured.length > 0 ? `
-  <section class="section-editorial">
-    <div class="editorial-head">
-      <p class="editorial-eyebrow">${lang==='ar'?'منتجات مختارة':'Curated Selection'}</p>
-      <h2 class="editorial-title">${tr('featured', lang)}</h2>
-      <a href="/${lang}/products" class="editorial-viewall">${tr('viewAll', lang)} <i class="fa fa-arrow-right fa-xs"></i></a>
-    </div>
-    <div class="product-grid-apm">
-      ${featured.map(p => productCard(p, lang)).join('')}
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">${tr('featured', lang)}</h2>
+        <a href="/${lang}/products" class="view-all">${tr('viewAll', lang)} <i class="fa fa-arrow-right"></i></a>
+      </div>
+      <div class="product-grid">
+        ${featured.map(p => productCard(p, lang)).join('')}
+      </div>
     </div>
   </section>` : ''}
 
-  <!-- ═══ FEATURED SETS ═══ -->
   ${featuredSets.length > 0 ? `
-  <section class="section-editorial section-blush">
-    <div class="editorial-head">
-      <p class="editorial-eyebrow">${lang==='ar'?'أطقم حصرية':'Exclusive Collections'}</p>
-      <h2 class="editorial-title">${tr('setsTitle', lang)}</h2>
-      <a href="/${lang}/sets" class="editorial-viewall">${tr('viewAll', lang)} <i class="fa fa-arrow-right fa-xs"></i></a>
-    </div>
-    <div class="sets-grid">
-      ${featuredSets.map(p => {
-        const safeName = p.name.replace(/'/g, "\\'")
-        return `
-      <article class="set-card" onclick="window.location='/${lang}/product/${p.id}'">
-        <div class="set-imgs">
-          ${p.images.slice(0,2).map((img,i) => `<img src="${img}" alt="${p.name}" class="set-img set-img-${i+1}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.3'"/>`).join('')}
-        </div>
-        <div class="set-body">
-          <span class="set-badge">${tr('save',lang)}</span>
-          <p class="card-code"><span class="authentic-dot">✦</span> SET · ${p.code}</p>
-          <h3>${p.name}</h3>
-          <p class="set-items-list">${(p.setItems||[]).map(i=>`<span>${i.split('(')[0].trim()}</span>`).join(' + ')}</p>
-          <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
-            <i class="fab fa-instagram"></i> ${tr('buyNow', lang)}
-          </button>
-        </div>
-      </article>`}).join('')}
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">${tr('setsTitle', lang)}</h2>
+        <a href="/${lang}/sets" class="view-all">${tr('viewAll', lang)} <i class="fa fa-arrow-right"></i></a>
+      </div>
+      <div class="sets-grid">
+        ${featuredSets.map(p => {
+          const safeName = p.name.replace(/'/g, "\\'")
+          return `
+        <article class="set-card" onclick="window.location='/${lang}/product/${p.id}'">
+          <div class="set-imgs">
+            ${p.images.slice(0,2).map((img,i) => `<img src="${img}" alt="${p.name}" class="set-img set-img-${i+1}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.3'"/>`).join('')}
+          </div>
+          <div class="set-body">
+            <span class="set-badge">${tr('save',lang)}</span>
+            <p class="card-code"><span class="authentic-dot">✦</span> SET · ${p.code}</p>
+            <h3>${p.name}</h3>
+            <p class="set-items-list">${(p.setItems||[]).map(i=>`<span>${i.split('(')[0].trim()}</span>`).join(' + ')}</p>
+            <button class="btn-buy btn-full" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
+              <i class="fab fa-instagram"></i> ${tr('buyNow', lang)}
+            </button>
+          </div>
+        </article>`}).join('')}
+      </div>
     </div>
   </section>` : ''}
 
-  <!-- ═══ MODEL PHOTO BANNER ═══ -->
-  <section class="model-banner">
-    <div class="model-banner-img">
-      <img src="${MODEL_IMAGE}" alt="${lang==='ar'?'مجوهرات سالفورد ليبيا الفاخرة':'Salford Libya Fine Jewelry'}" loading="lazy"/>
-    </div>
-    <div class="model-banner-text">
-      <p class="model-banner-eyebrow">${lang==='ar'?'الأناقة في كل تفصيلة':'Elegance in every detail'}</p>
-      <h2 class="model-banner-title">${lang==='ar'?'مجوهرات تروي قصتك':'Jewelry that tells\nyour story'}</h2>
-      <p class="model-banner-sub">${lang==='ar'
-        ? 'قطع أصيلة مختارة بعناية من أشهر دور المجوهرات العالمية'
-        : 'Carefully curated authentic pieces from the world\'s finest jewelry houses'
-      }</p>
-      <a href="/${lang}/products" class="btn-apm-primary">${lang==='ar'?'تسوقي الآن':'Shop the Collection'}</a>
+  <section class="authentic-banner">
+    <div class="authentic-inner">
+      <div class="authentic-icon"><i class="fa fa-certificate"></i></div>
+      <h2>${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</h2>
+      <p>${lang === 'ar' ? 'جميع منتجاتنا أصلية وأصيلة — نضمن لك الجودة في كل قطعة' : 'All our products are genuine and authentic — we guarantee quality in every piece'}</p>
+      <a href="/${lang}/products" class="btn-hero-primary"><i class="fa fa-gem"></i> ${tr('allProducts', lang)}</a>
     </div>
   </section>
 
-  <!-- ═══ SOCIAL CONTACT ═══ -->
-  <section class="social-editorial">
-    <div class="social-editorial-inner">
-      <p class="editorial-eyebrow">${lang==='ar'?'للطلب والاستفسار':'To Order &amp; Enquire'}</p>
-      <h2>${lang==='ar'?'تواصلي معنا':'Get in Touch'}</h2>
-      <div class="social-editorial-btns">
-        <a href="${s.facebookUrl}" target="_blank" rel="noopener" class="social-btn fb"><i class="fab fa-facebook-messenger"></i> Messenger</a>
+  <section class="social-strip">
+    <div class="container">
+      <p>${lang === 'ar' ? 'تواصلي معنا للطلب والاستفسار' : 'Contact us to order or enquire'}</p>
+      <div class="social-btns">
+        <a href="${s.facebookUrl}" target="_blank" rel="noopener" class="social-btn fb"><i class="fab fa-facebook"></i> Facebook</a>
         <a href="${s.instagramUrl}" target="_blank" rel="noopener" class="social-btn ig"><i class="fab fa-instagram"></i> Instagram</a>
       </div>
     </div>
   </section>
-
 </main>
 ${footer(lang, s)}`
   return c.html(shell(html, lang, '', s.storeName))
