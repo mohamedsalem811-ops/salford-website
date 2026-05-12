@@ -3,7 +3,12 @@
   "name": "salford-libya",
   "compatibility_date": "2026-04-13",
   "pages_build_output_dir": "./dist",
-  "compatibility_flags": [
-    "nodejs_compat"
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "salford-libya-db",
+      "database_id": "4e79b018-97a4-4475-9c2f-a65051f41127"
+    }
   ]
 }

@@ -1,18 +1,136 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
-import {
-  getAll, getById, getSets, getIndividual, getFeatured, getFeaturedSets,
-  byCategory, addProduct, updateProduct, deleteProduct,
-  getSettings, updateSettings, parseFilename, Product
-} from './data/products'
+import { parseFilename, Product, SiteSettings } from './data/products'
 
-const app = new Hono()
+// ─── Cloudflare Bindings ──────────────────────────────────────────────────────
+type Bindings = { DB: D1Database }
+const app = new Hono<{ Bindings: Bindings }>()
 app.use('/static/*', serveStatic({ root: './public' }))
 app.use('/api/*', cors())
 
-// ─── Hero image (AI-generated luxury model) ───────────────────────────────────
+// ─── Hero image ───────────────────────────────────────────────────────────────
 const HERO_IMAGE = 'https://www.genspark.ai/api/files/s/wr394uj9?cache_control=3600'
+
+// ─── D1 helpers ───────────────────────────────────────────────────────────────
+function rowToProduct(r: Record<string, unknown>): Product {
+  return {
+    id:            String(r.id),
+    code:          String(r.code),
+    isSet:         r.is_set === 1 || r.is_set === true,
+    setCodes:      r.set_codes   ? JSON.parse(String(r.set_codes))   : undefined,
+    name:          String(r.name),
+    category:      String(r.category) as Product['category'],
+    price:         Number(r.price)         || 0,
+    originalPrice: r.original_price != null ? Number(r.original_price) : undefined,
+    image:         String(r.image  || ''),
+    images:        r.images      ? JSON.parse(String(r.images))      : [],
+    description:   String(r.description  || ''),
+    shortDesc:     String(r.short_desc   || ''),
+    inStock:       r.in_stock === 1 || r.in_stock === true,
+    quantity:      Number(r.quantity)      || 0,
+    featured:      r.featured === 1 || r.featured === true,
+    setItems:      r.set_items   ? JSON.parse(String(r.set_items))   : undefined,
+    mediaItems:    r.media_items ? JSON.parse(String(r.media_items)) : undefined,
+  }
+}
+
+async function dbGetAll(db: D1Database): Promise<Product[]> {
+  const { results } = await db.prepare('SELECT * FROM products ORDER BY rowid ASC').all()
+  return (results as Record<string, unknown>[]).map(rowToProduct)
+}
+
+async function dbGetById(db: D1Database, id: string): Promise<Product | null> {
+  const r = await db.prepare('SELECT * FROM products WHERE id=?').bind(id).first()
+  return r ? rowToProduct(r as Record<string, unknown>) : null
+}
+
+async function dbAdd(db: D1Database, p: Omit<Product, 'id'>): Promise<string> {
+  const id = String(Date.now())
+  await db.prepare(`
+    INSERT INTO products
+      (id,code,is_set,set_codes,name,category,price,original_price,image,images,
+       description,short_desc,in_stock,quantity,featured,set_items,media_items)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).bind(
+    id,
+    p.code,
+    p.isSet ? 1 : 0,
+    p.setCodes   ? JSON.stringify(p.setCodes)   : null,
+    p.name,
+    p.category,
+    p.price,
+    p.originalPrice ?? null,
+    p.image,
+    JSON.stringify(p.images || []),
+    p.description,
+    p.shortDesc,
+    p.inStock ? 1 : 0,
+    p.quantity,
+    p.featured ? 1 : 0,
+    p.setItems   ? JSON.stringify(p.setItems)   : null,
+    p.mediaItems ? JSON.stringify(p.mediaItems) : null,
+  ).run()
+  return id
+}
+
+async function dbUpdate(db: D1Database, id: string, d: Partial<Product>): Promise<boolean> {
+  const fields: string[] = []
+  const vals:   unknown[] = []
+  const map: Record<string, string> = {
+    code:'code', isSet:'is_set', setCodes:'set_codes', name:'name',
+    category:'category', price:'price', originalPrice:'original_price',
+    image:'image', images:'images', description:'description',
+    shortDesc:'short_desc', inStock:'in_stock', quantity:'quantity',
+    featured:'featured', setItems:'set_items', mediaItems:'media_items',
+  }
+  for (const [k, col] of Object.entries(map)) {
+    if (!(k in d)) continue
+    const v = (d as Record<string, unknown>)[k]
+    if (k === 'isSet' || k === 'inStock' || k === 'featured') {
+      fields.push(`${col}=?`); vals.push(v ? 1 : 0)
+    } else if (k === 'setCodes' || k === 'images' || k === 'setItems' || k === 'mediaItems') {
+      fields.push(`${col}=?`); vals.push(v != null ? JSON.stringify(v) : null)
+    } else {
+      fields.push(`${col}=?`); vals.push(v ?? null)
+    }
+  }
+  if (!fields.length) return false
+  vals.push(id)
+  await db.prepare(`UPDATE products SET ${fields.join(',')} WHERE id=?`).bind(...vals).run()
+  return true
+}
+
+async function dbDelete(db: D1Database, id: string): Promise<boolean> {
+  const r = await db.prepare('DELETE FROM products WHERE id=?').bind(id).run()
+  return (r.meta?.changes ?? 0) > 0
+}
+
+async function dbGetSettings(db: D1Database): Promise<SiteSettings> {
+  const { results } = await db.prepare('SELECT key,value FROM settings').all()
+  const m: Record<string, string> = {}
+  for (const row of results as { key: string; value: string }[]) m[row.key] = row.value
+  return {
+    storeName:      m.storeName      || 'Salford Libya',
+    facebookUrl:    m.facebookUrl    || '',
+    instagramUrl:   m.instagramUrl   || '',
+    whatsappNumber: m.whatsappNumber || '',
+    heroTitleAr:    m.heroTitleAr    || '',
+    heroTitleEn:    m.heroTitleEn    || '',
+    heroSubtitleAr: m.heroSubtitleAr || '',
+    heroSubtitleEn: m.heroSubtitleEn || '',
+    adminUser:      m.adminUser      || 'admin',
+    adminPass:      m.adminPass      || 'salford2024',
+    currency:       m.currency       || 'LYD',
+  }
+}
+
+async function dbSaveSettings(db: D1Database, s: Partial<SiteSettings>): Promise<void> {
+  const stmts = Object.entries(s).map(([k, v]) =>
+    db.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)').bind(k, v ?? '')
+  )
+  if (stmts.length) await db.batch(stmts)
+}
 
 // ─── i18n ──────────────────────────────────────────────────────────────────────
 const t: Record<string, Record<string, string>> = {
@@ -76,10 +194,9 @@ const t: Record<string, Record<string, string>> = {
 const tr = (key: string, lang: string) => (t[lang]?.[key]) || (t['en'][key]) || key
 
 // ─── HTML Shell ───────────────────────────────────────────────────────────────
-function shell(content: string, lang: string, pageTitle = '') {
+function shell(content: string, lang: string, pageTitle = '', storeName = 'Salford Libya') {
   const dir = lang === 'ar' ? 'rtl' : 'ltr'
-  const s = getSettings()
-  const title = pageTitle ? `${pageTitle} | ${s.storeName}` : s.storeName
+  const title = pageTitle ? `${pageTitle} | ${storeName}` : storeName
   return `<!DOCTYPE html>
 <html lang="${lang}" dir="${dir}" data-lang="${lang}">
 <head>
@@ -219,8 +336,7 @@ function productCard(p: Product, lang: string) {
 }
 
 // ─── FOOTER ───────────────────────────────────────────────────────────────────
-function footer(lang: string) {
-  const s = getSettings()
+function footer(lang: string, s: SiteSettings) {
   return `
 <footer class="site-footer">
   <div class="container">
@@ -259,44 +375,51 @@ function footer(lang: string) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  API ROUTES  ← BEFORE /:lang/* wildcard
+//  API ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/products/:id', c => {
-  const p = getById(c.req.param('id'))
+app.get('/api/products/:id', async c => {
+  const p = await dbGetById(c.env.DB, c.req.param('id'))
   return p ? c.json(p) : c.json({ error: 'Not found' }, 404)
 })
-app.get('/api/products', c => c.json(getAll()))
+
+app.get('/api/products', async c => {
+  const all = await dbGetAll(c.env.DB)
+  return c.json(all)
+})
 
 app.post('/api/products', async c => {
   try {
     const data = await c.req.json()
-    const id = addProduct(data)
+    const id = await dbAdd(c.env.DB, data)
     return c.json({ ok: true, id })
-  } catch { return c.json({ ok: false }, 400) }
+  } catch (e) { return c.json({ ok: false, error: String(e) }, 400) }
 })
 
 app.put('/api/products/:id', async c => {
   try {
     const data = await c.req.json()
-    const ok = updateProduct(c.req.param('id'), data)
+    const ok = await dbUpdate(c.env.DB, c.req.param('id'), data)
     return c.json({ ok })
-  } catch { return c.json({ ok: false }, 400) }
+  } catch (e) { return c.json({ ok: false, error: String(e) }, 400) }
 })
 
-app.delete('/api/products/:id', c => {
-  const ok = deleteProduct(c.req.param('id'))
+app.delete('/api/products/:id', async c => {
+  const ok = await dbDelete(c.env.DB, c.req.param('id'))
   return c.json({ ok })
 })
 
-app.get('/api/settings', c => c.json(getSettings()))
+app.get('/api/settings', async c => {
+  const s = await dbGetSettings(c.env.DB)
+  return c.json(s)
+})
 
 app.put('/api/settings', async c => {
   try {
     const data = await c.req.json()
-    updateSettings(data)
+    await dbSaveSettings(c.env.DB, data)
     return c.json({ ok: true })
-  } catch { return c.json({ ok: false }, 400) }
+  } catch (e) { return c.json({ ok: false, error: String(e) }, 400) }
 })
 
 app.post('/api/parse-filename', async c => {
@@ -310,16 +433,14 @@ app.post('/api/parse-filename', async c => {
 app.post('/api/auth', async c => {
   try {
     const { username, password } = await c.req.json()
-    const s = getSettings()
-    if (username === s.adminUser && password === s.adminPass) {
-      return c.json({ ok: true })
-    }
+    const s = await dbGetSettings(c.env.DB)
+    if (username === s.adminUser && password === s.adminPass) return c.json({ ok: true })
     return c.json({ ok: false }, 401)
   } catch { return c.json({ ok: false }, 400) }
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  ADMIN ROUTES  ← BEFORE /:lang/* wildcard
+//  ADMIN ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
 
 const adminShell = (body: string, title = 'Admin | Salford Libya') =>
@@ -364,14 +485,14 @@ app.get('/admin/login', c => {
   return c.html(adminShell(html, 'Login | Salford Admin'))
 })
 
-app.get('/admin/dashboard', c => {
-  const all = getAll()
-  const s = getSettings()
+app.get('/admin/dashboard', async c => {
+  const all = await dbGetAll(c.env.DB)
+  const s   = await dbGetSettings(c.env.DB)
   const stats = {
-    total: all.length,
-    sets: getSets().length,
-    inStock: all.filter(p => p.inStock).length,
-    featured: all.filter(p => p.featured).length,
+    total:      all.length,
+    sets:       all.filter(p => p.isSet).length,
+    inStock:    all.filter(p => p.inStock).length,
+    featured:   all.filter(p => p.featured).length,
     outOfStock: all.filter(p => !p.inStock).length,
   }
   const cats = ['necklaces','earrings','bracelets','sets']
@@ -422,7 +543,6 @@ app.get('/admin/dashboard', c => {
 
   <!-- ─── Main Content ─── -->
   <main class="admin-main">
-    <!-- Stats Row -->
     <div class="admin-stats">
       <div class="stat-card stat-gold">
         <div class="stat-icon"><i class="fa fa-box-open"></i></div>
@@ -463,8 +583,6 @@ app.get('/admin/dashboard', c => {
           </button>
         </div>
       </div>
-
-      <!-- Filename Parser -->
       <div class="parser-box">
         <div class="parser-head">
           <h4><i class="fa fa-wand-magic-sparkles"></i> Quick Import by Filename</h4>
@@ -473,48 +591,34 @@ app.get('/admin/dashboard', c => {
         <div class="parser-row">
           <input type="text" id="parse-input" placeholder="SWAROVSKI-CODE(PRICE)"/>
           <button onclick="parseFilenameAdmin()" class="btn-secondary">
-            <i class="fa fa-wand-magic-sparkles"></i> Parse & Fill
+            <i class="fa fa-wand-magic-sparkles"></i> Parse &amp; Fill
           </button>
         </div>
         <div id="parse-result" style="display:none;" class="parse-result"></div>
       </div>
-
-      <!-- Products Table -->
       <div class="table-wrap">
         <table class="admin-table" id="products-table">
           <thead>
             <tr>
-              <th>Image</th>
-              <th>Product</th>
-              <th>Code</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Stock</th>
-              <th>Featured</th>
-              <th>Actions</th>
+              <th>Image</th><th>Product</th><th>Code</th><th>Category</th>
+              <th>Price</th><th>Stock</th><th>Featured</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
             ${all.filter(p => !p.isSet).map(p => `
             <tr data-id="${p.id}">
-              <td>
-                <div class="table-img-wrap">
-                  <img src="${p.image}" alt="${p.name}" class="table-thumb"
-                    onerror="this.onerror=null;this.style.opacity='0.2'"
-                    onclick="openLightboxAdmin('${p.image}')" style="cursor:zoom-in;"/>
-                </div>
-              </td>
-              <td>
-                <div class="table-product-info">
-                  <strong>${p.name}</strong>
-                  <small>${p.shortDesc || ''}</small>
-                </div>
-              </td>
+              <td><div class="table-img-wrap">
+                <img src="${p.image}" alt="${p.name}" class="table-thumb"
+                  onerror="this.onerror=null;this.style.opacity='0.2'"
+                  onclick="openLightboxAdmin('${p.image}')" style="cursor:zoom-in;"/>
+              </div></td>
+              <td><div class="table-product-info">
+                <strong>${p.name}</strong>
+                <small>${p.shortDesc || ''}</small>
+              </div></td>
               <td><code class="code-tag">${p.code}</code></td>
               <td><span class="cat-tag cat-${p.category}">${p.category}</span></td>
-              <td>
-                <span class="price-tag">${p.price > 0 ? p.price + ' LYD' : '<em style="opacity:0.4">—</em>'}</span>
-              </td>
+              <td><span class="price-tag">${p.price > 0 ? p.price + ' LYD' : '<em style="opacity:0.4">—</em>'}</span></td>
               <td>
                 <button onclick="toggleStock('${p.id}',${p.inStock})"
                   class="stock-toggle-btn ${p.inStock?'stock-btn-in':'stock-btn-out'}" title="Click to toggle">
@@ -526,8 +630,7 @@ app.get('/admin/dashboard', c => {
               <td>
                 <button onclick="toggleFeatured('${p.id}',${p.featured})"
                   class="featured-toggle-btn ${p.featured?'feat-btn-on':'feat-btn-off'}" title="Toggle featured">
-                  <i class="fa fa-star"></i>
-                  ${p.featured ? 'Featured' : 'Normal'}
+                  <i class="fa fa-star"></i> ${p.featured ? 'Featured' : 'Normal'}
                 </button>
               </td>
               <td class="action-btns">
@@ -548,7 +651,7 @@ app.get('/admin/dashboard', c => {
     <div id="sets-tab" class="admin-tab" style="display:none;">
       <div class="tab-head">
         <div>
-          <h2><i class="fa fa-layer-group"></i> Sets & Collections</h2>
+          <h2><i class="fa fa-layer-group"></i> Sets &amp; Collections</h2>
           <p class="tab-sub">Manage jewelry sets and bundles</p>
         </div>
         <div class="tab-actions">
@@ -560,29 +663,22 @@ app.get('/admin/dashboard', c => {
       <div class="table-wrap">
         <table class="admin-table" id="sets-table">
           <thead>
-            <tr>
-              <th>Images</th><th>Set Name</th><th>Codes</th><th>Price</th>
-              <th>Stock</th><th>Featured</th><th>Actions</th>
-            </tr>
+            <tr><th>Images</th><th>Set Name</th><th>Codes</th><th>Price</th><th>Stock</th><th>Featured</th><th>Actions</th></tr>
           </thead>
           <tbody>
             ${all.filter(p => p.isSet).map(p => `
             <tr data-id="${p.id}">
-              <td>
-                <div class="table-set-imgs">
-                  ${p.images.slice(0,2).map(img => `
-                    <img src="${img}" alt="${p.name}" class="table-thumb-sm"
-                      onerror="this.onerror=null;this.style.opacity='0.2'"
-                      onclick="openLightboxAdmin('${img}')" style="cursor:zoom-in;"/>
-                  `).join('')}
-                </div>
-              </td>
-              <td>
-                <div class="table-product-info">
-                  <strong>${p.name}</strong>
-                  <span class="set-items-preview">${(p.setItems||[]).map(i=>i.split('(')[0].trim()).join(' + ')}</span>
-                </div>
-              </td>
+              <td><div class="table-set-imgs">
+                ${p.images.slice(0,2).map(img => `
+                  <img src="${img}" alt="${p.name}" class="table-thumb-sm"
+                    onerror="this.onerror=null;this.style.opacity='0.2'"
+                    onclick="openLightboxAdmin('${img}')" style="cursor:zoom-in;"/>
+                `).join('')}
+              </div></td>
+              <td><div class="table-product-info">
+                <strong>${p.name}</strong>
+                <span class="set-items-preview">${(p.setItems||[]).map(i=>i.split('(')[0].trim()).join(' + ')}</span>
+              </div></td>
               <td><code class="code-tag">${p.code}</code></td>
               <td><span class="price-tag">${p.price > 0 ? p.price + ' LYD' : '<em style="opacity:0.4">—</em>'}</span></td>
               <td>
@@ -629,7 +725,7 @@ app.get('/admin/dashboard', c => {
             <h4>${p.name}</h4>
             <button onclick="toggleFeatured('${p.id}',${p.featured})"
               class="feat-toggle-full ${p.featured?'feat-on':'feat-off'}">
-              <i class="fa fa-${p.featured?'star':'star'}"></i>
+              <i class="fa fa-star"></i>
               ${p.featured ? 'Remove from Featured' : 'Add to Featured'}
             </button>
           </div>
@@ -747,8 +843,7 @@ app.get('/admin/dashboard', c => {
           <input type="hidden" id="pf-images-json" value="[]"/>
           <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
             <small style="color:#b89aa0;white-space:nowrap;">Or add by URL:</small>
-            <input type="url" id="pf-media-url" placeholder="https://... (image or video URL)"
-              style="flex:1;" />
+            <input type="url" id="pf-media-url" placeholder="https://... (image or video URL)" style="flex:1;"/>
             <button type="button" onclick="handleMediaUrl(document.getElementById('pf-media-url').value)"
               class="btn-secondary btn-sm"><i class="fa fa-plus"></i></button>
           </div>
@@ -815,7 +910,7 @@ app.get('/admin/dashboard', c => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  PAGE ROUTES  (/:lang/* — wildcard, LAST)
+//  PAGE ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.get('/', c => c.redirect('/ar/'))
@@ -826,21 +921,20 @@ app.get('/:lang', c => {
 })
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
-app.get('/:lang/', c => {
+app.get('/:lang/', async c => {
   const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const s = getSettings()
-  const featured = getFeatured().slice(0, 8)
-  const featuredSets = getFeaturedSets()
+  const [all, s] = await Promise.all([dbGetAll(c.env.DB), dbGetSettings(c.env.DB)])
+  const featured     = all.filter(p => p.featured && !p.isSet).slice(0, 8)
+  const featuredSets = all.filter(p => p.featured && p.isSet)
   const cats = [
-    { key: 'necklaces', icon: 'fa-diamond', label: tr('necklaces', lang), count: byCategory('necklaces').length },
-    { key: 'earrings',  icon: 'fa-star',    label: tr('earrings', lang),  count: byCategory('earrings').length  },
-    { key: 'bracelets', icon: 'fa-link',    label: tr('bracelets', lang), count: byCategory('bracelets').length },
+    { key: 'necklaces', icon: 'fa-diamond', label: tr('necklaces',lang), count: all.filter(p=>p.category==='necklaces').length },
+    { key: 'earrings',  icon: 'fa-star',    label: tr('earrings',lang),  count: all.filter(p=>p.category==='earrings').length  },
+    { key: 'bracelets', icon: 'fa-link',    label: tr('bracelets',lang), count: all.filter(p=>p.category==='bracelets').length },
   ]
 
   const html = `
 ${nav(lang, 'home')}
 <main>
-  <!-- ═══ HERO ═══ -->
   <section class="hero">
     <div class="hero-bg-img" style="background-image:url('${HERO_IMAGE}')"></div>
     <div class="hero-bg-overlay"></div>
@@ -875,34 +969,20 @@ ${nav(lang, 'home')}
     <div class="hero-scroll"><i class="fa fa-chevron-down"></i></div>
   </section>
 
-  <!-- ═══ TRUST BAR ═══ -->
   <div class="trust-bar">
     <div class="container">
       <div class="trust-items">
-        <div class="trust-item">
-          <i class="fa fa-certificate"></i>
-          <span>${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</span>
-        </div>
+        <div class="trust-item"><i class="fa fa-certificate"></i><span>${lang==='ar'?'مجوهرات أصلية 100٪':'100% Authentic Jewelry'}</span></div>
         <div class="trust-divider"></div>
-        <div class="trust-item">
-          <i class="fa fa-gem"></i>
-          <span>${lang === 'ar' ? 'جودة مضمونة' : 'Guaranteed Quality'}</span>
-        </div>
+        <div class="trust-item"><i class="fa fa-gem"></i><span>${lang==='ar'?'جودة مضمونة':'Guaranteed Quality'}</span></div>
         <div class="trust-divider"></div>
-        <div class="trust-item">
-          <i class="fab fa-instagram"></i>
-          <span>${lang === 'ar' ? 'طلب عبر السوشيال ميديا' : 'Order via Social Media'}</span>
-        </div>
+        <div class="trust-item"><i class="fab fa-instagram"></i><span>${lang==='ar'?'طلب عبر السوشيال ميديا':'Order via Social Media'}</span></div>
         <div class="trust-divider"></div>
-        <div class="trust-item">
-          <i class="fa fa-map-marker-alt"></i>
-          <span>${lang === 'ar' ? 'نخدم ليبيا كاملاً' : 'Serving All of Libya'}</span>
-        </div>
+        <div class="trust-item"><i class="fa fa-map-marker-alt"></i><span>${lang==='ar'?'نخدم ليبيا كاملاً':'Serving All of Libya'}</span></div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ CATEGORIES ═══ -->
   <section class="section">
     <div class="container">
       <div class="section-head">
@@ -924,7 +1004,6 @@ ${nav(lang, 'home')}
     </div>
   </section>
 
-  <!-- ═══ FEATURED PRODUCTS ═══ -->
   ${featured.length > 0 ? `
   <section class="section section-dark">
     <div class="container">
@@ -938,7 +1017,6 @@ ${nav(lang, 'home')}
     </div>
   </section>` : ''}
 
-  <!-- ═══ FEATURED SETS ═══ -->
   ${featuredSets.length > 0 ? `
   <section class="section">
     <div class="container">
@@ -968,63 +1046,54 @@ ${nav(lang, 'home')}
     </div>
   </section>` : ''}
 
-  <!-- ═══ AUTHENTIC BANNER ═══ -->
   <section class="authentic-banner">
     <div class="authentic-inner">
       <div class="authentic-icon"><i class="fa fa-certificate"></i></div>
       <h2>${lang === 'ar' ? 'مجوهرات أصلية 100٪' : '100% Authentic Jewelry'}</h2>
-      <p>${lang === 'ar'
-        ? 'جميع منتجاتنا أصلية وأصيلة — نضمن لك الجودة في كل قطعة'
-        : 'All our products are genuine and authentic — we guarantee quality in every piece'}</p>
-      <a href="/${lang}/products" class="btn-hero-primary">
-        <i class="fa fa-gem"></i> ${tr('allProducts', lang)}
-      </a>
+      <p>${lang === 'ar' ? 'جميع منتجاتنا أصلية وأصيلة — نضمن لك الجودة في كل قطعة' : 'All our products are genuine and authentic — we guarantee quality in every piece'}</p>
+      <a href="/${lang}/products" class="btn-hero-primary"><i class="fa fa-gem"></i> ${tr('allProducts', lang)}</a>
     </div>
   </section>
 
-  <!-- ═══ SOCIAL STRIP ═══ -->
   <section class="social-strip">
     <div class="container">
       <p>${lang === 'ar' ? 'تواصلي معنا للطلب والاستفسار' : 'Contact us to order or enquire'}</p>
       <div class="social-btns">
-        <a href="${getSettings().facebookUrl}" target="_blank" rel="noopener" class="social-btn fb">
-          <i class="fab fa-facebook"></i> Facebook
-        </a>
-        <a href="${getSettings().instagramUrl}" target="_blank" rel="noopener" class="social-btn ig">
-          <i class="fab fa-instagram"></i> Instagram
-        </a>
+        <a href="${s.facebookUrl}" target="_blank" rel="noopener" class="social-btn fb"><i class="fab fa-facebook"></i> Facebook</a>
+        <a href="${s.instagramUrl}" target="_blank" rel="noopener" class="social-btn ig"><i class="fab fa-instagram"></i> Instagram</a>
       </div>
     </div>
   </section>
 </main>
-${footer(lang)}`
-  return c.html(shell(html, lang))
+${footer(lang, s)}`
+  return c.html(shell(html, lang, '', s.storeName))
 })
 
 // ─── PRODUCTS PAGE ────────────────────────────────────────────────────────────
-app.get('/:lang/products', c => {
+app.get('/:lang/products', async c => {
   const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const q    = c.req.query('q')   || ''
-  const cat  = c.req.query('cat') || ''
-  const sort = c.req.query('sort')|| 'newest'
+  const q    = c.req.query('q')    || ''
+  const cat  = c.req.query('cat')  || ''
+  const sort = c.req.query('sort') || 'newest'
+  const [all, s] = await Promise.all([dbGetAll(c.env.DB), dbGetSettings(c.env.DB)])
 
-  let items = getIndividual()
+  let items = all.filter(p => !p.isSet)
   if (q)   items = items.filter(p =>
     p.name.toLowerCase().includes(q.toLowerCase()) ||
     p.code.toLowerCase().includes(q.toLowerCase()) ||
     p.shortDesc.toLowerCase().includes(q.toLowerCase())
   )
   if (cat) items = items.filter(p => p.category === cat)
-  if (sort === 'low')  items = [...items].sort((a, b) => a.price - b.price)
-  else if (sort === 'high') items = [...items].sort((a, b) => b.price - a.price)
+  if (sort === 'low')       items = [...items].sort((a,b) => a.price - b.price)
+  else if (sort === 'high') items = [...items].sort((a,b) => b.price - a.price)
 
-  const catList = ['necklaces', 'earrings', 'bracelets']
+  const catList = ['necklaces','earrings','bracelets']
   const html = `
 ${nav(lang, 'products')}
 <main>
   <section class="page-hero">
     <div class="container">
-      <h1>${q ? `"${q}"` : cat ? tr(cat, lang) : tr('allProducts', lang)}</h1>
+      <h1>${q ? `"${q}"` : cat ? tr(cat,lang) : tr('allProducts',lang)}</h1>
       <p>${items.length} ${lang === 'ar' ? 'منتج' : 'products'}</p>
     </div>
   </section>
@@ -1033,7 +1102,7 @@ ${nav(lang, 'products')}
       <div class="filter-bar">
         <div class="filter-cats">
           <a href="/${lang}/products" class="filter-tag ${!cat?'active':''}">${tr('filterAll',lang)}</a>
-          ${catList.map(c => `<a href="/${lang}/products?cat=${c}" class="filter-tag ${cat===c?'active':''}">${tr(c,lang)}</a>`).join('')}
+          ${catList.map(ct => `<a href="/${lang}/products?cat=${ct}" class="filter-tag ${cat===ct?'active':''}">${tr(ct,lang)}</a>`).join('')}
         </div>
         <div class="filter-sort">
           <select onchange="location='/${lang}/products?${cat?'cat='+cat+'&':''}${q?'q='+encodeURIComponent(q)+'&':''}sort='+this.value">
@@ -1049,14 +1118,15 @@ ${nav(lang, 'products')}
     </div>
   </section>
 </main>
-${footer(lang)}`
-  return c.html(shell(html, lang, tr('allProducts', lang)))
+${footer(lang, s)}`
+  return c.html(shell(html, lang, tr('allProducts',lang), s.storeName))
 })
 
 // ─── SETS PAGE ────────────────────────────────────────────────────────────────
-app.get('/:lang/sets', c => {
+app.get('/:lang/sets', async c => {
   const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const sets = getSets()
+  const [all, s] = await Promise.all([dbGetAll(c.env.DB), dbGetSettings(c.env.DB)])
+  const sets = all.filter(p => p.isSet)
   const html = `
 ${nav(lang, 'sets')}
 <main>
@@ -1093,19 +1163,21 @@ ${nav(lang, 'sets')}
     </div>
   </section>
 </main>
-${footer(lang)}`
-  return c.html(shell(html, lang, tr('setsTitle', lang)))
+${footer(lang, s)}`
+  return c.html(shell(html, lang, tr('setsTitle',lang), s.storeName))
 })
 
 // ─── PRODUCT DETAIL ───────────────────────────────────────────────────────────
-app.get('/:lang/product/:id', c => {
+app.get('/:lang/product/:id', async c => {
   const lang = c.req.param('lang') === 'en' ? 'en' : 'ar'
-  const p    = getById(c.req.param('id'))
+  const [p, all, s] = await Promise.all([
+    dbGetById(c.env.DB, c.req.param('id')),
+    dbGetAll(c.env.DB),
+    dbGetSettings(c.env.DB),
+  ])
   if (!p) return c.redirect(`/${lang}/products`)
 
-  const related = getAll()
-    .filter(r => r.id !== p.id && r.category === p.category && !r.isSet)
-    .slice(0, 4)
+  const related = all.filter(r => r.id !== p.id && r.category === p.category && !r.isSet).slice(0,4)
 
   const html = `
 ${nav(lang)}
@@ -1152,12 +1224,12 @@ ${nav(lang)}
           </p>
           ${p.inStock ? `
           <div class="buy-btns">
-            <a href="${getSettings().facebookUrl}" target="_blank" rel="noopener"
+            <a href="${s.facebookUrl}" target="_blank" rel="noopener"
                class="btn-channel fb-channel" onclick="trackBuy('${p.id}','fb')">
               <i class="fab fa-facebook-messenger"></i>
               <div><span>${tr('buyNow',lang)}</span><small>Facebook</small></div>
             </a>
-            <a href="${getSettings().instagramUrl}" target="_blank" rel="noopener"
+            <a href="${s.instagramUrl}" target="_blank" rel="noopener"
                class="btn-channel ig-channel" onclick="trackBuy('${p.id}','ig')">
               <i class="fab fa-instagram"></i>
               <div><span>${tr('buyNow',lang)}</span><small>Instagram</small></div>
@@ -1187,8 +1259,8 @@ ${nav(lang)}
     </div>
   </section>` : ''}
 </main>
-${footer(lang)}`
-  return c.html(shell(html, lang, p.name))
+${footer(lang, s)}`
+  return c.html(shell(html, lang, p.name, s.storeName))
 })
 
 export default app
