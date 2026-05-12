@@ -816,7 +816,7 @@ async function saveProduct(e) {
   const id      = getField('pf-id');
   const codeRaw = getField('pf-code').trim();
   const price   = parseInt(getField('pf-price'))      || 0;
-  const origP   = parseInt(getField('pf-orig-price')) || undefined;
+  const origP   = parseInt(getField('pf-orig-price')) || null;
   const isSet   = getChecked('pf-isset') || codeRaw.includes('+');
   const codes   = codeRaw.split('+').map(c => c.trim()).filter(Boolean);
   const category = isSet ? 'sets' : (getField('pf-cat') || 'necklaces');
@@ -834,7 +834,7 @@ async function saveProduct(e) {
 
   const payload = {
     code:          codes.join('+'),
-    setCodes:      isSet ? codes : undefined,
+    setCodes:      isSet ? codes : null,
     isSet,
     name:          getField('pf-name').trim(),
     shortDesc:     getField('pf-short-desc').trim(),
