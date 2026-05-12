@@ -1,32 +1,32 @@
 /* ─── SALFORD LIBYA — LUXURY DARK THEME (Salford brand image inspired) ─────── */
 /* Color palette: Pure black, white, icy blue (#BFD7FF), gold accent, purple glow */
 :root {
-  --black:       #000000;
-  --black-soft:  #090909;
-  --black-card:  #0f0f12;
-  --black-mid:   #161619;
-  --black-light: #1e1e24;
+  --black:       #0b0d1a;       /* deep navy-black, not pure #000 */
+  --black-soft:  #0f1221;
+  --black-card:  #131726;
+  --black-mid:   #192035;
+  --black-light: #212840;
   --white:       #ffffff;
-  --white-soft:  #f0f0f0;
-  --silver:      #c0c4cc;
-  --ice:         #bfd7ff;       /* icy blue from diamonds in image */
+  --white-soft:  #eef1ff;
+  --silver:      #c4c9e0;
+  --ice:         #bfd7ff;       /* icy blue from diamonds */
   --ice-dim:     #4a7ab5;
-  --ice-glow:    rgba(191,215,255,0.15);
+  --ice-glow:    rgba(191,215,255,0.12);
   --gold:        #c9a96e;
   --gold-light:  #e8d5a3;
   --gold-dark:   #9a7a4a;
   --purple:      #7c5cbf;
-  --purple-dim:  rgba(124,92,191,0.15);
+  --purple-dim:  rgba(124,92,191,0.18);
   --green:       #2ecc71;
   --red:         #e74c3c;
-  --border:      rgba(255,255,255,0.08);
-  --border-ice:  rgba(191,215,255,0.18);
+  --border:      rgba(191,215,255,0.07);
+  --border-ice:  rgba(191,215,255,0.16);
   --border-gold: rgba(201,169,110,0.25);
   --radius:      12px;
   --radius-sm:   8px;
   --radius-lg:   20px;
-  --shadow:      0 8px 40px rgba(0,0,0,0.8);
-  --shadow-ice:  0 0 30px rgba(191,215,255,0.12);
+  --shadow:      0 8px 40px rgba(0,0,0,0.6);
+  --shadow-ice:  0 0 30px rgba(191,215,255,0.10);
   --trans:       all 0.25s ease;
   --font-en:     'Playfair Display', 'Georgia', serif;
   --font-ar:     'Cairo', sans-serif;
@@ -39,7 +39,12 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; font-size: 16px; }
 body {
-  background: var(--black);
+  background:
+    radial-gradient(ellipse 120% 60% at 80% 0%,   rgba(124,92,191,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 70% at 10% 100%,  rgba(100,160,255,0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 80%  80% at 50% 50%,   rgba(60,90,180,0.06)  0%, transparent 70%),
+    var(--black);
+  background-attachment: fixed;
   color: var(--white-soft);
   font-family: var(--font);
   line-height: 1.6;
@@ -55,16 +60,16 @@ ul { list-style: none; }
 /* ─── CONTAINER ─────────────────────────────────────────────────────────── */
 .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
 .section { padding: 80px 0; }
-.section-dark { background: var(--black-soft); }
+.section-dark { background: rgba(15,18,33,0.7); }
 
 /* ═══════════════════════════════════════════════════════
    HEADER / NAV
    ═══════════════════════════════════════════════════════ */
 .site-header {
   position: sticky; top: 0; z-index: 200;
-  background: rgba(0,0,0,0.92);
+  background: rgba(11,13,26,0.92);
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-ice);
 }
 .header-inner {
   display: flex; align-items: center; gap: 20px;
@@ -77,6 +82,7 @@ ul { list-style: none; }
   display: flex; align-items: baseline; gap: 2px;
   font-family: 'Playfair Display', Georgia, serif;
   font-weight: 700; letter-spacing: -0.01em;
+  direction: ltr; /* always LTR so "Salford" never reverses in RTL pages */
 }
 .logo-s {
   font-size: 2rem; line-height: 1;
@@ -197,7 +203,10 @@ ul { list-style: none; }
   min-height: 95vh;
   display: flex; align-items: center; justify-content: center;
   position: relative; overflow: hidden;
-  background: var(--black);
+  background:
+    radial-gradient(ellipse 100% 80% at 100% 50%, rgba(124,92,191,0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 80%  60% at 0%   50%, rgba(60,120,255,0.10) 0%, transparent 60%),
+    var(--black);
 }
 
 /* Model background image — right side, dark left side */
@@ -273,9 +282,32 @@ ul { list-style: none; }
   margin-bottom: 10px; line-height: 1.5;
 }
 .hero-sub {
-  color: var(--silver); font-size: 0.9rem; margin-bottom: 40px;
+  color: var(--silver); font-size: 0.9rem; margin-bottom: 20px;
   max-width: 440px; opacity: 0.6; line-height: 1.8;
 }
+
+/* Hero brands row — Swarovski · Pandora · Tiffany & Co */
+.hero-brands-row {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 36px;
+  direction: ltr; /* always LTR */
+}
+.hero-brand-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--silver); opacity: 0.75;
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.hero-brand-sep {
+  color: var(--border-ice); font-size: 1rem; opacity: 0.6;
+}
+.hb-dot {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 50%; flex-shrink: 0;
+}
+.hb-sw { background: var(--ice); box-shadow: 0 0 6px rgba(191,215,255,0.6); }
+.hb-pd { background: #f7b0c2; box-shadow: 0 0 6px rgba(247,176,194,0.5); }
+.hb-tf { background: #0abab5; box-shadow: 0 0 6px rgba(10,186,181,0.5); }
 
 /* Hero action buttons */
 .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -310,9 +342,11 @@ ul { list-style: none; }
 
 /* ─── TRUST BAR ─────────────────────────────────────────────────────────── */
 .trust-bar {
-  background: var(--black-soft);
+  background: rgba(15,18,33,0.92);
+  border-top: 1px solid var(--border-ice);
   border-bottom: 1px solid var(--border-ice);
   padding: 16px 0;
+  backdrop-filter: blur(8px);
 }
 .trust-items {
   display: flex; align-items: center; justify-content: center;
@@ -446,6 +480,18 @@ ul { list-style: none; }
 .badge-out  { background: rgba(231,76,60,0.9); color: #fff; }
 .badge-new  { background: rgba(191,215,255,0.9); color: var(--black); }
 .card-body { padding: 16px; display: flex; flex-direction: column; flex: 1; }
+/* Card price — shown on storefront */
+.card-price {
+  font-size: 1rem; font-weight: 800;
+  color: var(--ice); margin-bottom: 10px;
+  letter-spacing: 0.02em;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.card-price-cur { font-size: 0.72rem; font-weight: 600; opacity: 0.7; font-family: 'Inter', sans-serif; }
+.card-price-orig {
+  font-size: 0.78rem; color: var(--silver); opacity: 0.45;
+  font-weight: 400; text-decoration: line-through;
+}
 .card-code {
   font-size: 0.7rem; color: var(--ice); opacity: 0.7;
   margin-bottom: 6px; letter-spacing: 0.08em;
@@ -514,9 +560,9 @@ ul { list-style: none; }
 /* ─── AUTHENTIC BANNER ─────────────────────────────────────────── */
 .authentic-banner {
   background: linear-gradient(135deg,
-    rgba(0,0,0,0.98) 0%,
-    rgba(10,10,20,0.98) 50%,
-    rgba(0,0,0,0.98) 100%
+    rgba(19,23,38,0.98)  0%,
+    rgba(35,20,65,0.98)  50%,
+    rgba(15,30,60,0.98) 100%
   );
   border-top: 1px solid var(--border-ice);
   border-bottom: 1px solid var(--border-ice);
@@ -549,7 +595,11 @@ ul { list-style: none; }
 
 /* ─── PAGE HERO ───────────────────────────────────────────────── */
 .page-hero {
-  background: linear-gradient(180deg, #080812 0%, var(--black-soft) 100%);
+  background: linear-gradient(180deg,
+    rgba(19,23,38,0.98) 0%,
+    rgba(25,32,53,0.95) 60%,
+    rgba(15,18,33,0.98) 100%
+  );
   padding: 60px 0 40px; border-bottom: 1px solid var(--border-ice);
 }
 .page-hero h1 { font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 700; margin-bottom: 8px; }
@@ -707,8 +757,8 @@ ul { list-style: none; }
 
 /* ─── SOCIAL STRIP ────────────────────────────────────────────── */
 .social-strip {
-  background: linear-gradient(135deg, #06061a 0%, #0a0a14 100%);
-  border-top: 1px solid var(--border-ice); border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #0d1128 0%, #131830 50%, #0d1128 100%);
+  border-top: 1px solid var(--border-ice); border-bottom: 1px solid var(--border-ice);
   padding: 40px 0;
 }
 .social-strip .container {
@@ -728,13 +778,14 @@ ul { list-style: none; }
 
 /* ─── FOOTER ─────────────────────────────────────────────────── */
 .site-footer {
-  background: var(--black-soft); border-top: 1px solid var(--border); padding-top: 56px;
+  background: linear-gradient(180deg, #0d1128 0%, #0b0d1a 100%);
+  border-top: 1px solid var(--border-ice); padding-top: 56px;
 }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
 .footer-logo-wordmark {
   font-family: 'Playfair Display', Georgia, serif;
   font-weight: 700; display: flex; align-items: baseline; gap: 2px;
-  margin-bottom: 4px;
+  margin-bottom: 4px; direction: ltr;
 }
 .footer-logo-s {
   font-size: 2.2rem; line-height: 1;
@@ -776,16 +827,17 @@ ul { list-style: none; }
 /* ════════════════════════════════════════════════════════════════
    ADMIN PANEL — Dark luxury dashboard
    ════════════════════════════════════════════════════════════════ */
-.admin-body { background: #060608; font-family: 'Inter', 'Cairo', sans-serif; }
+.admin-body { background: #0b0d1a; font-family: 'Inter', 'Cairo', sans-serif; }
 
 /* ─── Login Page ─────────────────────────────────────────────── */
 .admin-login-page {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(191,215,255,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 60% at 80% 100%, rgba(124,92,191,0.06) 0%, transparent 60%),
-    #060608;
+    radial-gradient(ellipse 80% 60% at 50% -10%,  rgba(191,215,255,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 80% 100%,  rgba(124,92,191,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 10% 60%,   rgba(60,120,255,0.07) 0%, transparent 55%),
+    #0b0d1a;
 }
 .login-card {
   background: var(--black-card); border: 1px solid var(--border-ice);
@@ -796,7 +848,7 @@ ul { list-style: none; }
 .login-logo-wordmark {
   font-family: 'Playfair Display', Georgia, serif;
   font-weight: 700; display: flex; align-items: baseline; gap: 2px;
-  justify-content: center; margin-bottom: 4px;
+  justify-content: center; margin-bottom: 4px; direction: ltr;
 }
 .login-logo-s {
   font-size: 3rem; line-height: 1;
@@ -842,7 +894,7 @@ ul { list-style: none; }
 .sidebar-logo-wordmark {
   font-family: 'Playfair Display', Georgia, serif;
   font-weight: 700; display: flex; align-items: baseline; gap: 2px;
-  margin-bottom: 2px;
+  margin-bottom: 2px; direction: ltr;
 }
 .sb-logo-s {
   font-size: 1.8rem; line-height: 1;

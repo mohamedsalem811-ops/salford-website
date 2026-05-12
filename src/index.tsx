@@ -201,6 +201,7 @@ function productCard(p: Product, lang: string) {
   <div class="card-body">
     <p class="card-code"><span class="authentic-dot">✦</span> ${p.code}</p>
     <h3 class="card-name">${p.name}</h3>
+    ${p.price > 0 ? `<p class="card-price">${p.price.toLocaleString()} <span class="card-price-cur">LYD</span>${p.originalPrice && p.originalPrice > p.price ? ` <s class="card-price-orig">${p.originalPrice.toLocaleString()}</s>` : ''}</p>` : ''}
     <div class="card-footer">
       ${p.inStock
         ? `<button class="btn-buy" onclick="event.stopPropagation();openBuy('${p.id}','${safeName}','${p.code}')">
@@ -705,11 +706,11 @@ app.get('/admin/dashboard', c => {
           </select>
         </div>
         <div class="form-group">
-          <label>Price (LYD) <small>optional — shown in admin only</small></label>
+          <label>Price (LYD) <small>optional</small></label>
           <input type="number" id="pf-price" min="0" placeholder="e.g. 550"/>
         </div>
         <div class="form-group">
-          <label>Original Price (LYD) <small>for sets — before discount</small></label>
+          <label>Original Price (LYD) <small>crossed-out if higher</small></label>
           <input type="number" id="pf-orig-price" min="0" placeholder="e.g. 680"/>
         </div>
         <!-- Image Upload -->
@@ -830,6 +831,13 @@ ${nav(lang, 'home')}
       <p class="hero-store-sub">Libya</p>
       <h2 class="hero-title">${lang === 'ar' ? s.heroTitleAr : s.heroTitleEn}</h2>
       <p class="hero-sub">${lang === 'ar' ? s.heroSubtitleAr : s.heroSubtitleEn}</p>
+      <div class="hero-brands-row">
+        <span class="hero-brand-item"><span class="hb-dot hb-sw"></span> Swarovski</span>
+        <span class="hero-brand-sep">·</span>
+        <span class="hero-brand-item"><span class="hb-dot hb-pd"></span> Pandora</span>
+        <span class="hero-brand-sep">·</span>
+        <span class="hero-brand-item"><span class="hb-dot hb-tf"></span> Tiffany &amp; Co</span>
+      </div>
       <div class="hero-actions">
         <a href="/${lang}/products" class="btn-hero-primary">
           <i class="fa fa-gem"></i> ${tr('shopNow', lang)}
