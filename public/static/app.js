@@ -538,54 +538,52 @@ function syncMediaToFields() {
 }
 
 /**
- * Upload a video file to the server via /api/upload (multipart).
- * Shows a progress bar while uploading.
- * Returns the served URL string on success, or null on failure.
+ * Upload a video file DIRECTLY from the browser to litterbox.catbox.moe.
+ * The Worker is never involved — zero CPU cost on Cloudflare.
+ * Returns the direct CDN URL (e.g. https://litter.catbox.moe/abc123.mp4)
+ * or null on failure.
  */
 async function uploadVideoToServer(file) {
-  // Show upload progress UI
   const progWrap = document.getElementById('vid-upload-progress');
   const progBar  = document.getElementById('vid-upload-bar');
   const progTxt  = document.getElementById('vid-upload-status');
   if (progWrap) progWrap.style.display = 'block';
-  if (progBar)  progBar.style.width = '0%';
-  if (progTxt)  progTxt.textContent  = 'Uploading…';
+  if (progBar)  progBar.style.width    = '0%';
+  if (progTxt)  progTxt.textContent    = 'Uploading video…';
 
   return new Promise((resolve) => {
     const xhr  = new XMLHttpRequest();
     const form = new FormData();
-    form.append('file', file);
+    form.append('reqtype',       'fileupload');
+    form.append('time',          '72h');          // keep for 72 hours (use catbox.moe account for permanent)
+    form.append('fileToUpload',  file);
 
     xhr.upload.onprogress = (e) => {
       if (!e.lengthComputable) return;
       const pct = Math.round((e.loaded / e.total) * 100);
-      if (progBar) progBar.style.width = pct + '%';
+      if (progBar) progBar.style.width  = pct + '%';
       if (progTxt) progTxt.textContent  = `Uploading… ${pct}%`;
     };
 
     xhr.onload = () => {
       if (progWrap) progWrap.style.display = 'none';
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const res = JSON.parse(xhr.responseText);
-          if (res.ok && res.url) { resolve(res.url); return; }
-        } catch {}
-        resolve(null);
+      const url = xhr.responseText.trim();
+      // litterbox returns a plain URL like https://litter.catbox.moe/xyz.mp4
+      if (xhr.status === 200 && url.startsWith('http')) {
+        resolve(url);
       } else {
-        let msg = `Upload failed (${xhr.status})`;
-        try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
-        showToast(msg, 'error');
+        showToast('Video upload failed — try a smaller file or paste a URL', 'error');
         resolve(null);
       }
     };
 
     xhr.onerror = () => {
       if (progWrap) progWrap.style.display = 'none';
-      showToast('Upload failed — network error', 'error');
+      showToast('Video upload failed — check your connection', 'error');
       resolve(null);
     };
 
-    xhr.open('POST', '/api/upload');
+    xhr.open('POST', 'https://litterbox.catbox.moe/resources/internals/api.php');
     xhr.send(form);
   });
 }
