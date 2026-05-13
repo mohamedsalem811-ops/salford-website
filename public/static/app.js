@@ -227,33 +227,41 @@ function trackBuy(productId, channel) {
 // ═══════════════════════════════════════════════════════════════
 
 function switchImg(src) {
-  const mainImg = document.getElementById('main-img');
-  if (mainImg) {
-    mainImg.style.opacity = '0';
-    setTimeout(() => { mainImg.src = src; mainImg.style.opacity = '1'; }, 150);
-  }
-  document.querySelectorAll('.gallery-thumbs img, .gallery-thumbs video').forEach(t => {
-    t.classList.toggle('thumb-active', t.src === src || t.getAttribute('src') === src);
-  });
+  switchMedia('image', src, null);
 }
 
-function switchMedia(src, type) {
+/**
+ * switchMedia(type, src, clickedThumb)
+ * type  = 'image' | 'video'
+ * src   = URL or data-URL of the media
+ * clickedThumb = the DOM element that was clicked (for active highlight), or null
+ */
+function switchMedia(type, src, clickedThumb) {
   const mainImg   = document.getElementById('main-img');
   const mainVideo = document.getElementById('main-video');
+
   if (type === 'video') {
     if (mainImg)   { mainImg.style.display = 'none'; }
     if (mainVideo) {
       mainVideo.style.display = 'block';
       mainVideo.src = src;
       mainVideo.load();
-      mainVideo.style.opacity = '1';
     }
   } else {
-    if (mainVideo) { mainVideo.style.display = 'none'; mainVideo.pause(); }
-    if (mainImg)   { mainImg.style.display = 'block'; mainImg.src = src; }
+    if (mainVideo) { mainVideo.style.display = 'none'; mainVideo.pause(); mainVideo.src = ''; }
+    if (mainImg)   {
+      mainImg.style.opacity = '0';
+      mainImg.style.display = 'block';
+      mainImg.src = src;
+      setTimeout(() => { mainImg.style.opacity = '1'; }, 80);
+    }
   }
-  document.querySelectorAll('.gallery-thumbs .thumb-item').forEach(t => {
-    t.classList.toggle('thumb-active', t.dataset.src === src);
+
+  // Update active border on all thumbs
+  document.querySelectorAll('.gallery-thumbs .gthumb').forEach(t => {
+    const active = clickedThumb ? t === clickedThumb : (t.dataset.src === src);
+    t.style.borderColor = active ? '#B76E79' : 'rgba(183,110,121,0.3)';
+    t.classList.toggle('thumb-active', active);
   });
 }
 
@@ -937,9 +945,12 @@ async function saveProduct(e) {
   }
 
   const primaryMedia = _mediaSlots[0];
-  const primaryImage = primaryMedia.type === 'image' ? primaryMedia.data : '';
   const allImages    = _mediaSlots.filter(s => s.type === 'image').map(s => s.data);
   const mediaItems   = _mediaSlots.map(s => ({ type: s.type, data: s.data, name: s.name || '' }));
+
+  // `image` = first image if available, otherwise empty string
+  // The product page now reads mediaItems directly, so video-only products still render
+  const primaryImageField = allImages[0] || '';
 
   const payload = {
     code:          codes.join('+'),
@@ -951,9 +962,9 @@ async function saveProduct(e) {
     category,
     price,
     originalPrice: origP,
-    image:         allImages[0] || primaryMedia.data,
-    images:        allImages.length > 0 ? allImages : [primaryMedia.data],
-    mediaItems,   // new field: full array incl. videos
+    image:         primaryImageField,
+    images:        allImages,
+    mediaItems,
     inStock:       getChecked('pf-instock'),
     featured:      getChecked('pf-featured'),
   };

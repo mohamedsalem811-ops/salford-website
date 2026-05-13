@@ -1343,21 +1343,52 @@ ${nav(lang)}
     <div class="container">
       <div class="detail-grid">
         <div class="detail-gallery">
-          <div class="gallery-main">
-            <img src="${p.image}" alt="${p.name}" id="main-img"
-              onclick="openLightbox(this.src)"
-              onerror="this.onerror=null;this.style.opacity='0.3'"
-              style="cursor:zoom-in;transition:opacity 0.15s;"/>
-          </div>
-          ${p.images.length > 1 ? `
-          <div class="gallery-thumbs">
-            ${p.images.map((img,i) => `
-            <img src="${img}" alt="${p.name} ${i+1}"
-              onclick="switchImg('${img}')"
-              class="${i===0?'thumb-active':''}"
-              loading="lazy"
-              onerror="this.onerror=null;this.style.opacity='0.2'"/>`).join('')}
-          </div>` : ''}
+          ${(() => {
+            // Build unified media list from mediaItems (new) or images[] (old)
+            const allMedia: {type:string,data:string}[] = []
+            if (p.mediaItems && p.mediaItems.length > 0) {
+              p.mediaItems.forEach((m: {type:string,data:string,name?:string}) => {
+                if (m && m.data) allMedia.push({ type: m.type || 'image', data: m.data })
+              })
+            } else {
+              // Legacy: images array
+              const imgs = p.images.length > 0 ? p.images : (p.image ? [p.image] : [])
+              imgs.forEach((img: string) => { if (img) allMedia.push({ type: 'image', data: img }) })
+            }
+            if (allMedia.length === 0 && p.image) allMedia.push({ type: 'image', data: p.image })
+            const first = allMedia[0] || { type: 'image', data: '' }
+            const mainHtml = first.type === 'video'
+              ? `<video id="main-video" src="${first.data}" controls playsinline
+                  style="width:100%;height:100%;object-fit:contain;display:block;border-radius:12px;">
+                 </video>
+                 <img id="main-img" src="" alt="${p.name}" style="display:none;"/>`
+              : `<img src="${first.data}" alt="${p.name}" id="main-img"
+                  onclick="openLightbox(this.src)"
+                  onerror="this.onerror=null;this.style.opacity='0.3'"
+                  style="cursor:zoom-in;transition:opacity 0.15s;"/>
+                 <video id="main-video" src="" controls playsinline
+                  style="display:none;width:100%;height:100%;object-fit:contain;border-radius:12px;"></video>`
+            const thumbsHtml = allMedia.length > 1
+              ? `<div class="gallery-thumbs">${allMedia.map((m,i) =>
+                  m.type === 'video'
+                    ? `<div class="gthumb ${i===0?'thumb-active':''}" data-src="${m.data}"
+                        onclick="switchMedia('video','${m.data}',this)" title="Video"
+                        style="position:relative;width:70px;height:70px;flex-shrink:0;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid ${i===0?'#B76E79':'rgba(183,110,121,0.3)'}">
+                        <video src="${m.data}" muted playsinline preload="metadata"
+                          style="width:100%;height:100%;object-fit:cover;pointer-events:none;"></video>
+                        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.32);">
+                          <i class="fa fa-play-circle" style="color:#fff;font-size:1.4rem;"></i></div>
+                       </div>`
+                    : `<img src="${m.data}" alt="${p.name} ${i+1}"
+                        class="gthumb ${i===0?'thumb-active':''}" data-src="${m.data}"
+                        onclick="switchMedia('image','${m.data}',this)"
+                        loading="lazy"
+                        style="border:2px solid ${i===0?'#B76E79':'rgba(183,110,121,0.3)'};border-radius:8px;"
+                        onerror="this.onerror=null;this.style.opacity='0.2'"/>`
+                ).join('')}</div>`
+              : ''
+            return `<div class="gallery-main">${mainHtml}</div>${thumbsHtml}`
+          })()}
         </div>
         <div class="detail-info">
           <p class="detail-code"><span class="authentic-dot">✦</span> ${p.code}</p>
