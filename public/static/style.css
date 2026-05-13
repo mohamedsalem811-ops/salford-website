@@ -719,7 +719,7 @@ ul { list-style: none; }
 .gallery-main video {
   width: 100%; height: 100%; object-fit: contain;
   display: block; border-radius: var(--radius);
-  background: #0a0608;
+  background: var(--blush-light);
 }
 .gallery-main:hover img { transform: scale(1.04); }
 /* thumbs — flex so video divs and image imgs sit side-by-side */

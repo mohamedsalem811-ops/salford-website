@@ -244,8 +244,9 @@ function switchMedia(type, src, clickedThumb) {
     if (mainImg)   { mainImg.style.display = 'none'; }
     if (mainVideo) {
       mainVideo.style.display = 'block';
-      mainVideo.src = src;
+      mainVideo.src = src + '#t=0.5';
       mainVideo.load();
+      mainVideo.play().catch(() => {});
     }
   } else {
     if (mainVideo) { mainVideo.style.display = 'none'; mainVideo.pause(); mainVideo.src = ''; }

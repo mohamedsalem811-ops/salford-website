@@ -1358,7 +1358,7 @@ ${nav(lang)}
             if (allMedia.length === 0 && p.image) allMedia.push({ type: 'image', data: p.image })
             const first = allMedia[0] || { type: 'image', data: '' }
             const mainHtml = first.type === 'video'
-              ? `<video id="main-video" src="${first.data}" controls playsinline
+              ? `<video id="main-video" src="${first.data}#t=0.5" autoplay muted loop playsinline
                   style="width:100%;height:100%;object-fit:contain;display:block;border-radius:12px;">
                  </video>
                  <img id="main-img" src="" alt="${p.name}" style="display:none;"/>`
@@ -1366,7 +1366,7 @@ ${nav(lang)}
                   onclick="openLightbox(this.src)"
                   onerror="this.onerror=null;this.style.opacity='0.3'"
                   style="cursor:zoom-in;transition:opacity 0.15s;"/>
-                 <video id="main-video" src="" controls playsinline
+                 <video id="main-video" src="" autoplay muted loop playsinline
                   style="display:none;width:100%;height:100%;object-fit:contain;border-radius:12px;"></video>`
             const thumbsHtml = allMedia.length > 1
               ? `<div class="gallery-thumbs">${allMedia.map((m,i) =>
@@ -1374,7 +1374,7 @@ ${nav(lang)}
                     ? `<div class="gthumb ${i===0?'thumb-active':''}" data-src="${m.data}"
                         onclick="switchMedia('video','${m.data}',this)" title="Video"
                         style="position:relative;width:70px;height:70px;flex-shrink:0;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid ${i===0?'#B76E79':'rgba(183,110,121,0.3)'}">
-                        <video src="${m.data}" muted playsinline preload="metadata"
+                        <video src="${m.data}#t=0.5" muted playsinline preload="metadata"
                           style="width:100%;height:100%;object-fit:cover;pointer-events:none;"></video>
                         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.32);">
                           <i class="fa fa-play-circle" style="color:#fff;font-size:1.4rem;"></i></div>
