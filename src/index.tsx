@@ -5,6 +5,33 @@ import { parseFilename, Product, SiteSettings } from './data/products'
 
 // ─── Cloudflare Bindings ──────────────────────────────────────────────────────
 type Bindings = { DB: D1Database }
+
+// ─── Media chunk helpers (video storage in D1) ────────────────────────────────
+const CHUNK_SIZE = 600_000 // ~600 KB base64 chars per chunk — safely under D1 limit
+
+async function dbMediaStore(db: D1Database, key: string, base64: string, mime: string): Promise<void> {
+  // Delete any old chunks for this key first
+  await db.prepare('DELETE FROM media WHERE key=?').bind(key).run()
+  const chunks: string[] = []
+  for (let i = 0; i < base64.length; i += CHUNK_SIZE) {
+    chunks.push(base64.slice(i, i + CHUNK_SIZE))
+  }
+  const stmts = chunks.map((chunk, idx) =>
+    db.prepare('INSERT INTO media (key,chunk_idx,chunk_data,mime_type,total_chunks) VALUES (?,?,?,?,?)')
+      .bind(key, idx, chunk, mime, chunks.length)
+  )
+  if (stmts.length) await db.batch(stmts)
+}
+
+async function dbMediaGet(db: D1Database, key: string): Promise<{ base64: string; mime: string } | null> {
+  const { results } = await db.prepare(
+    'SELECT chunk_data, mime_type FROM media WHERE key=? ORDER BY chunk_idx ASC'
+  ).bind(key).all()
+  if (!results.length) return null
+  const base64 = (results as { chunk_data: string; mime_type: string }[]).map(r => r.chunk_data).join('')
+  const mime   = (results[0] as { mime_type: string }).mime_type
+  return { base64, mime }
+}
 const app = new Hono<{ Bindings: Bindings }>()
 app.use('/static/*', serveStatic({ root: './public' }))
 app.use('/api/*', cors())
@@ -439,6 +466,71 @@ app.post('/api/auth', async c => {
     if (username === s.adminUser && password === s.adminPass) return c.json({ ok: true })
     return c.json({ ok: false }, 401)
   } catch { return c.json({ ok: false }, 400) }
+})
+
+// ── Media upload — receives multipart/form-data with a "file" field ───────────
+app.post('/api/upload', async c => {
+  try {
+    // Ensure media table exists (created by migration, but safe guard)
+    await c.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS media (
+        key          TEXT NOT NULL,
+        chunk_idx    INTEGER NOT NULL,
+        chunk_data   TEXT NOT NULL,
+        mime_type    TEXT NOT NULL DEFAULT 'video/mp4',
+        total_chunks INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (key, chunk_idx)
+      )
+    `).run()
+
+    const formData = await c.req.formData()
+    const file = formData.get('file') as File | null
+    if (!file) return c.json({ error: 'No file provided' }, 400)
+
+    const mime    = file.type || 'video/mp4'
+    const buffer  = await file.arrayBuffer()
+    const bytes   = new Uint8Array(buffer)
+
+    // Convert binary → base64
+    let binary = ''
+    const chunkSize = 8192
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+    }
+    const base64 = btoa(binary)
+
+    const key = `media_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    await dbMediaStore(c.env.DB, key, base64, mime)
+
+    return c.json({ ok: true, url: `/api/media/${key}`, key })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return c.json({ error: msg }, 500)
+  }
+})
+
+// ── Media serve — reassembles chunks and streams back ─────────────────────────
+app.get('/api/media/:key', async c => {
+  try {
+    const key  = c.req.param('key')
+    const data = await dbMediaGet(c.env.DB, key)
+    if (!data) return c.notFound()
+
+    // Decode base64 → binary
+    const binary  = atob(data.base64)
+    const bytes   = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+
+    return new Response(bytes.buffer, {
+      headers: {
+        'Content-Type':  data.mime,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Length': String(bytes.length),
+      },
+    })
+  } catch {
+    return c.notFound()
+  }
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -879,10 +971,19 @@ app.get('/admin/dashboard', async c => {
           <button type="button" class="media-add-btn" onclick="document.getElementById('pf-media-file').click()">
             <i class="fa fa-plus"></i> Add Photo or Video
           </button>
-          <input type="file" id="pf-media-file" accept="image/*,video/*" multiple style="display:none;"
+          <input type="file" id="pf-media-file" accept="image/*,video/mp4,video/mov,video/quicktime,video/webm" multiple style="display:none;"
             onchange="handleMediaFiles(this)"/>
           <input type="hidden" id="pf-image"/>
           <input type="hidden" id="pf-images-json" value="[]"/>
+          <!-- Video upload progress bar -->
+          <div id="vid-upload-progress" style="display:none;margin-top:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <small style="color:#B76E79;font-weight:600;"><i class="fa fa-spinner fa-spin"></i> <span id="vid-upload-status">Uploading…</span></small>
+            </div>
+            <div style="background:rgba(183,110,121,0.15);border-radius:99px;height:6px;overflow:hidden;">
+              <div id="vid-upload-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#B76E79,#d4a0a9);border-radius:99px;transition:width 0.2s;"></div>
+            </div>
+          </div>
           <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
             <small style="color:#b89aa0;white-space:nowrap;">Or add by URL:</small>
             <input type="url" id="pf-media-url" placeholder="https://... (image or video URL)" style="flex:1;"/>
@@ -890,7 +991,7 @@ app.get('/admin/dashboard', async c => {
               class="btn-secondary btn-sm"><i class="fa fa-plus"></i></button>
           </div>
           <small style="color:#b89aa0;margin-top:6px;display:block;">
-            Up to 5 items &nbsp;·&nbsp; Images max 10 MB &nbsp;·&nbsp; Videos max 200 MB (Full HD MP4)
+            Up to 5 items &nbsp;·&nbsp; Images compressed automatically &nbsp;·&nbsp; Videos uploaded directly (MP4, MOV, WebM)
           </small>
         </div>
         <div class="form-group form-full">

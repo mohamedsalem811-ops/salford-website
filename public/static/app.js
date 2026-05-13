@@ -529,7 +529,62 @@ function syncMediaToFields() {
 }
 
 /**
+ * Upload a video file to the server via /api/upload (multipart).
+ * Shows a progress bar while uploading.
+ * Returns the served URL string on success, or null on failure.
+ */
+async function uploadVideoToServer(file) {
+  // Show upload progress UI
+  const progWrap = document.getElementById('vid-upload-progress');
+  const progBar  = document.getElementById('vid-upload-bar');
+  const progTxt  = document.getElementById('vid-upload-status');
+  if (progWrap) progWrap.style.display = 'block';
+  if (progBar)  progBar.style.width = '0%';
+  if (progTxt)  progTxt.textContent  = 'Uploading…';
+
+  return new Promise((resolve) => {
+    const xhr  = new XMLHttpRequest();
+    const form = new FormData();
+    form.append('file', file);
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      if (progBar) progBar.style.width = pct + '%';
+      if (progTxt) progTxt.textContent  = `Uploading… ${pct}%`;
+    };
+
+    xhr.onload = () => {
+      if (progWrap) progWrap.style.display = 'none';
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          if (res.ok && res.url) { resolve(res.url); return; }
+        } catch {}
+        resolve(null);
+      } else {
+        let msg = `Upload failed (${xhr.status})`;
+        try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+        showToast(msg, 'error');
+        resolve(null);
+      }
+    };
+
+    xhr.onerror = () => {
+      if (progWrap) progWrap.style.display = 'none';
+      showToast('Upload failed — network error', 'error');
+      resolve(null);
+    };
+
+    xhr.open('POST', '/api/upload');
+    xhr.send(form);
+  });
+}
+
+/**
  * Handle file input change — supports images and videos.
+ * Images  → compressed via Canvas, stored as base64 in D1.
+ * Videos  → uploaded to /api/upload, stored as URL in D1.
  */
 function handleMediaFiles(input) {
   const files = Array.from(input.files || []);
@@ -542,7 +597,15 @@ function handleMediaFiles(input) {
     showToast(`Max ${MAX_SLOTS} media items — only first ${remaining} added`, 'error');
   }
 
+  // Process files one by one (async-safe counter)
   let processed = 0;
+  function oneDone() {
+    processed++;
+    if (processed === toProcess.length) {
+      renderMediaStrip();
+      showToast(`${toProcess.length} file(s) added`, 'success');
+    }
+  }
 
   toProcess.forEach(file => {
     const isVideo = file.type.startsWith('video/');
@@ -550,25 +613,28 @@ function handleMediaFiles(input) {
 
     if (!isVideo && !isImage) {
       showToast(`Unsupported file: ${file.name}`, 'error');
-      processed++;
-      if (processed === toProcess.length) renderMediaStrip();
+      oneDone();
       return;
     }
 
     if (isVideo) {
-      // Videos cannot be base64-stored in D1 (too large).
-      // Require the user to paste a URL instead.
-      showToast(`Videos must be added via URL — paste a direct link below`, 'error');
-      processed++;
-      if (processed === toProcess.length) renderMediaStrip();
+      // Upload video to server → get back a permanent URL
+      showToast(`Uploading video "${file.name}"…`, 'success');
+      uploadVideoToServer(file).then(url => {
+        if (url) {
+          _mediaSlots.push({ type: 'video', data: url, name: file.name });
+        } else {
+          showToast(`Video upload failed for: ${file.name}`, 'error');
+        }
+        oneDone();
+      });
       return;
     }
 
-    // Images — compress via Canvas before storing
+    // Images — compress via Canvas before storing as base64
     if (file.size > MAX_IMG_MB * 1024 * 1024) {
       showToast(`${file.name} too large — max ${MAX_IMG_MB} MB`, 'error');
-      processed++;
-      if (processed === toProcess.length) renderMediaStrip();
+      oneDone();
       return;
     }
 
@@ -576,16 +642,11 @@ function handleMediaFiles(input) {
     compressImage(file)
       .then(dataUrl => {
         _mediaSlots.push({ type: 'image', data: dataUrl, name: file.name });
-        processed++;
-        if (processed === toProcess.length) {
-          renderMediaStrip();
-          showToast(`${toProcess.length} image(s) added`, 'success');
-        }
+        oneDone();
       })
       .catch(() => {
         showToast(`Failed to compress: ${file.name}`, 'error');
-        processed++;
-        if (processed === toProcess.length) renderMediaStrip();
+        oneDone();
       });
   });
 
