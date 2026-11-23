@@ -1,14 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "salford-libya",
+  "name": "salford-site",
   "compatibility_date": "2026-04-13",
-  "pages_build_output_dir": "./dist",
   "compatibility_flags": ["nodejs_compat"],
+  "pages_build_output_dir": "./dist",
   "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "salford-libya-db",
-      "database_id": "4e79b018-97a4-4475-9c2f-a65051f41127"
-    }
+    { "binding": "DB", "database_name": "salford-site-db", "database_id": "6d937db9-c73f-47fa-a425-af64eb7e3d84", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "salford-media" }
   ]
 }

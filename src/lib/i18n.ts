@@ -1,0 +1,85 @@
+export type Lang = 'ar' | 'en'
+
+export const isLang = (v: string | undefined): v is Lang => v === 'ar' || v === 'en'
+
+const ar = {
+  siteName: 'سالفورد ليبيا',
+  tagline: 'مجوهرات أصلية من أشهر العلامات العالمية',
+  home: 'الرئيسية', shop: 'تسوق', brands: 'العلامات', cart: 'السلة', categories: 'الفئات',
+  search: 'ابحث باسم المنتج أو رمزه', searchBtn: 'بحث',
+  newArrivals: 'وصل حديثاً', bestSellers: 'الأكثر طلباً', viewAll: 'عرض الكل',
+  justArrived: 'وصل توا', shopNow: 'تسوّق الآن',
+  trustOriginal: 'أصلي 100%', trustBox: 'في علبته الأصلية', trustDelivery: 'نوصلوا لكل ليبيا',
+  all: 'الكل', filter: 'تصفية', sort: 'الترتيب', sortNew: 'الأحدث', sortLow: 'الأقل سعراً', sortHigh: 'الأعلى سعراً',
+  products: 'منتج', noResults: 'ما لقيناش نتائج. جرّب كلمة ثانية أو تصفح العلامات.',
+  inStock: 'متوفر', outOfStock: 'غير متوفر حالياً', code: 'رمز المنتج',
+  addToCart: 'أضف إلى السلة', added: 'تمت الإضافة للسلة', soldOut: 'نفدت الكمية',
+  boxTitle: (b: string) => `توصلك في علبة ${b} الأصلية`, boxSub: 'مع أوراقها كما تأتي من الشركة',
+  delTitle: 'نوصلها لباب بيتك', delSub: 'في أي مكان في ليبيا، ونتفق معك على الموعد في المحادثة',
+  similar: 'قد يعجبك أيضاً', setIncludes: 'يحتوي الطقم على',
+  cartTitle: 'السلة', cartEmpty: 'سلتك فاضية. شوف الجديد وابدأ التسوق.', itemsTotal: 'المنتجات', delivery: 'التوصيل',
+  deliveryByCity: 'حسب المدينة', total: 'المجموع', continueOrder: 'كمّل طلبيتك', remove: 'حذف',
+  cartNote: 'نؤكد معك السعر والتوفر قبل إرسال الطلبية.',
+  checkout: 'بياناتك', name: 'الاسم', phone: 'رقم الهاتف', city: 'المدينة أو المنطقة', cityPh: 'اكتب أو اختر مدينتك',
+  address: 'العنوان وأقرب معلم', addressPh: 'مثلاً: الفويهات، قرب جامع…', note: 'ملاحظة (اختياري)', notePh: 'مثلاً: التوصيل بعد العصر',
+  payment: 'طريقة الدفع', payCash: 'نقداً عند الاستلام', payCard: 'بطاقة مصرفية عند الاستلام', payLypay: 'LyPay',
+  payLypayNote: 'نرسل لك التفاصيل في المحادثة',
+  sendVia: 'أرسل طلبيتك عبر', ready: 'الرسالة جاهزة، اضغط إرسال فقط', igHint: 'ننسخ الرسالة ونفتح المحادثة، الصقها وأرسلها',
+  whatsapp: 'واتساب', messenger: 'ماسنجر', instagram: 'إنستغرام', noChannels: 'طرق التواصل قيد الإعداد. حاول لاحقاً.',
+  errName: 'اكتب اسمك', errPhone: 'اكتب رقم هاتف ليبي صحيح، مثل 0912345678', errCity: 'اكتب مدينتك', errGeneric: 'صار خطأ، حاول مرة ثانية',
+  orderReady: 'طلبيتك جاهزة!', orderNumber: 'رقم الطلبية',
+  sendNow: (c: string) => `أرسل الرسالة في ${c} لتصلنا الطلبية. إذا لم تُفتح المحادثة، استخدم الزر بالأسفل.`,
+  openAgain: (c: string) => `افتح ${c} مرة أخرى`, copyMsg: 'انسخ الرسالة', copied: 'تم نسخ الرسالة',
+  copyOpenIg: 'انسخ الرسالة وافتح إنستغرام',
+  nextSteps: 'الخطوات القادمة', step1: 'نؤكد معك التوفر والسعر', step2: 'نتفق معك على موعد التوصيل', step3: 'تستلم طلبيتك في علبتها الأصلية',
+  keepShopping: 'متابعة التسوق', about: 'من نحن', deliveryReturns: 'التوصيل والإرجاع', contact: 'تواصل معنا',
+  rights: 'جميع الحقوق محفوظة', notFound: 'الصفحة غير موجودة', notFoundSub: 'يمكن الرابط تغيّر. جرّب البحث أو ارجع للرئيسية.',
+  currency: 'د.ل', langSwitch: 'English', video: 'فيديو', of: 'من',
+}
+
+const en: typeof ar = {
+  siteName: 'Salford Libya',
+  tagline: 'Authentic jewelry from the world’s favourite brands',
+  home: 'Home', shop: 'Shop', brands: 'Brands', cart: 'Cart', categories: 'Categories',
+  search: 'Search by product name or code', searchBtn: 'Search',
+  newArrivals: 'New arrivals', bestSellers: 'Best sellers', viewAll: 'View all',
+  justArrived: 'Just arrived', shopNow: 'Shop now',
+  trustOriginal: '100% authentic', trustBox: 'In original brand box', trustDelivery: 'Delivery across Libya',
+  all: 'All', filter: 'Filter', sort: 'Sort', sortNew: 'Newest', sortLow: 'Price: low to high', sortHigh: 'Price: high to low',
+  products: 'products', noResults: 'No results. Try another word or browse the brands.',
+  inStock: 'In stock', outOfStock: 'Out of stock', code: 'Product code',
+  addToCart: 'Add to cart', added: 'Added to cart', soldOut: 'Sold out',
+  boxTitle: (b: string) => `Comes in the original ${b} box`, boxSub: 'With its papers, exactly as it comes from the brand',
+  delTitle: 'Delivered to your door', delSub: 'Anywhere in Libya. We agree the time with you in the chat.',
+  similar: 'You may also like', setIncludes: 'This set includes',
+  cartTitle: 'Cart', cartEmpty: 'Your cart is empty. Have a look at what’s new.', itemsTotal: 'Items', delivery: 'Delivery',
+  deliveryByCity: 'Depends on city', total: 'Total', continueOrder: 'Continue', remove: 'Remove',
+  cartNote: 'We confirm price and availability with you before sending.',
+  checkout: 'Your details', name: 'Name', phone: 'Phone number', city: 'City or area', cityPh: 'Type or choose your city',
+  address: 'Address and nearest landmark', addressPh: 'e.g. Fuwayhat, near the mosque…', note: 'Note (optional)', notePh: 'e.g. deliver in the afternoon',
+  payment: 'Payment', payCash: 'Cash on delivery', payCard: 'Card on delivery', payLypay: 'LyPay',
+  payLypayNote: 'We send you the details in the chat',
+  sendVia: 'Send your order via', ready: 'Message ready, just tap send', igHint: 'We copy the message and open the chat. Paste and send.',
+  whatsapp: 'WhatsApp', messenger: 'Messenger', instagram: 'Instagram', noChannels: 'Contact options are being set up. Please try later.',
+  errName: 'Enter your name', errPhone: 'Enter a valid Libyan phone number, e.g. 0912345678', errCity: 'Enter your city', errGeneric: 'Something went wrong, please try again',
+  orderReady: 'Your order is ready!', orderNumber: 'Order number',
+  sendNow: (c: string) => `Send the message in ${c} so your order reaches us. If the chat didn’t open, use the button below.`,
+  openAgain: (c: string) => `Open ${c} again`, copyMsg: 'Copy message', copied: 'Message copied',
+  copyOpenIg: 'Copy message and open Instagram',
+  nextSteps: 'What happens next', step1: 'We confirm availability and price', step2: 'We agree the delivery time with you', step3: 'You receive your order in its original box',
+  keepShopping: 'Continue shopping', about: 'About us', deliveryReturns: 'Delivery & returns', contact: 'Contact us',
+  rights: 'All rights reserved', notFound: 'Page not found', notFoundSub: 'The link may have changed. Try searching or go home.',
+  currency: 'LYD', langSwitch: 'العربية', video: 'Video', of: 'of',
+}
+
+export const dict = { ar, en }
+export const t = (lang: Lang) => dict[lang]
+
+/** Libyan cities and towns shown as suggestions; customers can still type any place. */
+export const CITIES_AR = [
+  'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'البيضاء', 'زليتن', 'الخمس', 'أجدابيا', 'طبرق', 'سبها', 'سرت', 'غريان',
+  'درنة', 'المرج', 'صبراتة', 'صرمان', 'زوارة', 'يفرن', 'نالوت', 'غدامس', 'بني وليد', 'ترهونة', 'مسلاتة', 'أوباري',
+  'مرزق', 'الكفرة', 'جالو', 'البريقة', 'شحات', 'القبة', 'تاجوراء', 'جنزور', 'القره بوللي', 'قصر بن غشير', 'العجيلات',
+  'جادو', 'الزنتان', 'الرجبان', 'مزدة', 'ودان', 'هون', 'سوكنة', 'براك', 'غات', 'أوجلة', 'توكرة', 'سلوق', 'الأبيار',
+  'رقدالين', 'الجميل', 'زلطن', 'تازربو', 'الجغبوب', 'إمساعد', 'كاباو', 'الأصابعة', 'ككلة', 'الشويرف', 'أم الأرانب',
+]
