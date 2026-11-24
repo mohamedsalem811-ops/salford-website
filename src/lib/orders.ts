@@ -103,7 +103,7 @@ export async function loadOrderForCustomer(db: D1Database, number: string, token
   let diff = 0
   for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ o.view_token.charCodeAt(i)
   if (diff) return null
-  const { results } = await db.prepare('SELECT brand, name, code, price, qty FROM order_items WHERE order_id = ? ORDER BY id').bind(o.id).all<OrderLine>()
+  const { results } = await db.prepare('SELECT brand, name, code, price, qty FROM order_items WHERE order_id = ? ORDER BY rowid').bind(o.id).all<OrderLine>()
   const info: OrderInfo = {
     lang: o.lang === 'en' ? 'en' : 'ar', number: o.number, lines: results, total: o.total,
     name: o.name, phone: o.phone, city: o.city, address: o.address, note: o.note, payment: o.payment,

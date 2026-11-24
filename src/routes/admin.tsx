@@ -323,7 +323,7 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const o = await c.env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(id).first<Record<string, string | number>>()
   if (!o) return c.redirect('/admin/orders')
-  const { results: items } = await c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(id).all<Record<string, string | number>>()
+  const { results: items } = await c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id).all<Record<string, string | number>>()
   const wa = `https://wa.me/218${String(o.phone).replace(/^0/, '')}`
   return c.html(
     <Shell title={String(o.number)} nav="orders">
