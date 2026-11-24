@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "wrangler pages dev dist",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/"
+    "test": "esbuild tests/rules.test.ts --bundle --platform=node --format=esm --outfile=.test-build/rules.test.mjs --log-level=warning && node --test .test-build/rules.test.mjs",
+    "check": "npm run typecheck && npm test"
   },
   "dependencies": {
     "hono": "^4.12.12"

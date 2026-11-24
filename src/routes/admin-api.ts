@@ -1,14 +1,23 @@
 import { Hono } from 'hono'
 import type { Env, Media } from '../lib/db'
 import { toDirham } from '../lib/db'
-import { hashPassword, verifyLogin } from '../lib/auth'
+import { hashPassword, verifyLogin, endOtherSessions } from '../lib/auth'
 import { youtubeId } from '../lib/media'
+import { waNumber, igHandle } from '../lib/orders'
+import { bumpCatalog } from '../lib/catalog'
 
 import { translateProduct } from '../lib/translate'
 
 type Vars = { admin: { id: number; email: string } }
 
 export const adminApi = new Hono<{ Bindings: Env; Variables: Vars }>()
+
+/** Anything saved here that the shop shows makes every copy of the shop reload its in-memory catalog. */
+const NO_SHOP_CHANGE = /^\/admin\/api\/(orders|password|sessions|admins|upload|video\/(start|part))(\/|$)/
+adminApi.use('*', async (c, next) => {
+  await next()
+  if (c.req.method !== 'GET' && c.res.status < 400 && !NO_SHOP_CHANGE.test(c.req.path)) await bumpCatalog(c.env.DB)
+})
 
 const MAX_PHOTO = 25 * 1024 * 1024
 const MAX_VIDEO = 100 * 1024 * 1024
@@ -330,8 +339,11 @@ adminApi.post('/settings', async (c) => {
   const stmts = SETTING_KEYS.map((k) => {
     let v = String(b[k] ?? '').trim().slice(0, 3000)
     if (k.startsWith('pay_')) v = b[k] ? '1' : '0'
-    if (k === 'whatsapp') v = v.replace(/\D/g, '').replace(/^00/, '').replace(/^0(9\d{8})$/, '218$1')
-    if ((k === 'facebook' || k === 'instagram') && v && !/^https:\/\//.test(v)) v = `https://${v.replace(/^\/+/, '')}`
+    // 0912345678, 912345678, +218 91…, ٠٩١… → 218912345678
+    if (k === 'whatsapp') v = waNumber(v)
+    // share links (…?igsh=…), @handle or a bare handle → https://www.instagram.com/handle/
+    if (k === 'instagram' && v && igHandle(v)) v = `https://www.instagram.com/${igHandle(v)}/`
+    if ((k === 'facebook' || k === 'instagram') && v && !/^https:\/\//.test(v)) v = `https://${v.replace(/^(https?:)?\/+/, '')}`
     return c.env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(k, v)
   })
   const banners = [0, 1, 2]
@@ -358,7 +370,7 @@ adminApi.delete('/admins/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const n = await c.env.DB.prepare('SELECT count(*) AS n FROM admins').first<{ n: number }>()
   if ((n?.n ?? 0) <= 1) return c.json({ error: 'At least one admin is needed.' }, 400)
-  await c.env.DB.prepare('DELETE FROM admins WHERE id=?').bind(id).run()
+  await c.env.DB.batch([c.env.DB.prepare('DELETE FROM sessions WHERE admin_id=?').bind(id), c.env.DB.prepare('DELETE FROM admins WHERE id=?').bind(id)])
   return c.json({ ok: true })
 })
 adminApi.post('/password', async (c) => {
@@ -368,5 +380,10 @@ adminApi.post('/password', async (c) => {
   if (!(await verifyLogin(c.env.DB, me.email, String(b.current ?? '')))) return c.json({ error: 'Your current password is wrong.' }, 403)
   const { hash, salt } = await hashPassword(String(b.password))
   await c.env.DB.prepare('UPDATE admins SET pass_hash=?, salt=? WHERE id=?').bind(hash, salt, me.id).run()
+  await endOtherSessions(c, me.id)
+  return c.json({ ok: true })
+})
+adminApi.post('/sessions/end-others', async (c) => {
+  await endOtherSessions(c, c.get('admin').id)
   return c.json({ ok: true })
 })

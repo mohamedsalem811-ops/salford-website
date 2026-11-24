@@ -312,5 +312,7 @@
   var aa = $('[data-add-admin]');
   if (aa) aa.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/admins', formJSON(aa)).then(function () { location.reload(); }).catch(function (err) { toast(err.message, true); }); });
   var cp = $('[data-change-password]');
-  if (cp) cp.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/password', formJSON(cp)).then(function () { cp.reset(); toast('Password changed'); }).catch(function (err) { toast(err.message, true); }); });
+  if (cp) cp.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/password', formJSON(cp)).then(function () { cp.reset(); toast('Password changed. Other devices are signed out.'); }).catch(function (err) { toast(err.message, true); }); });
+  var es = $('[data-end-sessions]');
+  if (es) es.addEventListener('click', function () { if (confirm('Sign out on every other phone and computer?')) api('POST', '/sessions/end-others').then(function () { toast('Other devices are signed out'); }).catch(function (err) { toast(err.message, true); }); });
 })();

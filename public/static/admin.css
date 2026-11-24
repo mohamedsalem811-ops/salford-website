@@ -79,3 +79,29 @@ h1 { font-size: 1.4rem; margin: 0; } h2 { font-size: 1.05rem; margin: 0 0 10px; 
   .a-main { padding: 16px; }
 }
 @media (max-width: 560px) { .a-grid2 { grid-template-columns: 1fr; } .a-filter input { width: 100%; } }
+.a-ph { display: none; }
+/* Phones: one-line header, and the product / order tables become cards (no sideways scrolling). */
+@media (max-width: 640px) {
+  .a-side { flex-wrap: nowrap; overflow-x: auto; gap: 2px; padding: 8px 10px; scrollbar-width: none; }
+  .a-side::-webkit-scrollbar { display: none; }
+  .a-logo { width: 78px; margin: 0 6px 0 2px; flex: none; }
+  .a-side a, .a-side .linkbtn { padding: 8px 10px; white-space: nowrap; flex: none; width: auto; }
+  .a-main { padding: 14px 12px 50px; gap: 12px; }
+  .a-table-wrap:has(.a-plist, .a-olist) { overflow: visible; }
+  .a-plist thead, .a-olist thead { display: none; }
+  .a-plist, .a-plist tbody, .a-olist, .a-olist tbody { display: block; }
+  .a-plist td, .a-olist td { padding: 0; border: 0; min-width: 0; }
+  .a-plist tr { display: grid; grid-template-columns: 44px auto minmax(0, 1fr) auto; grid-template-areas: "th nm nm nm" "th code brand price" "th stock st act"; gap: 4px 10px; align-items: center; padding: 10px 12px; border-top: 1px solid #F0E3E6; }
+  .a-plist tr:first-child { border-top: 0; }
+  .c-th { grid-area: th; align-self: start; } .c-nm { grid-area: nm; line-height: 1.3; } .c-code { grid-area: code; font-size: 12px; }
+  .c-brand { grid-area: brand; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .c-price { grid-area: price; text-align: end; } .c-stock { grid-area: stock; } .c-st { grid-area: st; } .c-act { grid-area: act; justify-self: end; }
+  .c-nm .tag { margin: 2px 6px 0 0; }
+  .a-olist tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "no st" "cust tot" "city items" "pay pay" "date ch"; gap: 3px 10px; padding: 12px; border-top: 1px solid #F0E3E6; }
+  .a-olist tr:first-child { border-top: 0; }
+  .a-olist .c-no { grid-area: no; } .a-olist .c-st { grid-area: st; justify-self: end; } .c-cust { grid-area: cust; }
+  .c-tot { grid-area: tot; text-align: end; font-weight: 600; } .c-city { grid-area: city; } .c-items { grid-area: items; text-align: end; color: var(--muted); }
+  .c-pay { grid-area: pay; font-size: 12.5px; } .c-date { grid-area: date; font-size: 12px; color: var(--muted); } .c-ch { grid-area: ch; font-size: 12px; color: var(--muted); text-align: end; }
+  .a-olist .a-ph { display: inline; }
+  .a-filter select { flex: 1; }
+}

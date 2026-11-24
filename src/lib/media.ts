@@ -9,15 +9,22 @@ const sizesOf = (m: Media): number[] => {
   }
 }
 
+let base = '/m'
+/** Photos and videos come from the site (/m/…) unless MEDIA_BASE points at the bucket's own web address. */
+export function setMediaBase(v?: string) {
+  const b = (v || '').trim().replace(/\/+$/, '')
+  base = /^https:\/\/[a-z0-9.-]+$/i.test(b) ? b : '/m'
+}
+
 /** Best URL for a media item at a target width. Uploads have sized variants; links use the safe copy if one exists. */
 export function mediaUrl(m: Media, width = 900): string {
   if (m.r2_key) {
     const sizes = sizesOf(m)
     if (sizes.length) {
       const pick = sizes.find((s) => s >= width) ?? sizes[sizes.length - 1]
-      return `/m/${m.r2_key}-${pick}`
+      return `${base}/${m.r2_key}-${pick}`
     }
-    return `/m/${m.r2_key}`
+    return `${base}/${m.r2_key}`
   }
   return m.url
 }
@@ -25,7 +32,7 @@ export function mediaUrl(m: Media, width = 900): string {
 export function srcset(m: Media): string | undefined {
   const sizes = sizesOf(m)
   if (!m.r2_key || !sizes.length) return undefined
-  return sizes.map((s) => `/m/${m.r2_key}-${s} ${s}w`).join(', ')
+  return sizes.map((s) => `${base}/${m.r2_key}-${s} ${s}w`).join(', ')
 }
 
 export const firstImage = (media: Media[]) => media.find((m) => m.kind === 'image')

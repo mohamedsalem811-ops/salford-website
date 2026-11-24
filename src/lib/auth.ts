@@ -53,7 +53,10 @@ export async function tooManyAttempts(db: D1Database, ip: string) {
 }
 
 export const recordAttempt = (db: D1Database, ip: string) =>
-  db.prepare('INSERT INTO login_attempts (ip) VALUES (?)').bind(ip).run()
+  db.batch([
+    db.prepare("DELETE FROM login_attempts WHERE at < datetime('now', '-1 day')"),
+    db.prepare('INSERT INTO login_attempts (ip) VALUES (?)').bind(ip),
+  ])
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function startSession(c: Context<any>, adminId: number) {
@@ -75,6 +78,13 @@ export async function endSession(c: Context<any>) {
   deleteCookie(c, COOKIE, { path: '/' })
 }
 
+/** Signs this admin out on every other phone and computer; keeps the current login. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function endOtherSessions(c: Context<any>, adminId: number) {
+  const token = getCookie(c, COOKIE) ?? ''
+  await (c.env as Env).DB.prepare('DELETE FROM sessions WHERE admin_id = ? AND token_hash != ?').bind(adminId, await sha256(token)).run()
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function currentAdmin(c: Context<any>) {
   const token = getCookie(c, COOKIE)
@@ -90,7 +100,9 @@ export async function currentAdmin(c: Context<any>) {
 export const requireAdmin: MiddlewareHandler<{ Bindings: Env; Variables: { admin: { id: number; email: string } } }> = async (c, next) => {
   if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
     const origin = c.req.header('origin')
-    if (origin && new URL(origin).host !== new URL(c.req.url).host) return c.json({ error: 'Bad origin' }, 403)
+    let host = ''
+    try { host = origin ? new URL(origin).host : '' } catch { host = '' }
+    if (origin && host !== new URL(c.req.url).host) return c.json({ error: 'Bad origin' }, 403)
   }
   const admin = await currentAdmin(c)
   if (!admin) {

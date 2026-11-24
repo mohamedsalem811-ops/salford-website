@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { Env, Brand, ProductWithMedia } from '../lib/db'
-import { getBrands, getCategories, getSettings, listProducts, getProduct, pName, pShort, pDesc, fmtLyd } from '../lib/db'
+import { pName, pShort, pDesc, fmtLyd } from '../lib/db'
+import { catalog, listFrom, productFrom, type Catalog } from '../lib/catalog'
 import { t, isLang, CITIES_AR, type Lang } from '../lib/i18n'
 import { Layout, Grid, Price, Pic, type PageMeta } from '../views/layout'
 import { mediaUrl, srcset, youtubeId, firstImage, absUrl } from '../lib/media'
+import { loadOrderForCustomer, channelLinks, waNumber, igHandle } from '../lib/orders'
 
 type C = Context<{ Bindings: Env }>
 export const store = new Hono<{ Bindings: Env }>()
@@ -12,14 +14,14 @@ export const store = new Hono<{ Bindings: Env }>()
 const origin = (c: C) => new URL(c.req.url).origin
 const noindex = (c: C) => new URL(c.req.url).hostname.endsWith('.pages.dev')
 
-async function base(c: C, lang: Lang) {
-  const [brands, settings] = await Promise.all([getBrands(c.env.DB), getSettings(c.env.DB)])
-  return { brands, settings }
+async function base(c: C, _lang: Lang): Promise<{ brands: Brand[]; settings: Record<string, string>; cat: Catalog }> {
+  const cat = await catalog(c)
+  return { brands: cat.brands, settings: cat.settings, cat }
 }
 
-function render(c: C, meta: Omit<PageMeta, 'origin' | 'noindex'>, b: { brands: Brand[]; settings: Record<string, string> }, body: unknown, status = 200) {
+function render(c: C, meta: Omit<PageMeta, 'origin'>, b: { brands: Brand[]; settings: Record<string, string> }, body: unknown, status = 200) {
   return c.html(
-    <Layout {...meta} origin={origin(c)} noindex={noindex(c)} brands={b.brands} settings={b.settings}>
+    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.brands} settings={b.settings}>
       {body as never}
     </Layout>,
     status as 200,
@@ -36,13 +38,22 @@ store.get('/:lang{(?:ar|en)}', (c) => c.redirect(`/${c.req.param('lang')}/`, 301
 
 /* ---------- old site links ---------- */
 store.get('/:lang{(?:ar|en)}/product/:legacy', async (c) => {
-  const row = await c.env.DB.prepare('SELECT id FROM products WHERE legacy_id = ?').bind(c.req.param('legacy')).first<{ id: number }>()
+  const legacy = c.req.param('legacy')
+  const row = (await catalog(c)).products.find((p) => p.legacy_id === legacy)
   return c.redirect(row ? `/${c.req.param('lang')}/p/${row.id}` : `/${c.req.param('lang')}/shop`, 301)
 })
-store.get('/:lang{(?:ar|en)}/products', (c) => {
-  const u = new URL(c.req.url)
-  const cat = u.searchParams.get('cat')
-  return c.redirect(`/${c.req.param('lang')}/shop${cat ? `?cat=${encodeURIComponent(cat)}` : ''}`, 301)
+store.get('/:lang{(?:ar|en)}/products', async (c) => {
+  const lang = c.req.param('lang')
+  const cat = c.req.query('cat')
+  const qs = cat ? `?cat=${encodeURIComponent(cat)}` : ''
+  // old links like /ar/products?brand=swarovski&cat=rings keep the brand
+  const raw = (c.req.query('brand') || '').toLowerCase().trim()
+  const brand = ({ 'apm-monaco': 'apm', apmmonaco: 'apm', 'tiffany-co': 'tiffany' } as Record<string, string>)[raw] ?? raw
+  if (brand && /^[a-z0-9-]{1,40}$/.test(brand)) {
+    const ok = (await catalog(c)).brands.some((x) => x.id === brand)
+    if (ok) return c.redirect(`/${lang}/brand/${brand}${qs}`, 301)
+  }
+  return c.redirect(`/${lang}/shop${qs}`, 301)
 })
 store.get('/:lang{(?:ar|en)}/sets', (c) => c.redirect(`/${c.req.param('lang')}/shop?cat=sets`, 301))
 
@@ -53,14 +64,12 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
   const b = await base(c, lang)
-  const [cats, fresh, best] = await Promise.all([
-    getCategories(c.env.DB),
-    listProducts(c.env.DB, { flag: 'new', limit: 8 }),
-    listProducts(c.env.DB, { flag: 'best', limit: 8 }),
-  ])
-  const newest = fresh.length ? fresh : await listProducts(c.env.DB, { limit: 8 })
-  const brandPics = await Promise.all(b.brands.map((br) => listProducts(c.env.DB, { brand: br.id, limit: 1 })))
-  const catPics = await Promise.all(cats.map((ct) => listProducts(c.env.DB, { cat: ct.id, limit: 1 })))
+  const cats = b.cat.cats
+  const fresh = listFrom(b.cat, { flag: 'new', limit: 8 })
+  const best = listFrom(b.cat, { flag: 'best', limit: 8 })
+  const newest = fresh.length ? fresh : listFrom(b.cat, { limit: 8 })
+  const brandPics = b.brands.map((br) => listFrom(b.cat, { brand: br.id, limit: 1 }))
+  const catPics = cats.map((ct) => listFrom(b.cat, { cat: ct.id, limit: 1 }))
   let banners: Banner[] = []
   try { banners = JSON.parse(b.settings.banners || '[]') } catch { banners = [] }
 
@@ -155,7 +164,7 @@ store.get('/:lang{(?:ar|en)}/brands', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
   const b = await base(c, lang)
-  const pics = await Promise.all(b.brands.map((br) => listProducts(c.env.DB, { brand: br.id, limit: 1 })))
+  const pics = b.brands.map((br) => listFrom(b.cat, { brand: br.id, limit: 1 }))
   return render(c, { lang, path: '/brands', title: tr.brands, active: 'brands' }, b, (
     <section class="wrap sec">
       <h1 class="h1">{tr.brands}</h1>
@@ -183,10 +192,8 @@ async function listing(c: C, lang: Lang, brandId?: string) {
   const brandQ = brandId ?? (u.searchParams.get('brand') || undefined)
   const brand = brandQ ? b.brands.find((x) => x.id === brandQ) : undefined
   if (brandId && !brand) return notFound(c, lang)
-  const [cats, items] = await Promise.all([
-    getCategories(c.env.DB),
-    listProducts(c.env.DB, { brand: brand?.id, cat, q, sort }),
-  ])
+  const cats = b.cat.cats
+  const items = listFrom(b.cat, { brand: brand?.id, cat, q, sort })
   const basePath = brandId ? `/brand/${brandId}` : '/shop'
   const qs = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams()
@@ -291,19 +298,18 @@ function Gallery({ p, lang }: { p: ProductWithMedia; lang: Lang }) {
 store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
-  const p = await getProduct(c.env.DB, Number(c.req.param('id')))
-  if (!p || !p.media.length) return notFound(c, lang)
   const b = await base(c, lang)
+  const p = productFrom(b.cat, Number(c.req.param('id')))
+  if (!p || !p.media.length) return notFound(c, lang)
   const brand = b.brands.find((x) => x.id === p.brand_id)
   const name = pName(p, lang)
   const img = firstImage(p.media)
-  let similar = await listProducts(c.env.DB, { brand: p.brand_id, cat: p.category_id, exclude: p.id, limit: 8 })
-  if (similar.length < 4) similar = similar.concat(await listProducts(c.env.DB, { cat: p.category_id, exclude: p.id, limit: 8 - similar.length })).filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i)
+  let similar = listFrom(b.cat, { brand: p.brand_id, cat: p.category_id, exclude: p.id, limit: 8 })
+  if (similar.length < 4) similar = similar.concat(listFrom(b.cat, { cat: p.category_id, exclude: p.id, limit: 8 })).filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i).slice(0, 8)
   let setParts: { id: number; code: string; name_en: string; name_ar: string }[] = []
   const codes: string[] = (() => { try { return JSON.parse(p.set_codes || '[]') } catch { return [] } })()
   if (p.is_set && codes.length) {
-    const ph = codes.map(() => '?').join(',')
-    setParts = (await c.env.DB.prepare(`SELECT id, code, name_en, name_ar FROM products WHERE code IN (${ph}) AND is_set = 0 AND status = 'live' AND deleted_at IS NULL`).bind(...codes).all<{ id: number; code: string; name_en: string; name_ar: string }>()).results
+    setParts = b.cat.products.filter((x) => !x.is_set && codes.includes(x.code)).map((x) => ({ id: x.id, code: x.code, name_en: x.name_en, name_ar: x.name_ar }))
   }
   const desc = pDesc(p, lang)
   const ld = {
@@ -404,6 +410,8 @@ store.get('/:lang{(?:ar|en)}/checkout', async (c) => {
         <datalist id="cities">{CITIES_AR.map((x) => <option value={x} />)}</datalist>
         <label class="field"><span>{tr.address}</span><input name="address" placeholder={tr.addressPh} autocomplete="street-address" maxlength={200} /></label>
         <label class="field"><span>{tr.note}</span><input name="note" placeholder={tr.notePh} maxlength={200} /></label>
+        {/* left empty by people; filled by spam robots */}
+        <input class="vh" name="website" tabindex={-1} autocomplete="off" aria-hidden="true" />
         <fieldset class="pay">
           <legend>{tr.payment}</legend>
           {pays.map((p, i) => (
@@ -429,14 +437,48 @@ store.get('/:lang{(?:ar|en)}/checkout', async (c) => {
 store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
-  const b = await base(c, lang)
-  return render(c, { lang, path: '/cart', title: tr.orderReady }, b, (
-    <section class="wrap narrow done" data-order-page={c.req.param('num')}>
+  const num = c.req.param('num')
+  const [b, v] = await Promise.all([base(c, lang), loadOrderForCustomer(c.env.DB, num, c.req.query('t') ?? '')])
+  c.header('cache-control', 'private, no-store')
+  const meta = { lang, path: '/cart', title: tr.orderReady, noindex: true, active: 'cart' as const }
+  if (!v) {
+    const wa = waNumber(b.settings.whatsapp || '')
+    return render(c, meta, b, (
+      <section class="wrap narrow done">
+        <h1 class="h1">{tr.orderMissing}</h1>
+        <p class="muted">{tr.orderMissingHelp}</p>
+        <div class="sends">
+          {wa ? <a class="send whatsapp" href={`https://wa.me/${wa}`} rel="noopener" target="_blank"><span>{tr.whatsapp}</span></a> : null}
+          {igHandle(b.settings.instagram || '') ? <a class="send instagram" href={`https://www.instagram.com/${igHandle(b.settings.instagram || '')}/`} rel="noopener" target="_blank"><span>{tr.instagram}</span></a> : null}
+        </div>
+        <a class="btn ghost wide" href={`/${lang}/`}>{tr.keepShopping}</a>
+      </section>
+    ), 404)
+  }
+  const links = channelLinks(b.settings, v.message)
+  const ch = (['whatsapp', 'messenger', 'instagram'] as const).find((x) => x === v.order.channel && links[x]) ?? (links.whatsapp ? 'whatsapp' : links.messenger ? 'messenger' : 'instagram')
+  const copyFirst = ch !== 'whatsapp' // Instagram never fills the message in; Messenger not always
+  const hint = ch === 'instagram' ? tr.hintIg : ch === 'messenger' ? tr.hintMs : tr.firstWa
+  const label = ch === 'instagram' ? tr.openIg : ch === 'messenger' ? tr.openMs : tr.sendWa
+  const cur = lang === 'ar' ? 'د.ل' : 'LYD'
+  return render(c, meta, b, (
+    <section class="wrap narrow done" data-order-page={num} data-copy-first={copyFirst ? '1' : undefined}>
       <span class="ok-ico" aria-hidden="true">✓</span>
       <h1 class="h1">{tr.orderReady}</h1>
-      <p class="onum"><span class="muted">{tr.orderNumber}</span> <bdi>{c.req.param('num')}</bdi></p>
-      <p class="muted" data-order-hint></p>
-      <div class="sends" data-order-actions></div>
+      <p class="onum"><span class="muted">{tr.orderNumber}</span> <bdi>{num}</bdi></p>
+      <p class="muted" data-order-hint data-opened-hint={ch === 'whatsapp' ? tr.hintWa : undefined}>{hint}</p>
+      <div class="sends">
+        <a class={`send ${ch}`} href={links[ch]} target="_blank" rel="noopener" data-open data-opened-label={ch === 'whatsapp' ? tr.openWa : undefined}><span>{label}</span></a>
+        <button class="btn ghost wide" type="button" data-copy>{tr.copyMsg}</button>
+        <textarea class="vh" readonly aria-hidden="true" tabindex={-1} data-msg>{v.message}</textarea>
+      </div>
+      <h2 class="h">{tr.yourOrder}</h2>
+      <div class="sum">
+        {v.info.lines.map((l) => (
+          <div><span><bdi>{l.brand} · {l.name}</bdi>{l.qty > 1 ? ` × ${l.qty}` : ''}</span><span>{fmtLyd(l.price * l.qty)} {cur}</span></div>
+        ))}
+        <div class="tot"><span>{tr.total}</span><span>{fmtLyd(v.info.total)} {cur}</span></div>
+      </div>
       <h2 class="h">{tr.nextSteps}</h2>
       <ol class="steps"><li>{tr.step1}</li><li>{tr.step2}</li><li>{tr.step3}</li></ol>
       <a class="btn ghost wide" href={`/${lang}/`}>{tr.keepShopping}</a>

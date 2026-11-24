@@ -26,4 +26,6 @@ for pid, t in tr.items():
         out.append(f"UPDATE products SET desc_en={q(en)}, desc_ar={q(ar)} WHERE id={pid} AND desc_ar='';")
     elif t.get('desc_ar'):
         out.append(f"UPDATE products SET desc_ar={q(t['desc_ar'])} WHERE id={pid} AND desc_ar='';")
+# the shop keeps its catalog in memory; a new version makes it reload
+out.append("INSERT INTO settings (key, value) VALUES ('catalog_v', lower(hex(randomblob(6)))) ON CONFLICT(key) DO UPDATE SET value = excluded.value;")
 print('\n'.join(out))

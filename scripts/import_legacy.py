@@ -119,6 +119,8 @@ def main():
     for old, new in (('facebookUrl', 'facebook'), ('instagramUrl', 'instagram'), ('whatsappNumber', 'whatsapp')):
         if settings.get(old):
             out.append(f"UPDATE settings SET value={q(settings[old])} WHERE key={q(new)} AND value='';")
+    # the shop keeps its catalog in memory; a new version makes it reload
+    out.append("INSERT INTO settings (key, value) VALUES ('catalog_v', lower(hex(randomblob(6)))) ON CONFLICT(key) DO UPDATE SET value = excluded.value;")
     print('\n'.join(out))
 
 

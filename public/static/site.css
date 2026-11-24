@@ -32,7 +32,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .h { font-size: 1.15rem; }
 .h1 { font-size: 1.5rem; margin-top: 18px; }
 .sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.sec-h a { font-size: .9rem; color: var(--muted); }
+.sec-h a { font-size: .9rem; color: var(--muted); padding: 10px 2px; margin-block: -10px; }
 .bd { font-family: var(--f-brand); letter-spacing: .14em; text-transform: uppercase; font-weight: 600; font-size: .78rem; color: var(--muted); text-decoration: none; unicode-bidi: plaintext; }
 [dir="rtl"] .bd { text-align: right; }
 bdi { unicode-bidi: isolate; }
@@ -58,10 +58,10 @@ bdi { unicode-bidi: isolate; }
 .logo img { height: 34px; width: auto; }
 .foot-logo { width: 150px; height: auto; margin-bottom: 8px; }
 .brandnav { display: none; gap: 22px; margin-inline: auto; }
-.brandnav a { font-size: .8rem; color: var(--ink); unicode-bidi: plaintext; }
+.brandnav a { font-size: .8rem; color: var(--ink); unicode-bidi: plaintext; padding-block: 10px; }
 .top-actions { display: flex; gap: 8px; align-items: center; margin-inline-start: auto; }
 .top-search { display: none; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 99px; padding-inline-start: 12px; }
-.top-search input { border: 0; background: none; width: 210px; min-height: 38px; outline: none; }
+.top-search input { border: 0; background: none; width: 200px; min-height: 38px; outline: none; text-overflow: ellipsis; }
 .top-search button { border: 0; background: none; padding: 0 10px; min-height: 38px; cursor: pointer; color: var(--muted); }
 .iconbtn { position: relative; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: #fff; border: 1px solid var(--line); }
 .only-wide { display: none; }
@@ -182,6 +182,7 @@ img.pimg.broken { opacity: 0; }
 .g-thumb.on { border-color: var(--mauve); }
 .g-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .pinfo { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.pinfo > a.bd { justify-self: start; padding-block: 8px; margin-block: -8px; }
 .pname { font-family: var(--f-head); font-weight: 600; font-size: 1.35rem; line-height: 1.4; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
 .prow { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 1.25rem; }
 .instock, .nostock { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--ok); }
@@ -228,7 +229,7 @@ img.pimg.broken { opacity: 0; }
 .payopt:has(input:checked) { border-color: var(--mauve); }
 .form-err { color: #B3261E; margin: 0; }
 .sends { display: grid; gap: 10px; }
-.send { display: grid; gap: 2px; justify-items: start; min-height: 54px; padding: 10px 16px; border: 0; border-radius: 14px; color: #fff; font-weight: 600; text-align: start; text-decoration: none; cursor: pointer; }
+.send { display: grid; gap: 2px; justify-items: start; align-content: center; min-height: 54px; padding: 10px 16px; border: 0; border-radius: 14px; color: #fff; font-weight: 600; text-align: start; text-decoration: none; cursor: pointer; }
 .send small { font-weight: 400; opacity: .92; font-size: .8rem; }
 .send.whatsapp { background: #1F8F52; }
 .send.messenger { background: linear-gradient(120deg, #0A6CF0, #7A3BF2); }
@@ -247,8 +248,8 @@ img.pimg.broken { opacity: 0; }
 /* footer & toast */
 .foot { margin-top: 48px; background: #fff; border-top: 1px solid var(--line); }
 .foot-in { max-width: 1240px; margin-inline: auto; padding: 28px var(--gutter); display: grid; gap: 22px; }
-.foot nav { display: grid; gap: 8px; }
-.foot nav a { text-decoration: none; color: var(--muted); unicode-bidi: isolate; justify-self: start; }
+.foot nav { display: grid; gap: 0; }
+.foot nav a { text-decoration: none; color: var(--muted); unicode-bidi: isolate; justify-self: start; padding-block: 9px; }
 .copy { text-align: center; color: var(--muted); font-size: .8rem; padding: 12px var(--gutter) 18px; margin: 0; }
 .toast { position: fixed; z-index: 70; inset-inline: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; max-width: 380px; padding: 12px 16px; border-radius: 14px; background: var(--ink); color: #fff; text-align: center; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .4); }
 

@@ -7,22 +7,12 @@
       cont: 'كمّل طلبيتك', empty: 'سلتك فاضية. شوف الجديد وابدأ التسوق.', shop: 'تسوّق الآن', note: 'نؤكد معك السعر والتوفر قبل إرسال الطلبية.',
       cur: 'د.ل', out: 'غير متوفر حالياً', errName: 'اكتب اسمك', errPhone: 'اكتب رقم هاتف ليبي صحيح، مثل 0912345678', errCity: 'اكتب مدينتك',
       err: 'صار خطأ، حاول مرة ثانية', tooMany: 'أرسلت طلبيات كثيرة. حاول بعد ساعة أو راسلنا مباشرة.', unavailable: 'المنتجات في سلتك لم تعد متوفرة.',
-      sending: 'لحظة…', copied: 'تم نسخ الرسالة، الصقها في المحادثة', copyFail: 'انسخ الرسالة من المربع بالأسفل',
-      hintWa: 'أرسل الرسالة في واتساب لتصلنا الطلبية. إذا لم تُفتح المحادثة، استخدم الزر بالأسفل.',
-      hintMs: 'أرسل الرسالة في ماسنجر لتصلنا الطلبية. إذا لم تُفتح المحادثة، استخدم الزر بالأسفل.',
-      hintIg: 'اضغط الزر: ننسخ الرسالة ونفتح إنستغرام، ثم الصقها وأرسلها.',
-      openWa: 'افتح واتساب مرة أخرى', openMs: 'افتح ماسنجر مرة أخرى', sendWa: 'أرسل الطلبية عبر واتساب', sendMs: 'أرسل الطلبية عبر ماسنجر',
-      firstWa: 'خطوة أخيرة: اضغط الزر لفتح واتساب، ثم اضغط إرسال لتصلنا طلبيتك.', firstMs: 'خطوة أخيرة: اضغط الزر لفتح ماسنجر، ثم اضغط إرسال لتصلنا طلبيتك.', openIg: 'انسخ الرسالة وافتح إنستغرام', copy: 'انسخ الرسالة', missing: 'تفاصيل الطلبية غير متوفرة على هذا الجهاز.' },
+      copied: 'تم نسخ الرسالة، الصقها في المحادثة', copyFail: 'انسخ الرسالة من المربع بالأسفل' },
     en: { added: 'Added to cart', remove: 'Remove', items: 'Items', delivery: 'Delivery', byCity: 'Depends on city', total: 'Total',
       cont: 'Continue', empty: 'Your cart is empty. Have a look at what’s new.', shop: 'Shop now', note: 'We confirm price and availability with you before sending.',
       cur: 'LYD', out: 'Out of stock', errName: 'Enter your name', errPhone: 'Enter a valid Libyan phone number, e.g. 0912345678', errCity: 'Enter your city',
       err: 'Something went wrong, please try again', tooMany: 'Too many orders. Try again in an hour or message us directly.', unavailable: 'The items in your cart are no longer available.',
-      sending: 'One moment…', copied: 'Message copied. Paste it in the chat', copyFail: 'Copy the message from the box below',
-      hintWa: 'Send the message in WhatsApp so your order reaches us. If the chat didn’t open, use the button below.',
-      hintMs: 'Send the message in Messenger so your order reaches us. If the chat didn’t open, use the button below.',
-      hintIg: 'Tap the button: we copy the message and open Instagram. Then paste and send.',
-      openWa: 'Open WhatsApp again', openMs: 'Open Messenger again', sendWa: 'Send order on WhatsApp', sendMs: 'Send order on Messenger',
-      firstWa: 'Last step: tap the button to open WhatsApp, then tap send so your order reaches us.', firstMs: 'Last step: tap the button to open Messenger, then tap send so your order reaches us.', openIg: 'Copy message and open Instagram', copy: 'Copy message', missing: 'Order details aren’t available on this device.' }
+      copied: 'Message copied. Paste it in the chat', copyFail: 'Copy the message from the box below' }
   }[lang];
 
   /* ---------- small helpers ---------- */
@@ -102,77 +92,98 @@
   }
 
   /* ---------- checkout ---------- */
+  // ٠١٢… / ۰۱۲… (Arabic keyboards) → 012…, then the same rule the server uses
+  function westernDigits(v) { return String(v || '').replace(/[٠-٩۰-۹]/g, function (ch) { return String(ch.charCodeAt(0) & 15); }); }
+  function libyanPhone(v) {
+    var p = westernDigits(v).replace(/[^\d+]/g, '').replace(/^(\+|00)?218/, '0').replace(/^\+/, '');
+    if (/^9\d{8}$/.test(p)) p = '0' + p;
+    return /^0(9[1-6]|2\d|6\d|5\d|7\d)\d{7}$/.test(p) ? p : '';
+  }
   var form = $('[data-checkout]');
   if (form) {
     var c0 = cart();
     if (!c0.length) location.replace('/' + lang + '/cart');
     fetchItems(c0).then(function (items) {
-      var total = 0;
-      items.forEach(function (it) { var i = c0.find(function (x) { return x.id === it.id; }); if (i && it.inStock) total += it.price * i.qty; });
-      $('#co-summary').innerHTML = '<div class="tot"><span>' + T.total + ' (' + c0.reduce(function (s, i) { return s + i.qty; }, 0) + ')</span><span>' + money(total) + ' ' + T.cur + '</span></div>';
+      var total = 0, n = 0, html = '';
+      items.forEach(function (it) {
+        var i = c0.find(function (x) { return x.id === it.id; });
+        if (!i || !it.inStock) return;
+        total += it.price * i.qty; n += i.qty;
+        html += '<div><span><bdi>' + esc(it.brand) + ' · ' + esc(it.name) + '</bdi>' + (i.qty > 1 ? ' × ' + i.qty : '') + '</span><span>' + money(it.price * i.qty) + ' ' + T.cur + '</span></div>';
+      });
+      $('#co-summary').innerHTML = html + '<div class="tot"><span>' + T.total + ' (' + n + ')</span><span>' + money(total) + ' ' + T.cur + '</span></div>';
     });
     var saved = store('sl_customer') || {};
     ['name', 'phone', 'city', 'address'].forEach(function (k) { if (saved[k] && form.elements[k]) form.elements[k].value = saved[k]; });
     var submitter = null;
     form.addEventListener('click', function (e) { var b = e.target.closest('button[name="channel"]'); if (b) submitter = b; });
+    var showErr = function (field, msg) {
+      var err = $('.form-err', form);
+      err.textContent = msg; err.hidden = false;
+      if (field && form.elements[field]) { form.elements[field].setAttribute('aria-invalid', 'true'); form.elements[field].focus(); }
+    };
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var err = $('.form-err', form), f = form.elements, bad = null;
+      var f = form.elements, bad = null;
       $$('input', form).forEach(function (i) { i.removeAttribute('aria-invalid'); });
-      var phone = f.phone.value.replace(/[^\d+]/g, '').replace(/^(\+|00)?218/, '0');
-      if (/^9\d{8}$/.test(phone)) phone = '0' + phone;
+      var phone = libyanPhone(f.phone.value);
       if (!f.name.value.trim()) bad = ['name', T.errName];
-      else if (!/^0\d{9}$/.test(phone)) bad = ['phone', T.errPhone];
+      else if (!phone) bad = ['phone', T.errPhone];
       else if (!f.city.value.trim()) bad = ['city', T.errCity];
-      if (bad) { err.textContent = bad[1]; err.hidden = false; f[bad[0]].setAttribute('aria-invalid', 'true'); f[bad[0]].focus(); return; }
-      err.hidden = true;
+      if (bad) { showErr(bad[0], bad[1]); return; }
+      $('.form-err', form).hidden = true;
       var channel = (e.submitter || submitter || {}).value || 'whatsapp';
       var pay = form.querySelector('input[name="payment"]:checked');
-      var body = { lang: lang, name: f.name.value, phone: phone, city: f.city.value, address: f.address.value, note: f.note.value, payment: pay ? pay.value : '', channel: channel, items: cart() };
+      var body = { lang: lang, name: f.name.value, phone: phone, city: f.city.value, address: f.address.value, note: f.note.value, payment: pay ? pay.value : '', channel: channel, items: cart(), website: f.website ? f.website.value : '' };
       store('sl_customer', { name: body.name, phone: body.phone, city: body.city, address: body.address });
       var btns = $$('button[name="channel"]', form); btns.forEach(function (b) { b.disabled = true; });
       fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
         .then(function (res) {
           btns.forEach(function (b) { b.disabled = false; });
-          if (!res.ok) { err.textContent = res.status === 429 ? T.tooMany : res.status === 409 ? T.unavailable : T.err; err.hidden = false; return; }
-          var d = res.d;
+          if (!res.ok) {
+            var fields = (res.d && res.d.fields) || [], has = function (k) { return res.status === 422 && fields.indexOf(k) > -1; };
+            if (has('name')) return showErr('name', T.errName);
+            if (has('phone')) return showErr('phone', T.errPhone);
+            if (has('city')) return showErr('city', T.errCity);
+            return showErr(null, res.status === 429 ? T.tooMany : res.status === 409 || has('items') ? T.unavailable : T.err);
+          }
+          var d = res.d, url = '/' + lang + '/order/' + d.number + '?t=' + d.token;
           var phoneLike = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-          d.opened = channel !== 'instagram' && phoneLike;
-          sstore('sl_order_' + d.number, d);
+          var autoOpen = channel === 'whatsapp' && phoneLike && d.links && d.links.whatsapp;
+          if (autoOpen) sstore('sl_opened_' + d.number, true);
           saveCart([]);
-          history.replaceState(null, '', '/' + lang + '/order/' + d.number);
-          // Phones: open the chat app straight away; coming back lands on the confirmation page.
-          // Computers and Instagram: show the confirmation page with a button (Instagram needs a tap to copy).
-          if (channel !== 'instagram' && phoneLike) location.href = d.links[channel];
-          else location.href = '/' + lang + '/order/' + d.number;
+          history.replaceState(null, '', url);
+          // Phones + WhatsApp: open the chat straight away (the message is filled in); coming back lands on the order page.
+          // Messenger and Instagram may not fill the message in, so the order page copies it on the tap that opens them.
+          location.href = autoOpen ? d.links.whatsapp : url;
         })
-        .catch(function () { btns.forEach(function (b) { b.disabled = false; }); err.textContent = T.err; err.hidden = false; });
+        .catch(function () { btns.forEach(function (b) { b.disabled = false; }); showErr(null, T.err); });
     });
   }
 
-  /* ---------- order confirmation ---------- */
+  /* ---------- order page (rendered by the server; this only wires the buttons) ---------- */
   var orderEl = $('[data-order-page]');
   if (orderEl) {
-    var d = sstore('sl_order_' + orderEl.getAttribute('data-order-page'));
-    var hint = $('[data-order-hint]', orderEl), acts = $('[data-order-actions]', orderEl);
-    if (!d) { hint.textContent = T.missing; }
-    else {
-      var ch = d.channel;
-      var ms = ch === 'messenger';
-      hint.textContent = ch === 'instagram' ? T.hintIg : d.opened ? (ms ? T.hintMs : T.hintWa) : (ms ? T.firstMs : T.firstWa);
-      var label = ch === 'instagram' ? T.openIg : d.opened ? (ms ? T.openMs : T.openWa) : (ms ? T.sendMs : T.sendWa);
-      acts.innerHTML = '<a class="send ' + ch + '" href="' + esc(d.links[ch]) + '" target="_blank" rel="noopener" data-open>' + esc(label) + '</a>' +
-        '<button class="btn ghost wide" type="button" data-copy>' + esc(T.copy) + '</button><textarea class="vh" readonly aria-hidden="true" data-msg></textarea>';
-      $('[data-msg]', acts).value = d.message;
-      var copy = function () {
-        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(d.message).then(function () { toast(T.copied); return true; }, fallback);
-        return Promise.resolve(fallback());
-      };
-      var fallback = function () { var ta = $('[data-msg]', acts); ta.classList.remove('vh'); ta.removeAttribute('aria-hidden'); ta.style.width = '100%'; ta.rows = 7; ta.select(); try { document.execCommand('copy'); toast(T.copied); return true; } catch (e) { toast(T.copyFail); return false; } };
-      $('[data-copy]', acts).addEventListener('click', copy);
-      if (ch === 'instagram') $('[data-open]', acts).addEventListener('click', function () { copy(); });
+    var num = orderEl.getAttribute('data-order-page');
+    var openA = $('[data-open]', orderEl), hint = $('[data-order-hint]', orderEl), msgEl = $('[data-msg]', orderEl);
+    if (sstore('sl_opened_' + num)) {
+      if (hint && hint.getAttribute('data-opened-hint')) hint.textContent = hint.getAttribute('data-opened-hint');
+      if (openA && openA.getAttribute('data-opened-label')) $('span', openA).textContent = openA.getAttribute('data-opened-label');
     }
+    var fallback = function () {
+      msgEl.classList.remove('vh'); msgEl.removeAttribute('aria-hidden'); msgEl.style.width = '100%'; msgEl.rows = 8; msgEl.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (x) { ok = false; }
+      toast(ok ? T.copied : T.copyFail);
+    };
+    var copy = function () {
+      if (!msgEl) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msgEl.value).then(function () { toast(T.copied); }, fallback);
+      else fallback();
+    };
+    var cb = $('[data-copy]', orderEl);
+    if (cb) cb.addEventListener('click', copy);
+    if (openA && orderEl.hasAttribute('data-copy-first')) openA.addEventListener('click', copy);
   }
 
   /* ---------- listing sort ---------- */

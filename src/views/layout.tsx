@@ -4,6 +4,7 @@ import { t } from '../lib/i18n'
 import type { Brand, ProductWithMedia } from '../lib/db'
 import { fmtLyd, pName } from '../lib/db'
 import { firstImage, mediaUrl, srcset } from '../lib/media'
+import { waNumber, igHandle } from '../lib/orders'
 
 declare const __BUILD__: string
 export const V = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'
@@ -35,7 +36,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
   const title = props.title ? `${props.title} | ${tr.siteName}` : `${tr.siteName} · ${tr.tagline}`
   const desc = props.desc ?? tr.tagline
   const url = `${origin}/${lang}${path}`
-  const ig = props.settings.instagram
+  const ig = igHandle(props.settings.instagram || '') ? `https://www.instagram.com/${igHandle(props.settings.instagram || '')}/` : ''
   const fb = props.settings.facebook
   return (
     <html lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -78,7 +79,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
             </nav>
             <div class="top-actions">
               <form class="top-search" action={`/${lang}/shop`} method="get" role="search">
-                <input type="search" name="q" placeholder={tr.search} aria-label={tr.search} />
+                <input type="search" name="q" placeholder={tr.searchShort} aria-label={tr.search} />
                 <button type="submit" aria-label={tr.searchBtn}>{I.search}</button>
               </form>
               <a class="iconbtn only-wide" href={`/${lang}/cart`} aria-label={tr.cart}>{I.bag}<span class="badge" data-cart-count hidden>0</span></a>
@@ -101,7 +102,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
               <a href={`/${lang}/page/about`}>{tr.about}</a>
               <a href={`/${lang}/page/delivery`}>{tr.deliveryReturns}</a>
               <a href={`/${lang}/page/contact`}>{tr.contact}</a>
-              {props.settings.whatsapp ? <a href={`https://wa.me/${props.settings.whatsapp.replace(/\D/g, '')}`} rel="noopener" target="_blank">WhatsApp</a> : null}
+              {waNumber(props.settings.whatsapp || '') ? <a href={`https://wa.me/${waNumber(props.settings.whatsapp || '')}`} rel="noopener" target="_blank">WhatsApp</a> : null}
               {ig ? <a href={ig} rel="noopener" target="_blank">Instagram</a> : null}
               {fb ? <a href={fb} rel="noopener" target="_blank">Facebook</a> : null}
             </nav>

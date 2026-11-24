@@ -4,6 +4,8 @@ export type Env = {
   DB: D1Database
   MEDIA: R2Bucket
   PREVIEW_KEY?: string
+  /** Optional public address of the photo bucket (e.g. https://media.salfordlibya.com). Unset: photos are served by the site under /m/. */
+  MEDIA_BASE?: string
   AI?: Ai
 }
 
@@ -66,7 +68,7 @@ export async function attachMedia(db: D1Database, products: Product[], onlyFirst
   return products.map((p) => ({ ...p, media: by.get(p.id) ?? [] }))
 }
 
-const SYNONYMS: Record<string, string> = {
+export const SYNONYMS: Record<string, string> = {
   'قلادة': 'necklaces', 'قلاده': 'necklaces', 'قلائد': 'necklaces', 'سلسلة': 'necklaces', 'سلسله': 'necklaces', 'عقد': 'necklaces', 'تعليقة': 'necklaces',
   'حلق': 'earrings', 'أقراط': 'earrings', 'اقراط': 'earrings', 'قرط': 'earrings', 'تراشي': 'earrings',
   'سوار': 'bracelets', 'أساور': 'bracelets', 'اساور': 'bracelets', 'اسورة': 'bracelets', 'إسورة': 'bracelets', 'بنقري': 'bracelets',

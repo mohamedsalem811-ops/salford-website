@@ -7,6 +7,13 @@ import { mediaUrl } from '../lib/media'
 import { V } from '../views/layout'
 import { adminApi } from './admin-api'
 
+/** D1 stores UTC ('2026-11-24 13:05:00'); the team reads Libya time. */
+const libyaFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tripoli', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+const libyaTime = (utc: string | number) => {
+  const d = new Date(String(utc).replace(' ', 'T') + 'Z')
+  return Number.isNaN(d.getTime()) ? String(utc) : libyaFmt.format(d)
+}
+
 type Vars = { admin: { id: number; email: string } }
 export const admin = new Hono<{ Bindings: Env; Variables: Vars }>()
 
@@ -177,21 +184,21 @@ admin.get('/', async (c) => {
         <button class="a-btn" type="submit">Filter</button>
       </form>
       <div class="a-table-wrap">
-        <table class="a-table">
+        <table class="a-table a-plist">
           <thead><tr><th></th><th>Product</th><th>Code</th><th>Brand</th><th>Price</th><th>In stock</th><th>Status</th><th></th></tr></thead>
           <tbody>
             {results.map((p) => {
               const thumb = p.thumb_key ? mediaUrl({ r2_key: p.thumb_key, sizes: p.thumb_sizes } as Media, 400) : p.thumb
               return (
                 <tr>
-                  <td>{thumb ? <img class="a-thumb" src={thumb} alt="" loading="lazy" /> : <span class="a-thumb empty"></span>}</td>
-                  <td><a href={`/admin/p/${p.id}`}><b>{p.name_en || '(no name)'}</b></a>{p.noar ? <span class="tag warn">no Arabic text</span> : null}{p.broken ? <span class="tag bad">{p.broken} broken</span> : null}</td>
-                  <td><code>{p.code}</code></td>
-                  <td>{brands.find((b) => b.id === p.brand_id)?.name}</td>
-                  <td class="num">{fmtLyd(p.price)}</td>
-                  <td><button type="button" class={`sw${p.in_stock ? ' on' : ''}`} role="switch" aria-checked={p.in_stock ? 'true' : 'false'} aria-label="In stock" data-toggle={`${p.id}:in_stock`}></button></td>
-                  <td><span class={`tag ${p.status === 'live' ? 'ok' : 'warn'}`}>{p.deleted_at ? 'deleted' : p.status}</span></td>
-                  <td>{p.deleted_at ? <button class="a-btn sm" type="button" data-restore={p.id}>Restore</button> : <a class="a-btn sm" href={`/admin/p/${p.id}`}>Edit</a>}</td>
+                  <td class="c-th">{thumb ? <img class="a-thumb" src={thumb} alt="" loading="lazy" /> : <span class="a-thumb empty"></span>}</td>
+                  <td class="c-nm"><a href={`/admin/p/${p.id}`}><b>{p.name_en || '(no name)'}</b></a>{p.noar ? <span class="tag warn">no Arabic text</span> : null}{p.broken ? <span class="tag bad">{p.broken} broken</span> : null}</td>
+                  <td class="c-code"><code>{p.code}</code></td>
+                  <td class="c-brand">{brands.find((b) => b.id === p.brand_id)?.name}</td>
+                  <td class="num c-price">{fmtLyd(p.price)}</td>
+                  <td class="c-stock"><button type="button" class={`sw${p.in_stock ? ' on' : ''}`} role="switch" aria-checked={p.in_stock ? 'true' : 'false'} aria-label="In stock" data-toggle={`${p.id}:in_stock`}></button></td>
+                  <td class="c-st"><span class={`tag ${p.status === 'live' ? 'ok' : 'warn'}`}>{p.deleted_at ? 'deleted' : p.status}</span></td>
+                  <td class="c-act">{p.deleted_at ? <button class="a-btn sm" type="button" data-restore={p.id}>Restore</button> : <a class="a-btn sm" href={`/admin/p/${p.id}`}>Edit</a>}</td>
                 </tr>
               )
             })}
@@ -288,20 +295,20 @@ admin.get('/orders', async (c) => {
         <form method="get" class="a-filter"><select name="status" aria-label="Status"><option value="">All</option>{STATUSES.map((s) => <option value={s} selected={status === s}>{s}</option>)}</select><button class="a-btn">Filter</button></form>
       </div>
       <div class="a-table-wrap">
-        <table class="a-table">
+        <table class="a-table a-olist">
           <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>City</th><th>Items</th><th>Total</th><th>Payment</th><th>Sent via</th><th>Status</th></tr></thead>
           <tbody>
             {results.map((o) => (
               <tr>
-                <td><a href={`/admin/orders/${o.id}`}><b>{o.number}</b></a></td>
-                <td>{String(o.created_at).slice(0, 16)}</td>
-                <td dir="auto">{o.name}<br /><span class="a-muted" dir="ltr">{o.phone}</span></td>
-                <td dir="auto">{o.city}</td>
-                <td>{o.items}</td>
-                <td class="num">{fmtLyd(Number(o.total))} LYD</td>
-                <td>{PAY[String(o.payment)]}{o.payment === 'cod_card' ? <span class="tag warn">bring card machine</span> : null}</td>
-                <td>{o.channel}</td>
-                <td><span class={`tag st-${o.status}`}>{o.status}</span></td>
+                <td class="c-no"><a href={`/admin/orders/${o.id}`}><b>{o.number}</b></a></td>
+                <td class="c-date">{libyaTime(o.created_at)}</td>
+                <td class="c-cust" dir="auto">{o.name}<br /><span class="a-muted" dir="ltr">{o.phone}</span></td>
+                <td class="c-city" dir="auto">{o.city}</td>
+                <td class="c-items">{o.items}<span class="a-ph"> items</span></td>
+                <td class="num c-tot">{fmtLyd(Number(o.total))} LYD</td>
+                <td class="c-pay">{PAY[String(o.payment)]}{o.payment === 'cod_card' ? <span class="tag warn">bring card machine</span> : null}</td>
+                <td class="c-ch">{o.channel}</td>
+                <td class="c-st"><span class={`tag st-${o.status}`}>{o.status}</span></td>
               </tr>
             ))}
           </tbody>
@@ -332,7 +339,7 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
             <dt>Note</dt><dd dir="auto">{o.note || '—'}</dd>
             <dt>Payment</dt><dd>{PAY[String(o.payment)]}{o.payment === 'cod_card' ? ' · bring card machine' : ''}</dd>
             <dt>Sent via</dt><dd>{o.channel} · {o.lang === 'ar' ? 'Arabic' : 'English'}</dd>
-            <dt>Created</dt><dd>{o.created_at}</dd>
+            <dt>Created</dt><dd>{libyaTime(o.created_at)} <span class="a-muted">Libya time</span></dd>
           </dl>
         </div>
         <div class="a-card">
@@ -421,6 +428,10 @@ admin.get('/settings', async (c) => {
           <input name="password" type="password" placeholder="New password (10+ characters)" minlength={10} required aria-label="New password" autocomplete="new-password" />
           <button class="a-btn" type="submit">Change password</button>
         </form>
+        <p class="a-muted">Changing the password signs you out on every other phone and computer.</p>
+        <h2>Logged-in devices</h2>
+        <p class="a-muted">Lost a phone, or logged in on someone else’s computer? Sign out everywhere except here.</p>
+        <button class="a-btn" type="button" data-end-sessions>Sign out other devices</button>
       </section>
     </Shell>,
   )

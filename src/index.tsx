@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import type { Env } from './lib/db'
 import { safeEqual } from './lib/auth'
+import { catalog } from './lib/catalog'
+import { setMediaBase } from './lib/media'
 import { store, notFound } from './routes/store'
 import { api } from './routes/api'
 import { media } from './routes/media'
@@ -13,6 +15,7 @@ const isPreviewHost = (url: string) => new URL(url).hostname.endsWith('.pages.de
 
 /** Security headers on every response; test addresses are never indexed by search engines. */
 app.use('*', async (c, next) => {
+  setMediaBase(c.env.MEDIA_BASE)
   await next()
   const h = c.res.headers
   h.set('x-content-type-options', 'nosniff')
@@ -51,8 +54,9 @@ app.get('/robots.txt', (c) =>
 
 app.get('/sitemap.xml', async (c) => {
   const origin = new URL(c.req.url).origin
-  const { results } = await c.env.DB.prepare("SELECT id, updated_at FROM products WHERE status='live' AND deleted_at IS NULL").all<{ id: number; updated_at: string }>()
-  const { results: brands } = await c.env.DB.prepare('SELECT id FROM brands WHERE visible=1').all<{ id: string }>()
+  const cat = await catalog(c)
+  const results = cat.products.filter((p) => cat.media.get(p.id)?.length)
+  const brands = cat.brands
   const paths = ['/', '/shop', '/brands', ...brands.map((b) => `/brand/${b.id}`), '/page/about', '/page/delivery', '/page/contact']
   const urls = [
     ...paths.flatMap((p) => ['ar', 'en'].map((l) => `<url><loc>${origin}/${l}${p}</loc></url>`)),
