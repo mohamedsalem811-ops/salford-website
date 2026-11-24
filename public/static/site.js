@@ -123,6 +123,11 @@
       err.textContent = msg; err.hidden = false;
       if (field && form.elements[field]) { form.elements[field].setAttribute('aria-invalid', 'true'); form.elements[field].focus(); }
     };
+    // fixing the field that was flagged clears the message straight away
+    form.addEventListener('input', function (e) {
+      if (e.target.getAttribute('aria-invalid') !== 'true') return;
+      e.target.removeAttribute('aria-invalid'); $('.form-err', form).hidden = true;
+    });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = form.elements, bad = null;
