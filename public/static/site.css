@@ -196,6 +196,7 @@ img.pimg.broken { opacity: 0; }
 .short { margin: 0; color: var(--muted); }
 .desc { font-size: .92rem; color: #5A4A50; }
 .desc p { margin: 0 0 6px; }
+.askwa { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-top: 2px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: #1F7A4D; font-weight: 600; font-size: .92rem; text-decoration: none; }
 .buybar { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 5; padding-block: 10px; background: linear-gradient(to top, var(--bg) 75%, rgba(253, 246, 247, 0)); }
 
 /* lightbox */

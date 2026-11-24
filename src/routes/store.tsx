@@ -347,6 +347,12 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
               </button>
             ) : <button class="btn wide" type="button" disabled>{tr.soldOut}</button>}
           </div>
+          {b.settings.whatsapp ? (
+            <a class="askwa" href={`https://wa.me/${b.settings.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(tr.askMsg(`${brand?.name ?? ''} ${name}`.trim(), p.code, `${origin(c)}/${lang}/p/${p.id}`))}`} target="_blank" rel="noopener">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-3.8A8 8 0 1 1 8 19z" /><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-.9.8a4 4 0 0 1-2.2-2.2l.8-.9-1-2z" /></svg>
+              {tr.askWa}
+            </a>
+          ) : null}
         </div>
       </article>
       {similar.length ? (

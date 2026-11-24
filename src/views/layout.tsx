@@ -101,6 +101,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
               <a href={`/${lang}/page/about`}>{tr.about}</a>
               <a href={`/${lang}/page/delivery`}>{tr.deliveryReturns}</a>
               <a href={`/${lang}/page/contact`}>{tr.contact}</a>
+              {props.settings.whatsapp ? <a href={`https://wa.me/${props.settings.whatsapp.replace(/\D/g, '')}`} rel="noopener" target="_blank">WhatsApp</a> : null}
               {ig ? <a href={ig} rel="noopener" target="_blank">Instagram</a> : null}
               {fb ? <a href={fb} rel="noopener" target="_blank">Facebook</a> : null}
             </nav>
