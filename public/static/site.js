@@ -186,21 +186,40 @@
     if (openA && orderEl.hasAttribute('data-copy-first')) openA.addEventListener('click', copy);
   }
 
-  /* ---------- product: small add-to-cart bar once the main button has scrolled up out of view ---------- */
+  /* ---------- product: small add-to-cart bar whenever the main button is off screen (not over the footer) ---------- */
   var fbuy = $('[data-fbuy]'), buybar = $('[data-buybar]'), foot = $('.foot');
-  if (fbuy && buybar && 'IntersectionObserver' in window) {
-    var above = false, footIn = false;
-    var showBar = function () {
-      var on = above && !footIn;
+  if (fbuy && buybar) {
+    var fbBtn = fbuy.querySelector('button'), fbTick = false;
+    var fbCheck = function () {
+      fbTick = false;
+      if (getComputedStyle(fbuy).display === 'none') return; // computers: the button sits next to the photos
+      var vh = window.innerHeight, r = buybar.getBoundingClientRect();
+      // "off screen" also means hidden under the tab bar and this bar (about 140px from the bottom)
+      var off = r.bottom < 0 || r.top > vh - 140;
+      var on = off && !(foot && foot.getBoundingClientRect().top < vh);
+      if (on === fbuy.classList.contains('show')) return;
       fbuy.classList.toggle('show', on);
       fbuy.setAttribute('aria-hidden', on ? 'false' : 'true');
-      var b = fbuy.querySelector('button'); if (b) b.tabIndex = on ? 0 : -1;
+      if (fbBtn) fbBtn.tabIndex = on ? 0 : -1;
     };
-    new IntersectionObserver(function (es) { es.forEach(function (en) {
-      if (en.target === buybar) above = !en.isIntersecting && en.boundingClientRect.top < 0;
-      else footIn = en.isIntersecting;
-    }); showBar(); }).observe(buybar);
-    if (foot) new IntersectionObserver(function (es) { footIn = es[0].isIntersecting; showBar(); }).observe(foot);
+    var fbQueue = function () { if (!fbTick) { fbTick = true; window.requestAnimationFrame(fbCheck); } };
+    window.addEventListener('scroll', fbQueue, { passive: true });
+    window.addEventListener('resize', fbQueue);
+    fbCheck();
+  }
+
+  /* ---------- hero brand line: no dot left hanging at the end of a line when it wraps ---------- */
+  var sepLine = $('[data-seps]');
+  if (sepLine) {
+    var seps = function () {
+      $$('.sep', sepLine).forEach(function (d) {
+        d.classList.toggle('end', false);
+        var n = d.nextElementSibling;
+        if (n && n.offsetTop > d.offsetTop + 2) d.classList.toggle('end', true);
+      });
+    };
+    seps(); window.addEventListener('resize', seps);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(seps);
   }
 
   /* ---------- listing sort ---------- */

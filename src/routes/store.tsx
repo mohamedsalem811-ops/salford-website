@@ -88,7 +88,7 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
             <span class="hero-glow" aria-hidden="true" />
             <h1 class="hero-logo"><img src="/static/brand/logo-white.webp" alt={tr.siteName} width="600" height="387" /></h1>
             <p class="hero-line">{tr.tagline}</p>
-            <p class="hero-brands bd">{shopBrands.map((br, i) => <>{i ? ' · ' : ''}<span>{br.name}</span></>)}</p>
+            <p class="hero-brands bd" data-seps>{shopBrands.map((br, i) => <>{i ? <i class="sep" aria-hidden="true">{'\u00a0· '}</i> : ''}<span>{br.name}</span></>)}</p>
             <div class="hero-btns">
               <a class="btn blush" href={`/${lang}/shop`}>{tr.shopNow}</a>
               <a class="btn halo" href={`/${lang}/brands`}>{tr.brands}</a>
