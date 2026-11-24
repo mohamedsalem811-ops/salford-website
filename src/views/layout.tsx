@@ -207,7 +207,7 @@ export function Card({ p, lang, brands, eager }: { p: ProductWithMedia; lang: La
   const brand = brands.find((b) => b.id === p.brand_id)
   return (
     <a class={`card${p.in_stock ? '' : ' out'}`} href={`/${lang}/p/${p.id}`}>
-      <span class={`ph t-${brand?.tint ?? 'swa'}`}><Pic p={p} lang={lang} eager={eager} /></span>
+      <span class={`ph t-${brand?.tint ?? 'swa'}`}><Pic p={p} lang={lang} eager={eager} /><span class={`stk${p.in_stock ? ' on' : ''}`}><i aria-hidden="true" />{p.in_stock ? tr.inStock : tr.outShort}</span></span>
       <span class="bd">{brand?.name}</span>
       <span class="nm">{pName(p, lang)}</span>
       {p.in_stock ? <Price value={p.price} compare={p.compare_price} lang={lang} /> : <span class="soldout">{tr.outOfStock}</span>}
