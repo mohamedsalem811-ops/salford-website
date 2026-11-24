@@ -56,7 +56,7 @@ app.get('/sitemap.xml', async (c) => {
   const origin = new URL(c.req.url).origin
   const cat = await catalog(c)
   const results = cat.products.filter((p) => cat.media.get(p.id)?.length)
-  const brands = cat.brands
+  const brands = cat.shopBrands
   const paths = ['/', '/shop', '/brands', ...brands.map((b) => `/brand/${b.id}`), '/page/about', '/page/delivery', '/page/contact']
   const urls = [
     ...paths.flatMap((p) => ['ar', 'en'].map((l) => `<url><loc>${origin}/${l}${p}</loc></url>`)),

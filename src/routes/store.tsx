@@ -4,7 +4,7 @@ import type { Env, Brand, ProductWithMedia } from '../lib/db'
 import { pName, pShort, pDesc, fmtLyd } from '../lib/db'
 import { catalog, listFrom, productFrom, type Catalog } from '../lib/catalog'
 import { t, isLang, CITIES_AR, type Lang } from '../lib/i18n'
-import { Layout, Grid, Price, Pic, type PageMeta } from '../views/layout'
+import { Layout, Grid, Price, Pic, Icons, bname, type PageMeta } from '../views/layout'
 import { mediaUrl, srcset, youtubeId, firstImage, absUrl } from '../lib/media'
 import { loadOrderForCustomer, channelLinks, waNumber, igHandle } from '../lib/orders'
 
@@ -19,9 +19,10 @@ async function base(c: C, _lang: Lang): Promise<{ brands: Brand[]; settings: Rec
   return { brands: cat.brands, settings: cat.settings, cat }
 }
 
-function render(c: C, meta: Omit<PageMeta, 'origin'>, b: { brands: Brand[]; settings: Record<string, string> }, body: unknown, status = 200) {
+function render(c: C, meta: Omit<PageMeta, 'origin'>, b: { brands: Brand[]; settings: Record<string, string>; cat: Catalog }, body: unknown, status = 200) {
+  // header and footer list only brands that have pieces to show
   return c.html(
-    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.brands} settings={b.settings}>
+    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.cat.shopBrands} settings={b.settings}>
       {body as never}
     </Layout>,
     status as 200,
@@ -64,11 +65,13 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
   const b = await base(c, lang)
-  const cats = b.cat.cats
-  const fresh = listFrom(b.cat, { flag: 'new', limit: 8 })
-  const best = listFrom(b.cat, { flag: 'best', limit: 8 })
-  const newest = fresh.length ? fresh : listFrom(b.cat, { limit: 8 })
-  const brandPics = b.brands.map((br) => listFrom(b.cat, { brand: br.id, limit: 1 }))
+  const cats = b.cat.shopCats
+  const shopBrands = b.cat.shopBrands
+  // 10 pieces: the grid shows 8, 9 or 10 of them so every row ends full (2, 3, 4 or 5 per row)
+  const fresh = listFrom(b.cat, { flag: 'new', limit: 10 })
+  const best = listFrom(b.cat, { flag: 'best', limit: 10 })
+  const newest = fresh.length ? fresh : listFrom(b.cat, { limit: 10 })
+  const brandPics = shopBrands.map((br) => listFrom(b.cat, { brand: br.id, limit: 1 }))
   const catPics = cats.map((ct) => listFrom(b.cat, { cat: ct.id, limit: 1 }))
   let banners: Banner[] = []
   try { banners = JSON.parse(b.settings.banners || '[]') } catch { banners = [] }
@@ -85,7 +88,7 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
             <span class="hero-glow" aria-hidden="true" />
             <h1 class="hero-logo"><img src="/static/brand/logo-white.webp" alt={tr.siteName} width="600" height="387" /></h1>
             <p class="hero-line">{tr.tagline}</p>
-            <p class="hero-brands bd">Swarovski · Tiffany &amp; Co. · APM Monaco · Pandora</p>
+            <p class="hero-brands bd">{shopBrands.map((br, i) => <>{i ? ' · ' : ''}<span>{br.name}</span></>)}</p>
             <div class="hero-btns">
               <a class="btn blush" href={`/${lang}/shop`}>{tr.shopNow}</a>
               <a class="btn halo" href={`/${lang}/brands`}>{tr.brands}</a>
@@ -115,9 +118,9 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
       <section class="wrap sec">
         <h2 class="h">{tr.brands}</h2>
         <div class="brands4">
-          {b.brands.map((br, i) => (
+          {shopBrands.map((br, i) => (
             <a class={`bt t-${br.tint}`} href={`/${lang}/brand/${br.id}`}>
-              <span class="bd">{br.name}</span>
+              <span class="bd">{bname(br.name)}</span>
               {brandPics[i][0] ? <span class="bt-pic"><Pic p={brandPics[i][0]} lang={lang} /></span> : null}
             </a>
           ))}
@@ -138,13 +141,13 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
 
       <section class="wrap sec">
         <div class="sec-h"><h2 class="h">{tr.newArrivals}</h2><a href={`/${lang}/shop`}>{tr.viewAll}</a></div>
-        <Grid items={newest} lang={lang} brands={b.brands} eagerFirst={2} />
+        <Grid items={newest} lang={lang} brands={b.brands} eagerFirst={2} fit />
       </section>
 
       {best.length ? (
         <section class="wrap sec">
           <div class="sec-h"><h2 class="h">{tr.bestSellers}</h2><a href={`/${lang}/shop`}>{tr.viewAll}</a></div>
-          <Grid items={best} lang={lang} brands={b.brands} />
+          <Grid items={best} lang={lang} brands={b.brands} fit />
         </section>
       ) : null}
 
@@ -164,12 +167,13 @@ store.get('/:lang{(?:ar|en)}/brands', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
   const b = await base(c, lang)
-  const pics = b.brands.map((br) => listFrom(b.cat, { brand: br.id, limit: 1 }))
+  const list = b.cat.shopBrands
+  const pics = list.map((br) => listFrom(b.cat, { brand: br.id, limit: 1 }))
   return render(c, { lang, path: '/brands', title: tr.brands, active: 'brands' }, b, (
     <section class="wrap sec">
       <h1 class="h1">{tr.brands}</h1>
       <div class="brands-big">
-        {b.brands.map((br, i) => (
+        {list.map((br, i) => (
           <a class={`bbig t-${br.tint}`} href={`/${lang}/brand/${br.id}`}>
             <span class="bd">{br.name}</span>
             <span class="muted">{lang === 'ar' ? br.story_ar : br.story_en}</span>
@@ -192,8 +196,12 @@ async function listing(c: C, lang: Lang, brandId?: string) {
   const brandQ = brandId ?? (u.searchParams.get('brand') || undefined)
   const brand = brandQ ? b.brands.find((x) => x.id === brandQ) : undefined
   if (brandId && !brand) return notFound(c, lang)
-  const cats = b.cat.cats
+  // only categories with pieces, plus the one asked for (so an old link still shows which is picked)
+  const cats = b.cat.cats.filter((x) => x.id === cat || b.cat.shopCats.some((y) => y.id === x.id))
   const items = listFrom(b.cat, { brand: brand?.id, cat, q, sort })
+  const soon = !!brand && !b.cat.shopBrands.some((x) => x.id === brand.id)
+  const wa = waNumber(b.settings.whatsapp || '')
+  const ig = igHandle(b.settings.instagram || '')
   const basePath = brandId ? `/brand/${brandId}` : '/shop'
   const qs = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams()
@@ -212,6 +220,18 @@ async function listing(c: C, lang: Lang, brandId?: string) {
       ) : (
         <section class="wrap"><h1 class="h1">{title}</h1></section>
       )}
+      {soon ? (
+        <section class="wrap narrow sec soon">
+          <span class="soon-ico" aria-hidden="true">{Icons.gem}</span>
+          <h2 class="h">{tr.comingSoon}</h2>
+          <p class="muted">{tr.comingSoonSub}</p>
+          <div class="soon-btns">
+            {wa ? <a class="btn" href={`https://wa.me/${wa}`} rel="noopener" target="_blank">{Icons.wa}{tr.whatsapp}</a> : null}
+            {ig ? <a class="btn ghost" href={`https://www.instagram.com/${ig}/`} rel="noopener" target="_blank">{Icons.ig}{tr.instagram}</a> : null}
+          </div>
+          <a class="btn ghost" href={`/${lang}/shop`}>{tr.footAll}</a>
+        </section>
+      ) : (
       <section class="wrap">
         <form class="shop-search" action={`/${lang}${basePath}`} method="get" role="search">
           <input type="search" name="q" value={q ?? ''} placeholder={tr.search} aria-label={tr.search} />
@@ -221,7 +241,7 @@ async function listing(c: C, lang: Lang, brandId?: string) {
         {!brandId ? (
           <div class="chips" aria-label={tr.brands}>
             <a class={`chip${!brand ? ' on' : ''}`} href={qs({ brand: undefined })}>{tr.all}</a>
-            {b.brands.map((br) => <a class={`chip bdchip${brand?.id === br.id ? ' on' : ''}`} href={qs({ brand: br.id })}>{br.name}</a>)}
+            {b.cat.shopBrands.map((br) => <a class={`chip bdchip${brand?.id === br.id ? ' on' : ''}`} href={qs({ brand: br.id })}>{br.name}</a>)}
           </div>
         ) : null}
         <div class="chips" aria-label={tr.categories}>
@@ -229,7 +249,7 @@ async function listing(c: C, lang: Lang, brandId?: string) {
           {cats.map((ct) => <a class={`chip${cat === ct.id ? ' on' : ''}`} href={qs({ cat: ct.id })}>{lang === 'ar' ? ct.name_ar : ct.name_en}</a>)}
         </div>
         <div class="fbar">
-          <span class="muted">{items.length} {tr.products}</span>
+          <span class="muted">{tr.nProducts(items.length)}</span>
           <label class="sortsel">
             <span class="vh">{tr.sort}</span>
             <select data-nav aria-label={tr.sort}>
@@ -241,6 +261,7 @@ async function listing(c: C, lang: Lang, brandId?: string) {
         </div>
         {items.length ? <Grid items={items} lang={lang} brands={b.brands} eagerFirst={4} /> : <p class="empty">{tr.noResults}</p>}
       </section>
+      )}
     </>
   ))
 }
@@ -304,8 +325,8 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
   const brand = b.brands.find((x) => x.id === p.brand_id)
   const name = pName(p, lang)
   const img = firstImage(p.media)
-  let similar = listFrom(b.cat, { brand: p.brand_id, cat: p.category_id, exclude: p.id, limit: 8 })
-  if (similar.length < 4) similar = similar.concat(listFrom(b.cat, { cat: p.category_id, exclude: p.id, limit: 8 })).filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i).slice(0, 8)
+  let similar = listFrom(b.cat, { brand: p.brand_id, cat: p.category_id, exclude: p.id, limit: 10 })
+  if (similar.length < 4) similar = similar.concat(listFrom(b.cat, { cat: p.category_id, exclude: p.id, limit: 10 })).filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i).slice(0, 10)
   let setParts: { id: number; code: string; name_en: string; name_ar: string }[] = []
   const codes: string[] = (() => { try { return JSON.parse(p.set_codes || '[]') } catch { return [] } })()
   if (p.is_set && codes.length) {
@@ -331,10 +352,15 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
             <Price value={p.price} compare={p.compare_price} lang={lang} />
             <span class={p.in_stock ? 'instock' : 'nostock'}>{p.in_stock ? tr.inStock : tr.outOfStock}</span>
           </div>
+          <div class="buybar" data-buybar>
+            {p.in_stock ? (
+              <button class="btn wide" type="button" data-add={p.id}>{Icons.bag}{tr.addToCart}</button>
+            ) : <button class="btn wide" type="button" disabled>{tr.soldOut}</button>}
+          </div>
           <p class="code">{tr.code} <bdi>{p.code}</bdi></p>
           <div class="info-row">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l8-4 8 4v8l-8 4-8-4z" /><path d="M4 8l8 4 8-4M12 12v8" /></svg>
-            <span><b>{tr.boxTitle(brand?.name ?? '')}</b>{tr.boxSub}</span>
+            <span><b>{tr.boxTitle(`\u2068${brand?.name ?? ''}\u2069`)}</b>{tr.boxSub}</span>
           </div>
           <div class="info-row">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7" /><circle cx="7" cy="17.5" r="1.6" /><circle cx="17" cy="17.5" r="1.6" /></svg>
@@ -345,26 +371,25 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
           ) : null}
           {pShort(p, lang) ? <p class="short" dir="auto">{pShort(p, lang)}</p> : null}
           {desc ? <div class="desc" dir="auto">{desc.split('\n').map((l) => (l.trim() ? <p>{l}</p> : null))}</div> : null}
-          <div class="buybar">
-            {p.in_stock ? (
-              <button class="btn wide" type="button" data-add={p.id}>
-                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 8.5h13l-1 11.5h-11z" /><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5" /></svg>
-                {tr.addToCart}
-              </button>
-            ) : <button class="btn wide" type="button" disabled>{tr.soldOut}</button>}
-          </div>
           {b.settings.whatsapp ? (
             <a class="askwa" href={`https://wa.me/${b.settings.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(tr.askMsg(`${brand?.name ?? ''} ${name}`.trim(), p.code, `${origin(c)}/${lang}/p/${p.id}`))}`} target="_blank" rel="noopener">
-              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-3.8A8 8 0 1 1 8 19z" /><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-.9.8a4 4 0 0 1-2.2-2.2l.8-.9-1-2z" /></svg>
+              {Icons.wa}
               {tr.askWa}
             </a>
           ) : null}
         </div>
       </article>
+      {p.in_stock ? (
+        /* phones and iPads: a small bar that comes up once the main button has scrolled away */
+        <div class="fbuy" data-fbuy aria-hidden="true">
+          <span class="fbuy-txt"><span class="fbuy-nm">{name}</span><Price value={p.price} compare={p.compare_price} lang={lang} /></span>
+          <button class="btn" type="button" data-add={p.id} tabindex={-1}>{Icons.bag}{tr.addToCart}</button>
+        </div>
+      ) : null}
       {similar.length ? (
         <section class="wrap sec">
           <h2 class="h">{tr.similar}</h2>
-          <Grid items={similar.slice(0, 8)} lang={lang} brands={b.brands} />
+          <Grid items={similar} lang={lang} brands={b.brands} fit />
         </section>
       ) : null}
     </>
@@ -507,19 +532,21 @@ store.get('/:lang{(?:ar|en)}/page/:slug', async (c) => {
   const page = PAGES[slug]
   if (!page) return notFound(c, lang)
   const b = await base(c, lang)
+  const tr = t(lang)
   const [title, defText] = page[lang]
   const text = b.settings[`page_${slug}_${lang}`] || defText
   const s = b.settings
-  const wa = s.whatsapp ? `https://wa.me/${s.whatsapp.replace(/\D/g, '')}` : ''
+  const wa = waNumber(s.whatsapp || '') ? `https://wa.me/${waNumber(s.whatsapp || '')}` : ''
+  const ig = igHandle(s.instagram || '') ? `https://www.instagram.com/${igHandle(s.instagram || '')}/` : ''
   return render(c, { lang, path: `/page/${slug}`, title }, b, (
     <section class="wrap narrow sec">
       <h1 class="h1">{title}</h1>
       {text.split('\n').map((l) => <p class="para">{l}</p>)}
       {slug === 'contact' ? (
         <div class="sends">
-          {wa ? <a class="send whatsapp" href={wa} rel="noopener"><span>WhatsApp</span></a> : null}
-          {s.instagram ? <a class="send instagram" href={s.instagram} rel="noopener"><span>Instagram</span></a> : null}
-          {s.facebook ? <a class="send messenger" href={s.facebook} rel="noopener"><span>Facebook</span></a> : null}
+          {wa ? <a class="send whatsapp" href={wa} rel="noopener" target="_blank"><span>{Icons.wa}{tr.whatsapp}</span></a> : null}
+          {ig ? <a class="send instagram" href={ig} rel="noopener" target="_blank"><span>{Icons.ig}{tr.instagram}</span></a> : null}
+          {s.facebook ? <a class="send facebook" href={s.facebook} rel="noopener" target="_blank"><span>{Icons.fb}{tr.facebook}</span></a> : null}
         </div>
       ) : null}
     </section>

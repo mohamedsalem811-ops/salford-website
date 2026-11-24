@@ -61,7 +61,7 @@ test('catalog search and filters (in memory)', () => {
     p(3, { name_en: 'Hidden Swan', price: 50000 }), // no photo: never listed
     p(4, { name_en: 'Return to Tiffany', brand_id: 'tiffany', code: 'TF-77' }),
   ]
-  const cat = { v: '1', checkedAt: 0, loadedAt: 0, brands: [], allBrands: [], cats: [], settings: {}, products, byId: new Map(products.map((x) => [x.id, x])), media: new Map([1, 2, 4].map((id) => [id, [img(id)]])) } as Catalog
+  const cat = { v: '1', checkedAt: 0, loadedAt: 0, brands: [], allBrands: [], cats: [], shopBrands: [], shopCats: [], settings: {}, products, byId: new Map(products.map((x) => [x.id, x])), media: new Map([1, 2, 4].map((id) => [id, [img(id)]])) } as Catalog
   const ids = (o: Parameters<typeof listFrom>[1]) => listFrom(cat, o).map((x) => x.id)
   assert.deepEqual(ids({}), [1, 2, 4])
   assert.deepEqual(ids({ q: 'swan' }), [1])

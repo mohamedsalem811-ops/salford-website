@@ -42,6 +42,10 @@ const ar = {
   keepShopping: 'متابعة التسوق', about: 'من نحن', deliveryReturns: 'التوصيل والإرجاع', contact: 'تواصل معنا',
   rights: 'جميع الحقوق محفوظة', notFound: 'الصفحة غير موجودة', notFoundSub: 'يمكن الرابط تغيّر. جرّب البحث أو ارجع للرئيسية.',
   currency: 'د.ل', langSwitch: 'English', video: 'فيديو', of: 'من',
+  nProducts: (n: number) => (n === 1 ? 'منتج واحد' : n === 2 ? 'منتجين' : n <= 10 ? `${n} منتجات` : `${n} منتج`),
+  comingSoon: 'قريباً عندنا', comingSoonSub: 'قطع هذه العلامة توصل قريباً. تابعنا أو راسلنا ونبلغوك أول ما توصل.',
+  footAsk: 'عندك سؤال على قطعة؟', footAskSub: 'كلمنا مباشرة، نردوا عليك في أقرب وقت.',
+  footHelp: 'مساعدة', footAll: 'كل المنتجات', footPay: 'طرق الدفع', facebook: 'فيسبوك', backTop: 'للأعلى',
 }
 
 const en: typeof ar = {
@@ -84,6 +88,10 @@ const en: typeof ar = {
   keepShopping: 'Continue shopping', about: 'About us', deliveryReturns: 'Delivery & returns', contact: 'Contact us',
   rights: 'All rights reserved', notFound: 'Page not found', notFoundSub: 'The link may have changed. Try searching or go home.',
   currency: 'LYD', langSwitch: 'العربية', video: 'Video', of: 'of',
+  nProducts: (n: number) => `${n} ${n === 1 ? 'product' : 'products'}`,
+  comingSoon: 'Coming soon', comingSoonSub: 'Pieces from this brand are on their way. Follow us or message us and we’ll tell you when they arrive.',
+  footAsk: 'A question about a piece?', footAskSub: 'Message us directly, we reply as soon as we can.',
+  footHelp: 'Help', footAll: 'All products', footPay: 'Ways to pay', facebook: 'Facebook', backTop: 'Top',
 }
 
 export const dict = { ar, en }

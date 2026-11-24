@@ -17,6 +17,8 @@ export type Catalog = {
   brands: Brand[] // visible, in order
   allBrands: Brand[]
   cats: Category[]
+  shopBrands: Brand[] // visible brands that have at least one piece to show
+  shopCats: Category[] // categories that have at least one piece to show
   settings: Record<string, string>
   products: Product[] // live and not deleted, in the shop's default order
   byId: Map<number, Product>
@@ -48,11 +50,18 @@ async function load(db: D1Database, v: string): Promise<Catalog> {
   for (const list of media.values()) list.sort((x, y) => x.sort - y.sort || x.id - y.id)
   const bySort = <T extends { sort: number }>(rows: T[]) => rows.sort((x, y) => x.sort - y.sort)
   const allBrands = bySort(b.results as Brand[])
+  const brands = allBrands.filter((x) => x.visible)
+  const cats = bySort(c.results as Category[])
+  const shown = products.filter((x) => media.get(x.id)?.length)
+  const brandIds = new Set(shown.map((x) => x.brand_id))
+  const catIds = new Set(shown.map((x) => x.category_id))
   return {
     v, checkedAt: startedAt, loadedAt: startedAt,
-    brands: allBrands.filter((x) => x.visible),
+    brands,
     allBrands,
-    cats: bySort(c.results as Category[]),
+    cats,
+    shopBrands: brands.filter((x) => brandIds.has(x.id)),
+    shopCats: cats.filter((x) => catIds.has(x.id)),
     settings: Object.fromEntries((s.results as { key: string; value: string }[]).map((r) => [r.key, r.value])),
     products,
     byId: new Map(products.map((x) => [x.id, x])),

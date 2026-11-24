@@ -186,6 +186,23 @@
     if (openA && orderEl.hasAttribute('data-copy-first')) openA.addEventListener('click', copy);
   }
 
+  /* ---------- product: small add-to-cart bar once the main button has scrolled up out of view ---------- */
+  var fbuy = $('[data-fbuy]'), buybar = $('[data-buybar]'), foot = $('.foot');
+  if (fbuy && buybar && 'IntersectionObserver' in window) {
+    var above = false, footIn = false;
+    var showBar = function () {
+      var on = above && !footIn;
+      fbuy.classList.toggle('show', on);
+      fbuy.setAttribute('aria-hidden', on ? 'false' : 'true');
+      var b = fbuy.querySelector('button'); if (b) b.tabIndex = on ? 0 : -1;
+    };
+    new IntersectionObserver(function (es) { es.forEach(function (en) {
+      if (en.target === buybar) above = !en.isIntersecting && en.boundingClientRect.top < 0;
+      else footIn = en.isIntersecting;
+    }); showBar(); }).observe(buybar);
+    if (foot) new IntersectionObserver(function (es) { footIn = es[0].isIntersecting; showBar(); }).observe(foot);
+  }
+
   /* ---------- listing sort ---------- */
   $$('select[data-nav]').forEach(function (s) { s.addEventListener('change', function () { location.href = s.value; }); });
 
