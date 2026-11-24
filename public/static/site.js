@@ -11,7 +11,8 @@
       hintWa: 'أرسل الرسالة في واتساب لتصلنا الطلبية. إذا لم تُفتح المحادثة، استخدم الزر بالأسفل.',
       hintMs: 'أرسل الرسالة في ماسنجر لتصلنا الطلبية. إذا لم تُفتح المحادثة، استخدم الزر بالأسفل.',
       hintIg: 'اضغط الزر: ننسخ الرسالة ونفتح إنستغرام، ثم الصقها وأرسلها.',
-      openWa: 'افتح واتساب مرة أخرى', openMs: 'افتح ماسنجر مرة أخرى', openIg: 'انسخ الرسالة وافتح إنستغرام', copy: 'انسخ الرسالة', missing: 'تفاصيل الطلبية غير متوفرة على هذا الجهاز.' },
+      openWa: 'افتح واتساب مرة أخرى', openMs: 'افتح ماسنجر مرة أخرى', sendWa: 'أرسل الطلبية عبر واتساب', sendMs: 'أرسل الطلبية عبر ماسنجر',
+      firstWa: 'خطوة أخيرة: اضغط الزر لفتح واتساب، ثم اضغط إرسال لتصلنا طلبيتك.', firstMs: 'خطوة أخيرة: اضغط الزر لفتح ماسنجر، ثم اضغط إرسال لتصلنا طلبيتك.', openIg: 'انسخ الرسالة وافتح إنستغرام', copy: 'انسخ الرسالة', missing: 'تفاصيل الطلبية غير متوفرة على هذا الجهاز.' },
     en: { added: 'Added to cart', remove: 'Remove', items: 'Items', delivery: 'Delivery', byCity: 'Depends on city', total: 'Total',
       cont: 'Continue', empty: 'Your cart is empty. Have a look at what’s new.', shop: 'Shop now', note: 'We confirm price and availability with you before sending.',
       cur: 'LYD', out: 'Out of stock', errName: 'Enter your name', errPhone: 'Enter a valid Libyan phone number, e.g. 0912345678', errCity: 'Enter your city',
@@ -20,7 +21,8 @@
       hintWa: 'Send the message in WhatsApp so your order reaches us. If the chat didn’t open, use the button below.',
       hintMs: 'Send the message in Messenger so your order reaches us. If the chat didn’t open, use the button below.',
       hintIg: 'Tap the button: we copy the message and open Instagram. Then paste and send.',
-      openWa: 'Open WhatsApp again', openMs: 'Open Messenger again', openIg: 'Copy message and open Instagram', copy: 'Copy message', missing: 'Order details aren’t available on this device.' }
+      openWa: 'Open WhatsApp again', openMs: 'Open Messenger again', sendWa: 'Send order on WhatsApp', sendMs: 'Send order on Messenger',
+      firstWa: 'Last step: tap the button to open WhatsApp, then tap send so your order reaches us.', firstMs: 'Last step: tap the button to open Messenger, then tap send so your order reaches us.', openIg: 'Copy message and open Instagram', copy: 'Copy message', missing: 'Order details aren’t available on this device.' }
   }[lang];
 
   /* ---------- small helpers ---------- */
@@ -135,10 +137,11 @@
           btns.forEach(function (b) { b.disabled = false; });
           if (!res.ok) { err.textContent = res.status === 429 ? T.tooMany : res.status === 409 ? T.unavailable : T.err; err.hidden = false; return; }
           var d = res.d;
+          var phoneLike = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+          d.opened = channel !== 'instagram' && phoneLike;
           sstore('sl_order_' + d.number, d);
           saveCart([]);
           history.replaceState(null, '', '/' + lang + '/order/' + d.number);
-          var phoneLike = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
           // Phones: open the chat app straight away; coming back lands on the confirmation page.
           // Computers and Instagram: show the confirmation page with a button (Instagram needs a tap to copy).
           if (channel !== 'instagram' && phoneLike) location.href = d.links[channel];
@@ -156,8 +159,9 @@
     if (!d) { hint.textContent = T.missing; }
     else {
       var ch = d.channel;
-      hint.textContent = ch === 'instagram' ? T.hintIg : ch === 'messenger' ? T.hintMs : T.hintWa;
-      var label = ch === 'instagram' ? T.openIg : ch === 'messenger' ? T.openMs : T.openWa;
+      var ms = ch === 'messenger';
+      hint.textContent = ch === 'instagram' ? T.hintIg : d.opened ? (ms ? T.hintMs : T.hintWa) : (ms ? T.firstMs : T.firstWa);
+      var label = ch === 'instagram' ? T.openIg : d.opened ? (ms ? T.openMs : T.openWa) : (ms ? T.sendMs : T.sendWa);
       acts.innerHTML = '<a class="send ' + ch + '" href="' + esc(d.links[ch]) + '" target="_blank" rel="noopener" data-open>' + esc(label) + '</a>' +
         '<button class="btn ghost wide" type="button" data-copy>' + esc(T.copy) + '</button><textarea class="vh" readonly aria-hidden="true" data-msg></textarea>';
       $('[data-msg]', acts).value = d.message;

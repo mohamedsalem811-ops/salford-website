@@ -49,11 +49,26 @@ export function buildMessage(lang: Lang, number: string, lines: { brand: string;
   return ['Hello Salford, I’d like to confirm my order', `Order number: ${number}`, ...items, `Total: ${fmtLyd(total)} ${cur}`, `Name: ${name} · City: ${city}`, `Payment: ${PAY[payment].en}`].join('\n')
 }
 
+/** Facebook page handle for m.me: facebook.com/Name, /profile.php?id=123, /people/Name/123, or a bare handle. */
+export function fbPage(raw: string) {
+  const v = raw.trim()
+  if (!v) return ''
+  let u: URL
+  try { u = new URL(/^https?:\/\//i.test(v) ? v : `https://facebook.com/${v.replace(/^@/, '')}`) } catch { return '' }
+  const id = u.searchParams.get('id')
+  if (id && /^\d+$/.test(id)) return id
+  const parts = u.pathname.split('/').filter(Boolean)
+  if (parts[0] === 'people' && parts[2] && /^\d+$/.test(parts[2])) return parts[2]
+  if (parts[0] === 'pages' && parts.length >= 2) return /^\d+$/.test(parts[parts.length - 1]) ? parts[parts.length - 1] : parts[1]
+  const h = parts[0] || ''
+  return /^[\w.-]+$/.test(h) && !/\.php$/i.test(h) ? h : ''
+}
+
 export function channelLinks(s: Record<string, string>, message: string) {
   const enc = encodeURIComponent(message)
   const wa = s.whatsapp ? `https://wa.me/${s.whatsapp.replace(/\D/g, '')}?text=${enc}` : ''
-  const page = (s.facebook || '').replace(/\/+$/, '').split(/[/?#]/).filter(Boolean).pop() || ''
-  const ms = page && !/facebook\.com$/i.test(page) ? `https://m.me/${page}?text=${enc}` : ''
+  const page = fbPage(s.facebook || '')
+  const ms = page ? `https://m.me/${page}?text=${enc}` : ''
   const igUser = (s.instagram || '').replace(/\/+$/, '').split(/[/?#]/).filter(Boolean).pop() || ''
   const ig = igUser && !/instagram\.com$/i.test(igUser) ? `https://ig.me/m/${igUser.replace(/^@/, '')}` : ''
   return { whatsapp: wa, messenger: ms, instagram: ig }

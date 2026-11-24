@@ -1,0 +1,12 @@
+{
+  "name": "Salford Libya",
+  "short_name": "Salford",
+  "start_url": "/ar/",
+  "display": "standalone",
+  "background_color": "#FDF6F7",
+  "theme_color": "#FDF6F7",
+  "icons": [
+    { "src": "/static/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/static/brand/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

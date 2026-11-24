@@ -59,6 +59,8 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
         <meta name="theme-color" content="#FDF6F7" />
         <link rel="icon" type="image/png" sizes="48x48" href="/static/brand/favicon-48.png" />
         <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png" />
+        <link rel="manifest" href="/static/manifest.webmanifest" />
+        <meta name="apple-mobile-web-app-title" content="Salford" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600&family=Cormorant+Garamond:wght@600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" />
