@@ -17,14 +17,14 @@ const Shell = ({ title, children, nav }: { title: string; children: Child; nav?:
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta name="robots" content="noindex, nofollow" />
       <title>{title} · Salford Admin</title>
-      <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+      <link rel="icon" type="image/png" href="/static/brand/favicon-48.png" />
       <link rel="stylesheet" href={`/static/admin.css?v=${V}`} />
     </head>
     <body>
       {nav !== undefined ? (
         <div class="a-wrap">
           <nav class="a-side" aria-label="Admin">
-            <b class="a-logo">SALFORD</b>
+            <img class="a-logo" src="/static/brand/word-white.webp" alt="Salford" width="480" height="127" />
             <a href="/admin" class={nav === 'products' ? 'on' : ''}>Products</a>
             <a href="/admin/orders" class={nav === 'orders' ? 'on' : ''}>Orders</a>
             <a href="/admin/settings" class={nav === 'settings' ? 'on' : ''}>Settings</a>
@@ -50,7 +50,7 @@ admin.get('/login', async (c) => {
   return c.html(
     <Shell title="Log in">
       <form class="a-card login" method="post" action="/admin/login">
-        <h1>Salford admin</h1>
+        <img src="/static/brand/logo-mauve.webp" alt="Salford" width="140" height="90" style="justify-self:center" /><h1>Salford admin</h1>
         <label class="a-f">Email<input name="email" type="email" required autocomplete="username" /></label>
         <label class="a-f">Password<input name="password" type="password" required autocomplete="current-password" /></label>
         {err ? <p class="a-err" role="alert">{err === 'limit' ? 'Too many attempts. Wait 15 minutes and try again.' : 'Email or password is wrong.'}</p> : null}

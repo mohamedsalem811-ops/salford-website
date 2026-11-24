@@ -54,10 +54,11 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
         <meta property="og:title" content={props.title ?? tr.siteName} />
         <meta property="og:description" content={desc} />
         <meta property="og:url" content={url} />
-        {props.image ? <meta property="og:image" content={props.image} /> : null}
+        <meta property="og:image" content={props.image ?? `${origin}/static/brand/og.jpg`} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="theme-color" content="#FDF6F7" />
-        <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="48x48" href="/static/brand/favicon-48.png" />
+        <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600&family=Cormorant+Garamond:wght@600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" />
@@ -68,8 +69,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
         <header class="top">
           <div class="top-in">
             <a class="logo" href={`/${lang}/`} aria-label={tr.siteName}>
-              <span class="logo-lat">SALFORD</span>
-              <small>{lang === 'ar' ? 'سالفورد ليبيا' : 'LIBYA'}</small>
+              <img src="/static/brand/word-mauve.webp" alt={tr.siteName} width="480" height="127" />
             </a>
             <nav class="brandnav" aria-label={tr.brands}>
               {props.brands.map((b) => <a href={`/${lang}/brand/${b.id}`} class="bd">{b.name}</a>)}
@@ -88,7 +88,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
         <footer class="foot">
           <div class="foot-in">
             <div>
-              <div class="logo"><span class="logo-lat">SALFORD</span><small>{tr.siteName}</small></div>
+              <img class="foot-logo" src="/static/brand/logo-mauve.webp" alt={tr.siteName} width="600" height="387" loading="lazy" />
               <p class="muted">{tr.tagline}</p>
             </div>
             <nav aria-label={tr.shop}>

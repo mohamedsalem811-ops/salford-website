@@ -63,19 +63,34 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
   const catPics = await Promise.all(cats.map((ct) => listProducts(c.env.DB, { cat: ct.id, limit: 1 })))
   let banners: Banner[] = []
   try { banners = JSON.parse(b.settings.banners || '[]') } catch { banners = [] }
-  const hero = newest[0]
-  const heroImg = hero ? firstImage(hero.media) : undefined
 
-  return render(c, { lang, path: '/', active: 'home', image: heroImg ? absUrl(origin(c), mediaUrl(heroImg, 900)) : undefined }, b, (
+  return render(c, { lang, path: '/', active: 'home', image: absUrl(origin(c), '/static/brand/og.jpg') }, b, (
     <>
       <section class="wrap">
+        <div class="hero">
+          <picture class="hero-pic">
+            <source media="(max-width: 639px)" type="image/webp" srcset="/static/brand/hero-m-480.webp 480w, /static/brand/hero-m-864.webp 864w" sizes="100vw" />
+            <img src="/static/brand/hero-1210.webp" srcset="/static/brand/hero-700.webp 700w, /static/brand/hero-1210.webp 1210w" sizes="(min-width: 1240px) 700px, 58vw" alt="" width="1210" height="1080" fetchpriority="high" />
+          </picture>
+          <div class="hero-txt" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <span class="hero-glow" aria-hidden="true" />
+            <h1 class="hero-logo"><img src="/static/brand/logo-white.webp" alt={tr.siteName} width="600" height="387" /></h1>
+            <p class="hero-line">{tr.tagline}</p>
+            <p class="hero-brands bd">Swarovski · Tiffany &amp; Co. · APM Monaco · Pandora</p>
+            <div class="hero-btns">
+              <a class="btn blush" href={`/${lang}/shop`}>{tr.shopNow}</a>
+              <a class="btn halo" href={`/${lang}/brands`}>{tr.brands}</a>
+            </div>
+            <i class="tw tw1" aria-hidden="true" /><i class="tw tw2" aria-hidden="true" /><i class="tw tw3" aria-hidden="true" />
+          </div>
+        </div>
         {banners.length ? (
           <div class="banners" data-carousel>
-            {banners.map((bn, i) => (
+            {banners.map((bn) => (
               <a class="banner has-img" href={bn.link || `/${lang}/shop`}>
                 <picture>
                   {bn.image_mobile ? <source media="(max-width: 639px)" srcset={bn.image_mobile} /> : null}
-                  <img src={bn.image || bn.image_mobile} alt="" loading={i ? 'lazy' : 'eager'} />
+                  <img src={bn.image || bn.image_mobile} alt="" loading="lazy" />
                 </picture>
                 <span class="banner-txt">
                   <span class="bd">{lang === 'ar' ? bn.eyebrow_ar : bn.eyebrow_en}</span>
@@ -85,16 +100,7 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
               </a>
             ))}
           </div>
-        ) : (
-          <a class="banner" href={`/${lang}/brand/swarovski`}>
-            <span class="banner-txt">
-              <span class="bd">Swarovski · {tr.justArrived}</span>
-              <span class="banner-h">{lang === 'ar' ? 'مجوهرات أصلية من أشهر العلامات العالمية' : 'Authentic jewelry from the world’s favourite brands'}</span>
-              <span class="btn sm">{tr.shopNow}</span>
-            </span>
-            {hero ? <span class="banner-pic"><Pic p={hero} lang={lang} w={900} eager /></span> : null}
-          </a>
-        )}
+        ) : null}
       </section>
 
       <section class="wrap sec">
