@@ -47,7 +47,8 @@
     var add = e.target.closest('[data-add]');
     if (add) {
       addToCart(Number(add.getAttribute('data-add')));
-      add.classList.remove('prism'); void add.offsetWidth; add.classList.add('prism');
+      add.classList.toggle('prism', false); void add.offsetWidth; add.classList.toggle('prism', true);
+      clearTimeout(add._pt); add._pt = setTimeout(function () { add.classList.toggle('prism', false); }, 1000);
       toast(T.added);
     }
   });

@@ -331,7 +331,7 @@ adminApi.post('/orders/:id{[0-9]+}', async (c) => {
 })
 
 /* ---------- settings ---------- */
-const SETTING_KEYS = ['whatsapp', 'facebook', 'instagram', 'pay_cod_cash', 'pay_cod_card', 'pay_lypay',
+const SETTING_KEYS = ['whatsapp', 'wa_username', 'facebook', 'instagram', 'pay_cod_cash', 'pay_cod_card', 'pay_lypay',
   'page_about_ar', 'page_about_en', 'page_delivery_ar', 'page_delivery_en', 'page_contact_ar', 'page_contact_en']
 
 adminApi.post('/settings', async (c) => {
@@ -341,6 +341,8 @@ adminApi.post('/settings', async (c) => {
     if (k.startsWith('pay_')) v = b[k] ? '1' : '0'
     // 0912345678, 912345678, +218 91…, ٠٩١… → 218912345678
     if (k === 'whatsapp') v = waNumber(v)
+    // @salford.libya / salford.libya / wa.me/salford.libya → @salford.libya
+    if (k === 'wa_username' && v) v = '@' + v.replace(/^.*wa\.me\//i, '').replace(/^@+/, '').replace(/[^\w.]/g, '').slice(0, 40)
     // share links (…?igsh=…), @handle or a bare handle → https://www.instagram.com/handle/
     if (k === 'instagram' && v && igHandle(v)) v = `https://www.instagram.com/${igHandle(v)}/`
     if ((k === 'facebook' || k === 'instagram') && v && !/^https:\/\//.test(v)) v = `https://${v.replace(/^(https?:)?\/+/, '')}`

@@ -373,6 +373,7 @@ admin.get('/settings', async (c) => {
           <p class="a-muted">An order button appears on the site only when its link is filled in.</p>
           <div class="a-grid2">
             <label class="a-f">WhatsApp number (with country code)<input name="whatsapp" value={s.whatsapp} placeholder="218912345678" inputmode="tel" /></label>
+            <label class="a-f">WhatsApp username (shown on the site)<input name="wa_username" value={s.wa_username} placeholder="@salford.libya" /></label>
             <label class="a-f">Facebook Page link<input name="facebook" value={s.facebook} placeholder="https://www.facebook.com/salfordlibya" /></label>
             <label class="a-f">Instagram link<input name="instagram" value={s.instagram} placeholder="https://www.instagram.com/salford.libya/" /></label>
           </div>

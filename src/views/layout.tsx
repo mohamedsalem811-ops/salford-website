@@ -125,7 +125,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
               <div class="socials">
                 {wa ? (
                   <a class="soc wa" href={`https://wa.me/${wa}`} rel="noopener" target="_blank">
-                    <span class="soc-i">{I.wa}</span><span class="soc-t"><b>{tr.whatsapp}</b><small dir="ltr">{prettyPhone(wa)}</small></span>{I.arrow}
+                    <span class="soc-i">{I.wa}</span><span class="soc-t"><b>{tr.whatsapp}</b><small dir="ltr">{props.settings.wa_username || prettyPhone(wa)}</small></span>{I.arrow}
                   </a>
                 ) : null}
                 {ig ? (

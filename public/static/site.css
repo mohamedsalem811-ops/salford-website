@@ -330,7 +330,7 @@ img.pimg.broken { opacity: 0; }
 /* prism: one soft light sweep when something is added */
 @media (prefers-reduced-motion: no-preference) {
   .prism { position: relative; overflow: hidden; }
-  .prism::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .6) 45%, rgba(232, 214, 255, .55) 50%, rgba(255, 255, 255, .6) 55%, transparent 70%); animation: sweep .9s ease-out 1; }
+  .prism::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .6) 45%, rgba(232, 214, 255, .55) 50%, rgba(255, 255, 255, .6) 55%, transparent 70%); transform: translateX(120%); pointer-events: none; animation: sweep .9s ease-out 1 both; }
   @keyframes sweep { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
 }
 
