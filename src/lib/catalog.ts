@@ -28,26 +28,31 @@ let snap: Catalog | null = null
 
 async function load(db: D1Database, v: string): Promise<Catalog> {
   const startedAt = Date.now()
+  // Plain table reads, sorted here: D1 counts every row it touches, and ORDER BY / JOIN touch each row twice.
   const [p, m, b, c, s] = await db.batch([
-    db.prepare("SELECT * FROM products WHERE status = 'live' AND deleted_at IS NULL ORDER BY in_stock DESC, sort ASC, id DESC"),
-    db.prepare("SELECT m.* FROM media m JOIN products p ON p.id = m.product_id WHERE p.status = 'live' AND p.deleted_at IS NULL AND m.status != 'broken' ORDER BY m.product_id, m.sort, m.id"),
-    db.prepare('SELECT * FROM brands ORDER BY sort'),
-    db.prepare('SELECT * FROM categories ORDER BY sort'),
+    db.prepare("SELECT * FROM products WHERE status = 'live' AND deleted_at IS NULL"),
+    db.prepare("SELECT * FROM media WHERE status != 'broken'"),
+    db.prepare('SELECT * FROM brands'),
+    db.prepare('SELECT * FROM categories'),
     db.prepare('SELECT key, value FROM settings'),
   ])
-  const products = p.results as Product[]
+  const products = (p.results as Product[]).sort((x, y) => y.in_stock - x.in_stock || x.sort - y.sort || y.id - x.id)
+  const live = new Set(products.map((x) => x.id))
   const media = new Map<number, Media[]>()
   for (const row of m.results as Media[]) {
+    if (!live.has(row.product_id)) continue
     const list = media.get(row.product_id)
     if (list) list.push(row)
     else media.set(row.product_id, [row])
   }
-  const allBrands = b.results as Brand[]
+  for (const list of media.values()) list.sort((x, y) => x.sort - y.sort || x.id - y.id)
+  const bySort = <T extends { sort: number }>(rows: T[]) => rows.sort((x, y) => x.sort - y.sort)
+  const allBrands = bySort(b.results as Brand[])
   return {
     v, checkedAt: startedAt, loadedAt: startedAt,
     brands: allBrands.filter((x) => x.visible),
     allBrands,
-    cats: c.results as Category[],
+    cats: bySort(c.results as Category[]),
     settings: Object.fromEntries((s.results as { key: string; value: string }[]).map((r) => [r.key, r.value])),
     products,
     byId: new Map(products.map((x) => [x.id, x])),

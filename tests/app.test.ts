@@ -22,6 +22,7 @@ DB.sqlite.exec(`
   UPDATE products SET status = 'draft' WHERE id = 3;
   INSERT INTO media (product_id, kind, source, r2_key, sizes, status) VALUES
     (1, 'image', 'upload', 'p/1/a', '[400,900]', 'ok'), (2, 'image', 'upload', 'p/2/a', '[400,900]', 'ok'), (3, 'image', 'upload', 'p/3/a', '[400]', 'ok');
+  INSERT INTO media (product_id, kind, source, r2_key, sizes, status, sort) VALUES (1, 'image', 'upload', 'p/1/first', '[400,900]', 'ok', -1), (1, 'image', 'upload', 'p/1/bad', '[400]', 'broken', 5);
   INSERT INTO admins (id, email, pass_hash, salt) VALUES (1, 'owner@shop.test', 'x', 'x');
 `)
 const adminToken = 'a'.repeat(64)
@@ -36,6 +37,10 @@ test('shop pages open', async () => {
   const shop = await (await get('/en/shop')).text()
   assert.ok(shop.includes('Swan Pendant') && shop.includes('Tennis Bracelet'))
   assert.ok(!shop.includes('Draft Ring'), 'drafts stay hidden')
+  assert.ok(shop.indexOf('Tennis Bracelet') < shop.indexOf('Swan Pendant'), 'newest first')
+  const p1 = await (await get('/en/p/1')).text()
+  assert.ok(p1.indexOf('p/1/first') > 0 && p1.indexOf('p/1/first') < p1.indexOf('p/1/a'), 'photos in their set order')
+  assert.ok(!p1.includes('p/1/bad'), 'broken photos are left out')
   assert.equal((await get('/en/p/3')).status, 404)
   const r = await get('/en/products?brand=swarovski&cat=necklaces')
   assert.equal(r.status, 301)
@@ -93,6 +98,8 @@ test('admin changes show in the shop at once; other copies within seconds', asyn
   const t = await send('/admin/api/products/2/toggle', { field: 'in_stock' }, asAdmin)
   assert.equal(t.status, 200)
   assert.ok((await (await get('/en/p/2')).text()).includes('Out of stock'), 'same copy is refreshed straight away')
+  const shop = await (await get('/en/shop')).text()
+  assert.ok(shop.indexOf('Swan Pendant') < shop.indexOf('Tennis Bracelet'), 'in-stock pieces come first')
 
   // a change saved through another server copy: visitors here see it after the re-check interval
   mock.timers.enable({ apis: ['Date'], now: Date.now() })
