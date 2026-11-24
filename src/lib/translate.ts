@@ -6,12 +6,21 @@ const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
 const FALLBACK = '@cf/meta/m2m100-1.2b'
 const AR = /[؀-ۿ]/
 
+const GLOSSARY = [
+  'Article no. = رقم المنتج', 'Collection = المجموعة', 'Length = الطول', 'Minimum length = أدنى طول', 'Maximum length = أقصى طول',
+  'Motif size = حجم التعليقة', 'Size = المقاس', 'Colour/Color = اللون', 'Material = الخامة', 'pendant = قلادة بتعليقة', 'necklace = قلادة',
+  'bracelet = سوار', 'bangle = سوار صلب', 'earrings = أقراط', 'ring = خاتم', 'set = طقم', 'charm = تعليقة',
+  'rhodium plated = مطلي بالروديوم', 'rose gold-tone plated = مطلي بلون الذهب الوردي', 'gold-tone plated = مطلي بلون الذهب',
+  'sterling silver = فضة استرلينية', '18k yellow gold = ذهب أصفر عيار 18', 'clear crystal = كريستال شفاف', 'pavé = ترصيع البافيه',
+  'inch = بوصة', 'cm = سم',
+].join('; ')
+
 const system = (kind: 'short' | 'desc') =>
   'You translate jewellery product texts from English to Arabic for Salford, an online jewellery store in Libya. ' +
-  'Write clear, warm Modern Standard Arabic that Libyan customers read easily. ' +
-  'Keep brand names, collection names, product names, article numbers, codes, numbers and measurements exactly as written, in Latin letters. ' +
-  'Translate words like rose gold-tone, rhodium plated, crystal, length and motif size. ' +
-  (kind === 'short' ? 'This is a short line under the product name: keep it short, one line.' : 'Keep the same line breaks and the same order of lines.') +
+  'Write clear, warm, natural Modern Standard Arabic that Libyan customers read easily, as a native Arabic copywriter would. ' +
+  'Translate every English word and every label into Arabic, using this glossary: ' + GLOSSARY + '. ' +
+  'Keep only these in Latin letters, exactly as written: brand names (Swarovski, Tiffany & Co., APM Monaco, Pandora), collection and product names (Swan, Millenia, HardWear...), article numbers, codes and numbers. ' +
+  (kind === 'short' ? 'This is a short line under the product name: keep it short, one line.' : 'Keep the same line breaks, bullets and order of lines.') +
   ' Answer with the Arabic text only: no quotes, no notes, no English version.'
 
 export async function toArabic(env: Env, text: string, kind: 'short' | 'desc'): Promise<string> {
