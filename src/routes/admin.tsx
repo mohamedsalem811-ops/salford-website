@@ -302,9 +302,9 @@ admin.get('/orders', async (c) => {
               <tr>
                 <td class="c-no"><a href={`/admin/orders/${o.id}`}><b>{o.number}</b></a></td>
                 <td class="c-date">{libyaTime(o.created_at)}</td>
-                <td class="c-cust" dir="auto">{o.name}<br /><span class="a-muted" dir="ltr">{o.phone}</span></td>
-                <td class="c-city" dir="auto">{o.city}</td>
-                <td class="c-items">{o.items}<span class="a-ph"> items</span></td>
+                <td class="c-cust"><bdi>{o.name}</bdi><br /><span class="a-muted" dir="ltr">{o.phone}</span></td>
+                <td class="c-city"><bdi>{o.city}</bdi></td>
+                <td class="c-items">{o.items}<span class="a-ph">{Number(o.items) === 1 ? ' item' : ' items'}</span></td>
                 <td class="num c-tot">{fmtLyd(Number(o.total))} LYD</td>
                 <td class="c-pay">{PAY[String(o.payment)]}{o.payment === 'cod_card' ? <span class="tag warn">bring card machine</span> : null}</td>
                 <td class="c-ch">{o.channel}</td>
