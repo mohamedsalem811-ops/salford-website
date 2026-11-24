@@ -3,7 +3,7 @@ import type { Env, Media } from '../lib/db'
 import { toDirham } from '../lib/db'
 import { hashPassword, verifyLogin, endOtherSessions } from '../lib/auth'
 import { youtubeId } from '../lib/media'
-import { waNumber, igHandle } from '../lib/orders'
+import { waNumber, igHandle, fbPage } from '../lib/orders'
 import { bumpCatalog } from '../lib/catalog'
 
 import { translateProduct } from '../lib/translate'
@@ -345,12 +345,15 @@ adminApi.post('/settings', async (c) => {
     if (k === 'wa_username' && v) v = '@' + v.replace(/^.*wa\.me\//i, '').replace(/^@+/, '').replace(/[^\w.]/g, '').slice(0, 40)
     // share links (…?igsh=…), @handle or a bare handle → https://www.instagram.com/handle/
     if (k === 'instagram' && v && igHandle(v)) v = `https://www.instagram.com/${igHandle(v)}/`
+    // salfordlibya / @salfordlibya → https://www.facebook.com/salfordlibya
+    if (k === 'facebook' && v && !/facebook\.com|fb\.com|fb\.me|\//i.test(v) && fbPage(v)) v = `https://www.facebook.com/${fbPage(v)}`
     if ((k === 'facebook' || k === 'instagram') && v && !/^https:\/\//.test(v)) v = `https://${v.replace(/^(https?:)?\/+/, '')}`
     return c.env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(k, v)
   })
   const banners = [0, 1, 2]
     .map((i) => Object.fromEntries(['image', 'image_mobile', 'eyebrow_ar', 'eyebrow_en', 'title_ar', 'title_en', 'link'].map((f) => [f, String(b[`b${i}_${f}`] ?? '').trim().slice(0, 500)])))
     .filter((bn) => bn.image || bn.image_mobile)
+    .map((bn) => ({ ...bn, link: /^(\/(?!\/)|https:\/\/)/.test(bn.link) ? bn.link : '' }))
   stmts.push(c.env.DB.prepare("INSERT INTO settings (key, value) VALUES ('banners', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(banners)))
   await c.env.DB.batch(stmts)
   return c.json({ ok: true })

@@ -99,7 +99,7 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
         {banners.length ? (
           <div class="banners" data-carousel>
             {banners.map((bn) => (
-              <a class="banner has-img" href={bn.link || `/${lang}/shop`}>
+              <a class="banner has-img" href={/^(\/(?!\/)|https:\/\/)/.test(bn.link || '') ? bn.link : `/${lang}/shop`}>
                 <picture>
                   {bn.image_mobile ? <source media="(max-width: 639px)" srcset={bn.image_mobile} /> : null}
                   <img src={bn.image || bn.image_mobile} alt="" loading="lazy" />
@@ -371,8 +371,8 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
           ) : null}
           {pShort(p, lang) ? <p class="short" dir="auto">{pShort(p, lang)}</p> : null}
           {desc ? <div class="desc" dir="auto">{desc.split('\n').map((l) => (l.trim() ? <p>{l}</p> : null))}</div> : null}
-          {b.settings.whatsapp ? (
-            <a class="askwa" href={`https://wa.me/${b.settings.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(tr.askMsg(`${brand?.name ?? ''} ${name}`.trim(), p.code, `${origin(c)}/${lang}/p/${p.id}`))}`} target="_blank" rel="noopener">
+          {waNumber(b.settings.whatsapp || '') ? (
+            <a class="askwa" href={`https://wa.me/${waNumber(b.settings.whatsapp || '')}?text=${encodeURIComponent(tr.askMsg(`${brand?.name ?? ''} ${name}`.trim(), p.code, `${origin(c)}/${lang}/p/${p.id}`))}`} target="_blank" rel="noopener">
               {Icons.wa}
               {tr.askWa}
             </a>
@@ -419,10 +419,11 @@ store.get('/:lang{(?:ar|en)}/checkout', async (c) => {
     s.pay_cod_card !== '0' ? { v: 'cod_card', l: tr.payCard } : null,
     s.pay_lypay !== '0' ? { v: 'lypay', l: tr.payLypay, n: tr.payLypayNote } : null,
   ].filter(Boolean) as { v: string; l: string; n?: string }[]
+  const ok = channelLinks(s, '')
   const channels = [
-    s.whatsapp ? { v: 'whatsapp', l: tr.whatsapp, n: tr.ready } : null,
-    s.facebook ? { v: 'messenger', l: tr.messenger, n: tr.ready } : null,
-    s.instagram ? { v: 'instagram', l: tr.instagram, n: tr.igHint } : null,
+    ok.whatsapp ? { v: 'whatsapp', l: tr.whatsapp, n: tr.ready } : null,
+    ok.messenger ? { v: 'messenger', l: tr.messenger, n: tr.ready } : null,
+    ok.instagram ? { v: 'instagram', l: tr.instagram, n: tr.igHint } : null,
   ].filter(Boolean) as { v: string; l: string; n: string }[]
   return render(c, { lang, path: '/checkout', title: tr.checkout, active: 'cart' }, b, (
     <section class="wrap narrow">

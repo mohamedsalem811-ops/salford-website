@@ -10,7 +10,8 @@ const GLOSSARY = [
   'Article no. = رقم المنتج', 'Collection = المجموعة', 'Length = الطول', 'Minimum length = أدنى طول', 'Maximum length = أقصى طول',
   'Motif size = حجم التعليقة', 'Size = المقاس', 'Colour/Color = اللون', 'Material = الخامة', 'pendant = قلادة بتعليقة', 'necklace = قلادة',
   'bracelet = سوار', 'bangle = سوار صلب', 'earrings = أقراط', 'ring = خاتم', 'set = طقم', 'charm = تعليقة',
-  'rhodium plated = مطلي بالروديوم', 'rose gold-tone plated = مطلي بلون الذهب الوردي', 'gold-tone plated = مطلي بلون الذهب',
+  'rhodium plated = بلمسة نهائية من الروديوم', 'rose gold-tone plated = مطلي بلون الذهب الوردي', 'gold-tone plated = مطلي بلون الذهب',
+  '24K gold-plated silver = فضة مطلية بالذهب عيار 24',
   'sterling silver = فضة استرلينية', '18k yellow gold = ذهب أصفر عيار 18', 'clear crystal = كريستال شفاف', 'pavé = ترصيع البافيه',
   'inch = بوصة', 'cm = سم',
 ].join('; ')
