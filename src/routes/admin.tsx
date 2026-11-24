@@ -126,9 +126,9 @@ admin.get('/', async (c) => {
   const show = c.req.query('show') ?? ''
   const where = ['p.deleted_at IS NULL']
   const args: unknown[] = []
-  if (q) { where.push('(p.name_en LIKE ? OR p.name_ar LIKE ? OR p.code LIKE ?)'); args.push(`%${q}%`, `%${q}%`, `%${q}%`) }
+  if (q) { where.push('(p.name_en LIKE ? OR p.code LIKE ?)'); args.push(`%${q}%`, `%${q}%`) }
   if (brand) { where.push('p.brand_id = ?'); args.push(brand) }
-  if (show === 'noar') where.push("p.name_ar = ''")
+  if (show === 'noar') where.push("((p.short_en <> '' AND p.short_ar = '') OR (p.desc_en <> '' AND p.desc_ar = ''))")
   if (show === 'nophoto') where.push("NOT EXISTS (SELECT 1 FROM media m WHERE m.product_id = p.id AND m.status != 'broken')")
   if (show === 'broken') where.push("EXISTS (SELECT 1 FROM media m WHERE m.product_id = p.id AND m.status = 'broken')")
   if (show === 'hidden') where.push("p.status != 'live'")
@@ -138,19 +138,20 @@ admin.get('/', async (c) => {
       `SELECT p.*, (SELECT url FROM media m WHERE m.product_id = p.id AND m.kind = 'image' ORDER BY sort, id LIMIT 1) AS thumb,
        (SELECT r2_key FROM media m WHERE m.product_id = p.id AND m.kind = 'image' ORDER BY sort, id LIMIT 1) AS thumb_key,
        (SELECT sizes FROM media m WHERE m.product_id = p.id AND m.kind = 'image' ORDER BY sort, id LIMIT 1) AS thumb_sizes,
-       (SELECT count(*) FROM media m WHERE m.product_id = p.id AND m.status = 'broken') AS broken
+       (SELECT count(*) FROM media m WHERE m.product_id = p.id AND m.status = 'broken') AS broken,
+       ((p.short_en <> '' AND p.short_ar = '') OR (p.desc_en <> '' AND p.desc_ar = '')) AS noar
        FROM products p WHERE ${where.join(' AND ')} ORDER BY p.sort, p.id DESC LIMIT 500`,
-    ).bind(...args).all<Product & { thumb: string | null; thumb_key: string | null; thumb_sizes: string; broken: number }>(),
+    ).bind(...args).all<Product & { thumb: string | null; thumb_key: string | null; thumb_sizes: string; broken: number; noar: number }>(),
     getBrands(c.env.DB, true),
     c.env.DB.prepare(`SELECT
       (SELECT count(*) FROM products WHERE deleted_at IS NULL) total,
-      (SELECT count(*) FROM products WHERE deleted_at IS NULL AND name_ar = '') noar,
+      (SELECT count(*) FROM products WHERE deleted_at IS NULL AND ((short_en <> '' AND short_ar = '') OR (desc_en <> '' AND desc_ar = ''))) noar,
       (SELECT count(*) FROM media WHERE status = 'broken') broken,
       (SELECT count(*) FROM media WHERE status = 'unchecked') unchecked,
       (SELECT count(*) FROM media WHERE source = 'link' AND r2_key IS NULL AND kind != 'youtube') nocopy,
       (SELECT coalesce(sum(bytes),0) FROM media WHERE r2_key IS NOT NULL) stored`).first<Record<string, number>>(),
   ])
-  const filters: [string, string][] = [['', 'All'], ['noar', `Needs Arabic name (${stats!.noar})`], ['broken', `Broken photos (${stats!.broken})`], ['nophoto', 'No photos'], ['hidden', 'Hidden / draft'], ['deleted', 'Deleted']]
+  const filters: [string, string][] = [['', 'All'], ['noar', `Missing Arabic text (${stats!.noar})`], ['broken', `Broken photos (${stats!.broken})`], ['nophoto', 'No photos'], ['hidden', 'Hidden / draft'], ['deleted', 'Deleted']]
   return c.html(
     <Shell title="Products" nav="products">
       <div class="a-head">
@@ -165,6 +166,7 @@ admin.get('/', async (c) => {
         <span class="a-btns">
           <button class="a-btn" type="button" data-batch="check">Check all links</button>
           <button class="a-btn" type="button" data-batch="copy">Make safe copies</button>
+          {stats!.noar ? <button class="a-btn" type="button" data-batch="translate">Translate missing ({stats!.noar})</button> : null}
         </span>
         <span class="a-progress" data-batch-status hidden></span>
       </div>
@@ -183,7 +185,7 @@ admin.get('/', async (c) => {
               return (
                 <tr>
                   <td>{thumb ? <img class="a-thumb" src={thumb} alt="" loading="lazy" /> : <span class="a-thumb empty"></span>}</td>
-                  <td><a href={`/admin/p/${p.id}`}><b>{p.name_en || '(no name)'}</b></a><br /><span class="a-muted" dir="rtl">{p.name_ar || '— needs Arabic name'}</span>{p.broken ? <span class="tag bad">{p.broken} broken</span> : null}</td>
+                  <td><a href={`/admin/p/${p.id}`}><b>{p.name_en || '(no name)'}</b></a>{p.noar ? <span class="tag warn">no Arabic text</span> : null}{p.broken ? <span class="tag bad">{p.broken} broken</span> : null}</td>
                   <td><code>{p.code}</code></td>
                   <td>{brands.find((b) => b.id === p.brand_id)?.name}</td>
                   <td class="num">{fmtLyd(p.price)}</td>
@@ -229,13 +231,15 @@ admin.get('/p/:id{[0-9]+}', async (c) => {
             <label class="a-f">Category<select name="category_id">{cats.map((ct) => <option value={ct.id} selected={p.category_id === ct.id}>{ct.name_en}</option>)}</select></label>
             <label class="a-f">Product code<input name="code" value={p.code} required /></label>
             <label class="a-f">Price (LYD)<input name="price" type="number" min="0" step="0.001" value={v(p.price)} required /></label>
-            <label class="a-f">Name (Arabic)<input name="name_ar" dir="rtl" value={p.name_ar} /></label>
-            <label class="a-f">Name (English)<input name="name_en" value={p.name_en} /></label>
-            <label class="a-f">Short line (Arabic)<input name="short_ar" dir="rtl" value={p.short_ar} /></label>
-            <label class="a-f">Short line (English)<input name="short_en" value={p.short_en} /></label>
           </div>
-          <label class="a-f">Description (Arabic)<textarea name="desc_ar" dir="rtl" rows={4}>{p.desc_ar}</textarea></label>
+          <label class="a-f">Name (shown in English on both languages)<input name="name_en" value={p.name_en} /></label>
+          <label class="a-f">Short line (English)<input name="short_en" value={p.short_en} /></label>
           <label class="a-f">Description (English)<textarea name="desc_en" rows={4}>{p.desc_en}</textarea></label>
+          <div class="a-ar">
+            <div class="a-row"><b>Arabic</b><span class="a-muted">Written automatically when you save. You can correct it here.</span><button class="a-btn sm" type="button" data-translate={p.id}>Translate again</button></div>
+            <label class="a-f">Short line (Arabic)<input name="short_ar" dir="rtl" value={p.short_ar} /></label>
+            <label class="a-f">Description (Arabic)<textarea name="desc_ar" dir="rtl" rows={4}>{p.desc_ar}</textarea></label>
+          </div>
           <div class="a-grid2">
             <label class="a-f">Crossed-out price (optional)<input name="compare_price" type="number" min="0" step="0.001" value={v(p.compare_price)} /></label>
             <label class="a-f">Set item codes (for sets, comma separated)<input name="set_codes" value={(() => { try { return JSON.parse(p.set_codes).join(', ') } catch { return '' } })()} /></label>

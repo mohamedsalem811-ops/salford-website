@@ -7,6 +7,7 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "salford-site-db", "database_id": "6d937db9-c73f-47fa-a425-af64eb7e3d84", "migrations_dir": "migrations" }
   ],
+  "ai": { "binding": "AI" },
   "r2_buckets": [
     { "binding": "MEDIA", "bucket_name": "salford-media" }
   ]

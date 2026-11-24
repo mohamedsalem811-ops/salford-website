@@ -335,7 +335,7 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
             <span><b>{tr.delTitle}</b>{tr.delSub}</span>
           </div>
           {setParts.length ? (
-            <div class="setbox"><b>{tr.setIncludes}</b><ul>{setParts.map((s) => <li><a href={`/${lang}/p/${s.id}`}>{lang === 'ar' ? s.name_ar || s.name_en : s.name_en || s.name_ar}</a> <bdi class="muted">{s.code}</bdi></li>)}</ul></div>
+            <div class="setbox"><b>{tr.setIncludes}</b><ul>{setParts.map((s) => <li><a href={`/${lang}/p/${s.id}`}>{s.name_en || s.name_ar}</a> <bdi class="muted">{s.code}</bdi></li>)}</ul></div>
           ) : null}
           {pShort(p, lang) ? <p class="short" dir="auto">{pShort(p, lang)}</p> : null}
           {desc ? <div class="desc" dir="auto">{desc.split('\n').map((l) => (l.trim() ? <p>{l}</p> : null))}</div> : null}

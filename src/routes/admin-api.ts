@@ -4,7 +4,10 @@ import { toDirham } from '../lib/db'
 import { hashPassword, verifyLogin } from '../lib/auth'
 import { youtubeId } from '../lib/media'
 
+import { translateProduct } from '../lib/translate'
+
 type Vars = { admin: { id: number; email: string } }
+
 export const adminApi = new Hono<{ Bindings: Env; Variables: Vars }>()
 
 const MAX_PHOTO = 25 * 1024 * 1024
@@ -115,12 +118,42 @@ adminApi.put('/products/:id{[0-9]+}', async (c) => {
   if (!s('code', 60)) return c.json({ error: 'Product code is required.' }, 400)
   const compare = s('compare_price') ? toDirham(s('compare_price')) : null
   const codes = s('set_codes', 300).split(/[,+\s]+/).filter(Boolean)
+  const old = await c.env.DB.prepare('SELECT short_en, short_ar, desc_en, desc_ar FROM products WHERE id=?').bind(id).first<Record<string, string>>()
+  if (!old) return c.json({ error: 'Product not found' }, 404)
+  // English changed but the Arabic was left as it was: the old Arabic no longer matches, so it is written again.
+  const arOf = (f: 'short' | 'desc', max: number) => {
+    const ar = s(`${f}_ar`, max), en = s(`${f}_en`, max)
+    return ar && en !== old[`${f}_en`] && ar === old[`${f}_ar`] ? '' : ar
+  }
+  const shortAr = arOf('short', 300), descAr = arOf('desc', 4000)
   await c.env.DB.prepare(
-    `UPDATE products SET brand_id=?, category_id=?, code=?, price=?, compare_price=?, name_ar=?, name_en=?, short_ar=?, short_en=?, desc_ar=?, desc_en=?,
+    `UPDATE products SET brand_id=?, category_id=?, code=?, price=?, compare_price=?, name_en=?, short_ar=?, short_en=?, desc_ar=?, desc_en=?,
      set_codes=?, status=?, in_stock=?, is_new=?, best_seller=?, is_set=?, updated_at=${now} WHERE id=?`,
-  ).bind(brand, cat, s('code', 60), toDirham(s('price')), compare, s('name_ar', 200), s('name_en', 200), s('short_ar', 300), s('short_en', 300), s('desc_ar'), s('desc_en'),
+  ).bind(brand, cat, s('code', 60), toDirham(s('price')), compare, s('name_en', 200), shortAr, s('short_en', 300), descAr, s('desc_en'),
     JSON.stringify(codes), status, flag('in_stock'), flag('is_new'), flag('best_seller'), flag('is_set'), id).run()
+  const missing = (s('short_en', 300) && !shortAr) || (s('desc_en') && !descAr)
+  if (missing && c.env.AI) {
+    const r = await translateProduct(c.env, id)
+    return c.json({ ok: true, translated: r.ok, short_ar: r.short_ar, desc_ar: r.desc_ar })
+  }
   return c.json({ ok: true })
+})
+
+adminApi.post('/products/:id{[0-9]+}/translate', async (c) => {
+  const r = await translateProduct(c.env, Number(c.req.param('id')), true)
+  return r.ok ? c.json(r) : c.json({ error: r.reason }, 502)
+})
+
+/* Fills empty Arabic short lines and descriptions, a few products per call (the admin page keeps calling until done). */
+adminApi.post('/products/translate-missing', async (c) => {
+  if (!c.env.AI) return c.json({ error: 'Automatic translation is not switched on for this site yet.' }, 400)
+  const { after = 0 } = await c.req.json<{ after?: number }>().catch(() => ({ after: 0 }))
+  const need = "deleted_at IS NULL AND ((short_en <> '' AND short_ar = '') OR (desc_en <> '' AND desc_ar = ''))"
+  const rows = (await c.env.DB.prepare(`SELECT id FROM products WHERE ${need} AND id > ? ORDER BY id LIMIT 3`).bind(after).all<{ id: number }>()).results
+  const report = []
+  for (const r of rows) report.push({ product_id: r.id, ...(await translateProduct(c.env, r.id)) })
+  const left = await c.env.DB.prepare(`SELECT count(*) n FROM products WHERE ${need} AND id > ?`).bind(rows.at(-1)?.id ?? after).first<{ n: number }>()
+  return c.json({ report, next: rows.at(-1)?.id ?? 0, remaining: left?.n ?? 0 })
 })
 
 adminApi.post('/products/:id{[0-9]+}/toggle', async (c) => {

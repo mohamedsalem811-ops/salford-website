@@ -4,6 +4,7 @@ export type Env = {
   DB: D1Database
   MEDIA: R2Bucket
   PREVIEW_KEY?: string
+  AI?: Ai
 }
 
 export type Brand = { id: string; name: string; story_ar: string; story_en: string; tint: string; sort: number; visible: number }
@@ -29,7 +30,8 @@ export const fmtLyd = (dirham: number) => {
   return v.toLocaleString('en-US', { maximumFractionDigits: Number.isInteger(v) ? 0 : 3 })
 }
 
-export const pName = (p: Product, lang: Lang) => (lang === 'ar' ? p.name_ar || p.name_en : p.name_en || p.name_ar)
+/* Product names stay in English in both languages. */
+export const pName = (p: Product, _lang?: Lang) => p.name_en || p.name_ar
 export const pShort = (p: Product, lang: Lang) => (lang === 'ar' ? p.short_ar || p.short_en : p.short_en || p.short_ar)
 export const pDesc = (p: Product, lang: Lang) => (lang === 'ar' ? p.desc_ar || p.desc_en : p.desc_en || p.desc_ar)
 

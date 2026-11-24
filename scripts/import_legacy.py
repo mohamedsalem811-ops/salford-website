@@ -3,11 +3,29 @@
 
 Usage: python3 scripts/import_legacy.py export/products-raw.json export/settings-raw.json > export/import.sql
 
-Idempotent: products are upserted by legacy_id, and their media rows are replaced,
-so the final copy on switch-over day can be re-run safely.
+Idempotent: products are upserted by legacy_id. Photo and video links are only
+added when the product doesn't have that link yet, so safe copies, photo order and
+uploads made in the new admin are kept. Arabic texts are kept unless the English
+text changed on the old site (then they are cleared, and "Translate missing" in
+the admin fills them again).
 """
 import json
+import re
 import sys
+
+ARABIC = re.compile(r'[\u0600-\u06FF]')
+
+
+def split_ar(text):
+    """Old descriptions sometimes hold an Arabic block and an English block. Returns (en, ar)."""
+    lines = (text or '').replace('**', '').split('\n')
+    idx = [i for i, l in enumerate(lines) if ARABIC.search(l)]
+    if not idx:
+        return (text or '').replace('**', '').strip(), ''
+    a, b = idx[0], idx[-1]
+    ar = '\n'.join(lines[a:b + 1]).strip()
+    en = '\n'.join(lines[:a] + lines[b + 1:]).strip()
+    return re.sub(r'\n{3,}', '\n\n', en), re.sub(r'\n{3,}', '\n\n', ar)
 
 VIDEO_EXT = ('.mp4', '.webm', '.mov', '.m4v')
 BRANDS = {'swarovski', 'tiffany', 'apm', 'pandora'}
@@ -71,27 +89,32 @@ def main():
         orig = r.get('original_price')
         compare = int(round(float(orig) * 1000)) if orig not in (None, 'None', '', 0) else None
         legacy = str(r['id'])
+        desc_en, desc_ar = split_ar(r.get('description') or '')
+        short_en = (r.get('short_desc') or '').strip()
         out.append(
-            'INSERT INTO products (legacy_id, code, brand_id, category_id, name_en, short_en, desc_en, price, compare_price,'
+            'INSERT INTO products (legacy_id, code, brand_id, category_id, name_en, short_en, desc_en, desc_ar, price, compare_price,'
             ' is_set, set_codes, in_stock, is_new, status, sort) VALUES ('
             + ', '.join([
                 q(legacy), q(r.get('code') or ''), q(brand), q(cat), q(r.get('name') or ''),
-                q(r.get('short_desc') or ''), q(r.get('description') or ''), q(price), q(compare),
+                q(short_en), q(desc_en), q(desc_ar), q(price), q(compare),
                 q(1 if is_set else 0), q(json.dumps(jlist(r.get('set_codes')))),
                 q(1 if str(r.get('in_stock')) == '1' else 0), q(1 if str(r.get('featured')) == '1' else 0),
                 q('live' if media else 'hidden'), q(i),
             ])
             + ') ON CONFLICT(legacy_id) DO UPDATE SET code=excluded.code, brand_id=excluded.brand_id,'
-            ' category_id=excluded.category_id, name_en=excluded.name_en, short_en=excluded.short_en,'
-            ' desc_en=excluded.desc_en, price=excluded.price, compare_price=excluded.compare_price,'
+            ' category_id=excluded.category_id, name_en=excluded.name_en,'
+            " short_ar=CASE WHEN products.short_en=excluded.short_en THEN products.short_ar ELSE '' END,"
+            " desc_ar=CASE WHEN excluded.desc_ar<>'' THEN excluded.desc_ar WHEN products.desc_en=excluded.desc_en THEN products.desc_ar ELSE '' END,"
+            ' short_en=excluded.short_en, desc_en=excluded.desc_en, price=excluded.price, compare_price=excluded.compare_price,'
             " is_set=excluded.is_set, set_codes=excluded.set_codes, in_stock=excluded.in_stock,"
             " updated_at=datetime('now');"
         )
-        out.append(f"DELETE FROM media WHERE source='link' AND product_id=(SELECT id FROM products WHERE legacy_id={q(legacy)});")
         for s, (kind, url) in enumerate(media):
             out.append(
-                f"INSERT INTO media (product_id, kind, source, url, sort) SELECT id, {q(kind)}, 'link', {q(url)}, {s}"
-                f" FROM products WHERE legacy_id={q(legacy)};"
+                f"INSERT INTO media (product_id, kind, source, url, sort) SELECT p.id, {q(kind)}, 'link', {q(url)},"
+                f" (SELECT coalesce(max(sort) + 1, 0) FROM media WHERE product_id = p.id)"
+                f" FROM products p WHERE p.legacy_id={q(legacy)}"
+                f" AND NOT EXISTS (SELECT 1 FROM media m WHERE m.product_id = p.id AND m.url = {q(url)});"
             )
     for old, new in (('facebookUrl', 'facebook'), ('instagramUrl', 'instagram'), ('whatsappNumber', 'whatsapp')):
         if settings.get(old):

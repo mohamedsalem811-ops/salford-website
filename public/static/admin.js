@@ -47,9 +47,9 @@
       var op = btn.getAttribute('data-batch'), status = $('[data-batch-status]'), ok = 0, bad = [], after = 0;
       $$('[data-batch]').forEach(function (b) { b.disabled = true; }); status.hidden = false; busy++;
       (function step() {
-        retry(function () { return api('POST', '/media/batch', { op: op, after: after }); }, 3).then(function (d) {
+        retry(function () { return op === 'translate' ? api('POST', '/products/translate-missing', { after: after }) : api('POST', '/media/batch', { op: op, after: after }); }, 3).then(function (d) {
           d.report.forEach(function (r) { if (r.ok) ok++; else bad.push(r); });
-          status.textContent = (op === 'check' ? 'Checked ' : 'Copied ') + ok + ' · problems ' + bad.length + ' · remaining ' + d.remaining;
+          status.textContent = (op === 'check' ? 'Checked ' : op === 'translate' ? 'Translated ' : 'Copied ') + ok + ' · problems ' + bad.length + ' · remaining ' + d.remaining;
           if (d.next && d.remaining > 0) { after = d.next; step(); return; }
           busy--; $$('[data-batch]').forEach(function (b) { b.disabled = false; });
           status.innerHTML = esc(status.textContent) + ' · done' + (bad.length ? '<br>' + bad.slice(0, 30).map(function (r) { return '<a href="/admin/p/' + r.product_id + '">Product ' + r.product_id + '</a>: ' + esc(r.reason || 'failed'); }).join('<br>') : '');
@@ -151,7 +151,23 @@
     window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
     pform.addEventListener('submit', function (e) {
       e.preventDefault();
-      api('PUT', '/products/' + pid, formJSON(pform)).then(function () { dirty = false; toast('Saved'); }).catch(function (err) { toast(err.message, true); });
+      toast('Saving…');
+      api('PUT', '/products/' + pid, formJSON(pform)).then(function (d) {
+        dirty = false; fillAr(d);
+        toast(d.translated === false ? 'Saved. The Arabic text could not be written right now: press “Translate again” later.' : d.translated ? 'Saved, Arabic text written' : 'Saved', d.translated === false);
+      }).catch(function (err) { toast(err.message, true); });
+    });
+    var fillAr = function (d) {
+      if (d.short_ar != null) pform.elements.short_ar.value = d.short_ar;
+      if (d.desc_ar != null) pform.elements.desc_ar.value = d.desc_ar;
+    };
+    var tb = $('[data-translate]');
+    if (tb) tb.addEventListener('click', function () {
+      if (dirty) { toast('Save your changes first, then translate.', true); return; }
+      if ((pform.elements.short_ar.value || pform.elements.desc_ar.value) && !confirm('Replace the Arabic short line and description with a new translation?')) return;
+      tb.disabled = true; toast('Translating…');
+      api('POST', '/products/' + pid + '/translate').then(function (d) { fillAr(d); toast('Arabic text written'); })
+        .catch(function (err) { toast(err.message, true); }).then(function () { tb.disabled = false; });
     });
   }
 
