@@ -467,7 +467,7 @@ r1Pages.get('/codes/:id{new|[0-9]+}', async (c) => {
         <label class="a-f">Team note<input name="note" maxlength={300} value={k.note} /></label>
         <label class="a-inline"><input type="checkbox" name="enabled" checked={!!k.enabled} /> Switched on</label>
         <p class="a-muted">Products with their own crossed-out price, and products ticked “Never discount”, are not discounted by codes either.</p>
-        {link ? <p class="a-row"><input readonly value={link} dir="ltr" /><button class="a-btn sm" type="button" data-copy={link}>Copy link</button></p> : null}
+        {link ? <p class="a-row"><input readonly value={link} dir="ltr" aria-label="Code link" /><button class="a-btn sm" type="button" data-copy={link}>Copy link</button></p> : null}
         <p class="a-err" data-form-err hidden></p>
         <div class="a-btns">
           <button class="a-btn p" type="submit">Save code</button>
@@ -588,11 +588,11 @@ r1Pages.get('/delivery', async (c) => {
                   <thead><tr><th>Area (Arabic)</th><th>Area (English)</th><th>Price LYD</th><th>Time (Arabic)</th><th>Time (English)</th><th>Shown</th><th></th></tr></thead>
                   <tbody>{list.map((a) => (
                     <tr data-area-id={a.id}>
-                      <td><input name={`a${a.id}_name_ar`} dir="rtl" value={a.name_ar} required /></td>
-                      <td><input name={`a${a.id}_name_en`} value={a.name_en} /></td>
-                      <td><input name={`a${a.id}_price`} type="number" min="0" step="any" value={lyd(a.price)} placeholder="chat" data-price class="d-num" /></td>
-                      <td><input name={`a${a.id}_time_ar`} dir="rtl" value={a.time_ar} data-time-ar /></td>
-                      <td><input name={`a${a.id}_time_en`} value={a.time_en} data-time-en /></td>
+                      <td><input name={`a${a.id}_name_ar`} dir="rtl" value={a.name_ar} required aria-label="Area name (Arabic)" /></td>
+                      <td><input name={`a${a.id}_name_en`} value={a.name_en} aria-label="Area name (English)" /></td>
+                      <td><input name={`a${a.id}_price`} type="number" min="0" step="any" value={lyd(a.price)} placeholder="chat" data-price class="d-num" aria-label="Price (LYD)" /></td>
+                      <td><input name={`a${a.id}_time_ar`} dir="rtl" value={a.time_ar} data-time-ar aria-label="Time (Arabic)" /></td>
+                      <td><input name={`a${a.id}_time_en`} value={a.time_en} data-time-en aria-label="Time (English)" /></td>
                       <td><input type="checkbox" name={`a${a.id}_enabled`} checked={!!a.enabled} aria-label="Shown" /></td>
                       <td><button class="a-btn sm danger" type="button" data-del-area={a.id} aria-label="Delete area">✕</button></td>
                     </tr>

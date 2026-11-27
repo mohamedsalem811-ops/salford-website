@@ -295,8 +295,16 @@ adminApi.post('/video/complete', async (c) => {
   const pid = Number(b.product_id)
   if (!b.key.startsWith(`v/${pid}/`)) return c.json({ error: 'Bad key' }, 400)
   const up = c.env.MEDIA.resumeMultipartUpload(b.key, b.uploadId)
+  // the limits are checked again here: a second tab may have added a video while this one was uploading
+  const [cnt, vid] = await Promise.all([
+    mediaCount(c.env.DB, pid),
+    c.env.DB.prepare("SELECT count(*) AS n FROM media WHERE product_id=? AND kind='video'").bind(pid).first<{ n: number }>(),
+  ])
+  if ((vid?.n ?? 0) >= 1 || (cnt?.n ?? 0) >= 9) {
+    await up.abort().catch(() => {})
+    return c.json({ error: (vid?.n ?? 0) >= 1 ? 'A product can have 1 video. Remove the current one first.' : 'A product can have up to 8 photos and 1 video.' }, 400)
+  }
   await up.complete(b.parts)
-  const cnt = await mediaCount(c.env.DB, pid)
   const row = await c.env.DB.prepare(
     `INSERT INTO media (product_id, kind, source, r2_key, bytes, sort, status, checked_at) VALUES (?, 'video', 'upload', ?, ?, ?, 'ok', ${now}) RETURNING *`,
   ).bind(pid, b.key, b.size, (cnt?.mx ?? -1) + 1).first<Media>()
@@ -339,6 +347,11 @@ adminApi.post('/orders/:id{[0-9]+}', async (c) => {
   const stmts = [db.prepare('UPDATE orders SET status=?, paid=?, admin_note=? WHERE id=?').bind(b.status, paid, String(b.admin_note ?? '').slice(0, 1000), id)]
   if (o.status !== b.status) stmts.push(db.prepare('INSERT INTO order_events (order_id, status, admin_id) VALUES (?, ?, ?)').bind(id, b.status, c.get('admin').id))
   await db.batch(stmts)
+  // cancelling an order (or taking a cancel back) changes how many flash-deal pieces are left in the shop
+  if ((o.status === 'cancelled') !== (b.status === 'cancelled')) {
+    const flash = await db.prepare('SELECT 1 FROM order_items WHERE order_id = ? AND flash_id IS NOT NULL LIMIT 1').bind(id).first()
+    if (flash) await bumpCatalog(db)
+  }
   return c.json({ ok: true, changed: o.status !== b.status })
 })
 

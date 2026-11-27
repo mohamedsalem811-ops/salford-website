@@ -98,7 +98,7 @@ r4Pages.get('/offers/:id{[0-9]+}/people', async (c) => {
           {ended ? <p class="a-muted">This offer has ended.</p> : null}
           {cust.results.length ? (
             <div class="a-table-wrap"><table class="a-table">
-              <thead><tr><th>Name</th><th>Phone</th><th>Orders</th><th>Last order</th><th>Message</th></tr></thead>
+              <thead><tr><th>Name</th><th>Phone</th><th>Delivered orders</th><th>Last delivered</th><th>Message</th></tr></thead>
               <tbody>{cust.results.map((r) => {
                 const lang: Lang = r.lang === 'en' ? 'en' : 'ar'
                 const msg = earlyMessage(lang, { name: r.name, offer: offerName(o, lang), starts: fmtWhen(o.starts_at, lang), hours: o.early_hours ?? 0, link: `${SITE}/${lang}/?early=${o.early_token}` })

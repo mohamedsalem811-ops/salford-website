@@ -534,7 +534,8 @@ img.pimg.broken { opacity: 0; }
 .rate-in input:checked ~ label, .rate-in label:hover, .rate-in label:hover ~ label { color: #C9952E; }
 .rate-in input:focus-visible + label { outline: 2px solid var(--mauve); outline-offset: 2px; border-radius: 8px; }
 .info-row a { color: var(--mauve); font-weight: 600; }
-.trust .lead { font-size: 1.05rem; }
+/* the trust page; .trust is the small three-icon strip on the home page */
+.trustpg .lead { font-size: 1.05rem; }
 .facts { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 10px; }
 .tgal { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 760px) { .tgal { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

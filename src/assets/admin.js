@@ -189,7 +189,7 @@
       }).join('') + pending.map(function (p) { return '<li class="mitem pending"><span class="th"></span><span class="mi"><b>' + esc(p.name) + '</b><small>' + esc(p.status) + '</small>' + (p.pct != null ? '<span class="prog"><b style="width:' + p.pct + '%"></b></span>' : '') + '</span><span class="tag ' + (p.error ? 'bad' : 'run') + '">' + (p.error ? 'Not added' : 'Working') + '</span></li>'; }).join('');
     };
     var pending = [];
-    var saveOrder = function () { api('PUT', '/media/order', { product_id: mpid, ids: items.map(function (m) { return m.id; }) }).then(function () { toast('Order saved'); }); };
+    var saveOrder = function () { api('PUT', '/media/order', { product_id: mpid, ids: items.map(function (m) { return m.id; }) }).then(function () { toast('Order saved'); }).catch(function (err) { toast(err.message, true); }); };
     draw();
 
     list.addEventListener('click', function (e) {
@@ -200,7 +200,7 @@
         var t = items[i]; items[i] = items[j]; items[j] = t; draw(); saveOrder();
       }
       if (rm && confirm('Remove this photo or video?')) {
-        api('DELETE', '/media/' + rm.getAttribute('data-rm')).then(function () { items = items.filter(function (m) { return String(m.id) !== rm.getAttribute('data-rm'); }); draw(); toast('Removed'); });
+        api('DELETE', '/media/' + rm.getAttribute('data-rm')).then(function () { items = items.filter(function (m) { return String(m.id) !== rm.getAttribute('data-rm'); }); draw(); toast('Removed'); }).catch(function (err) { toast(err.message, true); });
       }
     });
     var dragId = null;

@@ -302,10 +302,19 @@
   var cds = $$('[data-cd]');
   if (cds.length) {
     var two = function (n) { return (n < 10 ? '0' : '') + n; };
+    var reloadAt = function (target) {
+      // the offer just ended (or a coming-soon offer just started): show the new prices once, never in a loop
+      var k = 'sl_cd_' + target;
+      try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (err) { return; }
+      setTimeout(function () { location.reload(); }, 3000);
+    };
     var tick = function () {
       var now = Date.now();
       cds.forEach(function (el) {
-        var left = Math.max(0, Math.floor((Date.parse(el.getAttribute('data-cd')) - now) / 1000));
+        var target = el.getAttribute('data-cd');
+        var left = Math.max(0, Math.floor((Date.parse(target) - now) / 1000));
+        if (left > 0) el.setAttribute('data-live', '1');
+        else if (el.getAttribute('data-live') === '1') { el.removeAttribute('data-live'); reloadAt(target); }
         var d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
         if (el.hasAttribute('data-txt')) { el.textContent = two(d * 24 + h) + ':' + two(m) + ':' + two(s); return; }
         var set = function (f, v) { var b = el.querySelector('[data-f="' + f + '"]'); if (b) b.textContent = two(v); };

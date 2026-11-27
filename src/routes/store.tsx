@@ -704,7 +704,7 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
   const [b, v] = await Promise.all([base(c, lang), loadOrderForCustomer(c.env.DB, num, c.req.query('t') ?? '', new URL(c.req.url).origin)])
   c.header('cache-control', 'private, no-store')
   c.header('referrer-policy', 'no-referrer') // the link carries the customer's private token
-  const meta = { lang, path: '/cart', title: tr.orderReady, noindex: true, active: 'cart' as const }
+  const meta = { lang, path: '/cart', title: tr.orderMissing, noindex: true, active: 'cart' as const }
   if (!v) {
     const wa = waNumber(b.settings.whatsapp || '')
     return render(c, meta, b, (
@@ -727,6 +727,8 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
   const cur = lang === 'ar' ? 'د.ل' : 'LYD'
   const status = isStatus(v.order.status) ? v.order.status : 'new'
   const wa = waNumber(b.settings.whatsapp || '')
+  // the browser tab says what the page says: "ready" only for a new order, then the status
+  meta.title = status === 'new' ? tr.orderReady : tr.stTitle[status]
   return render(c, meta, b, (
     <section class="wrap narrow done" data-order-page={num} data-copy-first={copyFirst ? '1' : undefined}>
       {status === 'new' ? (
@@ -873,7 +875,7 @@ function TrustPage({ b, lang }: { b: Base; lang: Lang }) {
     [tr.tf3T, tr.tf3S, 'M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6zM9 12l2 2 4-4'],
   ]
   return (
-    <section class="wrap narrow sec trust">
+    <section class="wrap narrow sec trustpg">
       <h1 class="h1">{tr.trust}</h1>
       <p class="para lead">{tr.trustIntro}</p>
       <ul class="facts">

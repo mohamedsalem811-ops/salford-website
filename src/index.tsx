@@ -27,7 +27,7 @@ app.use('*', async (c, next) => {
   if (!h.has('content-security-policy') && (h.get('content-type') || '').includes('text/html')) {
     h.set(
       'content-security-policy',
-      "default-src 'self'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src https://www.youtube-nocookie.com; base-uri 'self'; form-action 'self'",
+      "default-src 'self'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; frame-src https://www.youtube-nocookie.com; base-uri 'self'; form-action 'self'",
     )
   }
   if (isPreviewHost(c.req.url)) h.set('x-robots-tag', 'noindex, nofollow')

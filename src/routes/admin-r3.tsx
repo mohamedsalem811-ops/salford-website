@@ -236,7 +236,7 @@ r3Pages.get('/trust', async (c) => {
         </ul>
         <label class="a-btn">Add photos<input type="file" accept="image/*" multiple hidden data-gal-add /></label>
         <p class="a-muted">Photos are made smaller on this device and their location data is removed before upload.</p>
-        <p class="form-err" data-form-err hidden></p>
+        <p class="a-err" data-form-err hidden></p>
         <button class="a-btn p" type="submit">Save trust page</button>
       </form>
     </Shell>,
