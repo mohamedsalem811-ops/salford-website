@@ -2,6 +2,9 @@ import type { Context } from 'hono'
 import { getCookie } from 'hono/cookie'
 import type { Env, Brand, Category, Media, Product, ProductWithMedia, ListOpts } from './db'
 import { SYNONYMS } from './db'
+import type { Offer, City, Area, Flash } from './pricing'
+import { liveOffer, teaserOffer } from './pricing'
+import { REVIEW_PUBLIC_COLS, type Review } from './r3'
 
 /**
  * The shop catalog kept in memory, so a page view costs about one database row instead of thousands.
@@ -23,6 +26,26 @@ export type Catalog = {
   products: Product[] // live and not deleted, in the shop's default order
   byId: Map<number, Product>
   media: Map<number, Media[]> // working media only, in order
+  offers: Offer[] // enabled offers; the one running is picked per request (liveOffer), so start and end times need no reload
+  cities: City[] // enabled, in order
+  areas: Area[] // enabled, in order
+  hasCodes: boolean // any discount code switched on: the checkout shows the code box only then
+  reviews: Review[] // approved reviews, newest first (shown only while reviews are switched on)
+  reviewsBy: Map<number, Review[]> // approved reviews of each product
+}
+
+/** The offer running right now, if any (`early`: the visitor's early access token). */
+export const offerNow = (cat: Catalog, early = '') => liveOffer(cat.offers, undefined, early)
+/** The offer shown as "coming soon", when nothing is running. */
+export const teaserNow = (cat: Catalog) => teaserOffer(cat.offers)
+
+/** Flash deals with the pieces already sold at the flash price (orders that were not cancelled). */
+export const FLASH_SQL = `SELECT f.*, coalesce((SELECT sum(i.qty) FROM order_items i JOIN orders o ON o.id = i.order_id
+  WHERE i.flash_id = f.id AND o.status != 'cancelled'), 0) AS sold FROM offer_flash f`
+/** Puts each offer's flash deals on it. */
+export function attachFlash(offers: Offer[], flash: Flash[]) {
+  for (const o of offers) o.flash = flash.filter((f) => f.offer_id === o.id).sort((a, b) => a.id - b.id)
+  return offers
 }
 
 const RECHECK_MS = 15_000
@@ -31,12 +54,18 @@ let snap: Catalog | null = null
 async function load(db: D1Database, v: string): Promise<Catalog> {
   const startedAt = Date.now()
   // Plain table reads, sorted here: D1 counts every row it touches, and ORDER BY / JOIN touch each row twice.
-  const [p, m, b, c, s] = await db.batch([
+  const [p, m, b, c, s, o, dc, da, cc, rv, fl] = await db.batch([
     db.prepare("SELECT * FROM products WHERE status = 'live' AND deleted_at IS NULL"),
     db.prepare("SELECT * FROM media WHERE status != 'broken'"),
     db.prepare('SELECT * FROM brands'),
     db.prepare('SELECT * FROM categories'),
     db.prepare('SELECT key, value FROM settings'),
+    db.prepare('SELECT * FROM offers WHERE enabled = 1'),
+    db.prepare('SELECT * FROM delivery_cities WHERE enabled = 1'),
+    db.prepare('SELECT * FROM delivery_areas WHERE enabled = 1'),
+    db.prepare('SELECT count(*) AS n FROM codes WHERE enabled = 1'),
+    db.prepare(`SELECT ${REVIEW_PUBLIC_COLS} FROM reviews WHERE status = 'approved'`),
+    db.prepare(`${FLASH_SQL} WHERE f.offer_id IN (SELECT id FROM offers WHERE enabled = 1)`),
   ])
   const products = (p.results as Product[]).sort((x, y) => y.in_stock - x.in_stock || x.sort - y.sort || y.id - x.id)
   const live = new Set(products.map((x) => x.id))
@@ -55,6 +84,14 @@ async function load(db: D1Database, v: string): Promise<Catalog> {
   const shown = products.filter((x) => media.get(x.id)?.length)
   const brandIds = new Set(shown.map((x) => x.brand_id))
   const catIds = new Set(shown.map((x) => x.category_id))
+  const reviews = (rv.results as Review[]).sort((x, y) => y.id - x.id)
+  const reviewsBy = new Map<number, Review[]>()
+  for (const r of reviews) {
+    if (!r.product_id) continue
+    const list = reviewsBy.get(r.product_id)
+    if (list) list.push(r)
+    else reviewsBy.set(r.product_id, [r])
+  }
   return {
     v, checkedAt: startedAt, loadedAt: startedAt,
     brands,
@@ -66,6 +103,12 @@ async function load(db: D1Database, v: string): Promise<Catalog> {
     products,
     byId: new Map(products.map((x) => [x.id, x])),
     media,
+    offers: attachFlash(o.results as Offer[], fl.results as Flash[]),
+    cities: bySort(dc.results as City[]),
+    areas: (da.results as Area[]).sort((x, y) => x.city_id - y.city_id || x.sort - y.sort || x.id - y.id),
+    hasCodes: ((cc.results[0] as { n: number } | undefined)?.n ?? 0) > 0,
+    reviews,
+    reviewsBy,
   }
 }
 
@@ -84,6 +127,13 @@ export async function catalog(c: Context<{ Bindings: Env }>): Promise<Catalog> {
   // two requests may load at once; keep the newer copy
   if (!snap || next.loadedAt >= snap.loadedAt) snap = next
   return next
+}
+
+/** R4 early access: the browser's early-access token (cookie set from the offer's private link), or ''. */
+export const EARLY_COOKIE = 'sl_early'
+export const earlyOf = (c: Context) => {
+  const v = getCookie(c, EARLY_COOKIE) ?? ''
+  return /^[0-9a-f]{32}$/.test(v) ? v : ''
 }
 
 /** Call after any change the shop shows (products, photos, brands, settings). */

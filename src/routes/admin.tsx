@@ -5,49 +5,18 @@ import { getBrands, getCategories, getSettings, fmtLyd } from '../lib/db'
 import { requireAdmin, verifyLogin, startSession, endSession, tooManyAttempts, recordAttempt, clientIp, hashPassword } from '../lib/auth'
 import { mediaUrl } from '../lib/media'
 import { V } from '../views/layout'
+import { assetPath } from '../lib/assets'
 import { adminApi } from './admin-api'
-
-/** D1 stores UTC ('2026-11-24 13:05:00'); the team reads Libya time. */
-const libyaFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tripoli', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-const libyaTime = (utc: string | number) => {
-  const d = new Date(String(utc).replace(' ', 'T') + 'Z')
-  return Number.isNaN(d.getTime()) ? String(utc) : libyaFmt.format(d)
-}
+import { sumRows, sumFromRow, STATUSES, STATUS_EN, isStatus, trackUrl, updateMessage, waCustomer, LINK_DAYS, type Status } from '../lib/orders'
+import { Shell, libyaTime } from '../views/admin-shell'
+import { r1Pages } from './admin-r1'
+import { r2Pages } from './admin-r2'
+import { r3Pages } from './admin-r3'
+import { r4Pages, OccasionsDue } from './admin-r4'
+import { askReviewMessage, onSwitch, reviewUrl } from '../lib/r3'
 
 type Vars = { admin: { id: number; email: string } }
 export const admin = new Hono<{ Bindings: Env; Variables: Vars }>()
-
-const Shell = ({ title, children, nav }: { title: string; children: Child; nav?: string }) => (
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content="noindex, nofollow" />
-      <title>{title} · Salford Admin</title>
-      <link rel="icon" type="image/png" href="/static/brand/favicon-48.png" />
-      <link rel="stylesheet" href={`/static/admin.css?v=${V}`} />
-    </head>
-    <body>
-      {nav !== undefined ? (
-        <div class="a-wrap">
-          <nav class="a-side" aria-label="Admin">
-            <img class="a-logo" src="/static/brand/word-white.webp" alt="Salford" width="480" height="127" />
-            <a href="/admin" class={nav === 'products' ? 'on' : ''}>Products</a>
-            <a href="/admin/orders" class={nav === 'orders' ? 'on' : ''}>Orders</a>
-            <a href="/admin/settings" class={nav === 'settings' ? 'on' : ''}>Settings</a>
-            <a href="/ar/" target="_blank" rel="noopener">View site ↗</a>
-            <form method="post" action="/admin/logout"><button class="linkbtn" type="submit">Log out</button></form>
-          </nav>
-          <main class="a-main">{children}</main>
-        </div>
-      ) : (
-        <main class="a-center">{children}</main>
-      )}
-      <div class="toast" role="status" aria-live="polite" hidden></div>
-      <script src={`/static/admin.js?v=${V}`} defer></script>
-    </body>
-  </html>
-)
 
 /* ---------- login / setup ---------- */
 admin.get('/login', async (c) => {
@@ -125,6 +94,10 @@ admin.use('/*', async (c, next) => {
   return requireAdmin(c, next)
 })
 admin.route('/api', adminApi)
+admin.route('/', r1Pages)
+admin.route('/', r2Pages)
+admin.route('/', r3Pages)
+admin.route('/', r4Pages)
 
 /* ---------- products ---------- */
 admin.get('/', async (c) => {
@@ -168,6 +141,7 @@ admin.get('/', async (c) => {
           <form method="post" action="/admin/api/products/new"><button class="a-btn p" type="submit">New product</button></form>
         </div>
       </div>
+      <OccasionsDue db={c.env.DB} />
       <div class="a-card a-tools">
         <span>Links not yet checked: <b>{stats!.unchecked}</b> · Without safe copy: <b>{stats!.nocopy}</b> · Stored: <b>{(stats!.stored / 1048576).toFixed(1)} MB</b> of 10,240 MB free</span>
         <span class="a-btns">
@@ -257,6 +231,7 @@ admin.get('/p/:id{[0-9]+}', async (c) => {
             <label><input type="checkbox" name="is_new" checked={!!p.is_new} /> New arrival</label>
             <label><input type="checkbox" name="best_seller" checked={!!p.best_seller} /> Best seller</label>
             <label><input type="checkbox" name="is_set" checked={!!p.is_set} /> This is a set</label>
+            <label title="Offers and discount codes skip this product"><input type="checkbox" name="no_discount" checked={!!p.no_discount} /> Never discount</label>
           </div>
         </form>
         <section class="a-card" data-media-manager={p.id}>
@@ -282,17 +257,22 @@ admin.get('/p/:id{[0-9]+}', async (c) => {
 
 /* ---------- orders ---------- */
 const PAY: Record<string, string> = { cod_cash: 'Cash on delivery', cod_card: 'Card on delivery', lypay: 'LyPay' }
-const STATUSES = ['new', 'confirmed', 'paid', 'delivered', 'cancelled']
+const stLabel = (s: unknown) => (isStatus(s) ? STATUS_EN[s] : String(s))
 
 admin.get('/orders', async (c) => {
-  const status = c.req.query('status') ?? ''
+  const q = c.req.query('status') ?? ''
+  const status = isStatus(q) ? q : ''
+  const unpaid = q === 'unpaid' // delivered but not ticked paid yet
+  const where = status ? 'WHERE o.status = ?' : unpaid ? "WHERE o.status = 'delivered' AND o.paid = 0" : ''
   const { results } = await c.env.DB.prepare(
-    `SELECT o.*, (SELECT sum(qty) FROM order_items i WHERE i.order_id = o.id) items FROM orders o ${status ? 'WHERE status = ?' : ''} ORDER BY o.id DESC LIMIT 300`,
+    `SELECT o.*, (SELECT sum(qty) FROM order_items i WHERE i.order_id = o.id AND i.is_gift = 0) items,
+      (SELECT count(*) FROM orders p WHERE p.phone = o.phone AND p.id < o.id AND p.status != 'cancelled') prev
+     FROM orders o ${where} ORDER BY o.id DESC LIMIT 300`,
   ).bind(...(status ? [status] : [])).all<Record<string, string | number>>()
   return c.html(
     <Shell title="Orders" nav="orders">
       <div class="a-head"><h1>Orders</h1>
-        <form method="get" class="a-filter"><select name="status" aria-label="Status"><option value="">All</option>{STATUSES.map((s) => <option value={s} selected={status === s}>{s}</option>)}</select><button class="a-btn">Filter</button></form>
+        <form method="get" class="a-filter"><select name="status" aria-label="Status"><option value="">All</option>{STATUSES.map((s) => <option value={s} selected={status === s}>{STATUS_EN[s]}</option>)}<option value="unpaid" selected={unpaid}>Delivered, not paid</option></select><button class="a-btn">Filter</button></form>
       </div>
       <div class="a-table-wrap">
         <table class="a-table a-olist">
@@ -302,18 +282,18 @@ admin.get('/orders', async (c) => {
               <tr>
                 <td class="c-no"><a href={`/admin/orders/${o.id}`}><b>{o.number}</b></a></td>
                 <td class="c-date">{libyaTime(o.created_at)}</td>
-                <td class="c-cust"><bdi>{o.name}</bdi><br /><span class="a-muted" dir="ltr">{o.phone}</span></td>
+                <td class="c-cust"><bdi>{o.name}</bdi>{Number(o.prev) > 0 ? <span class="tag ret">Returning</span> : null}<br /><a class="a-muted" dir="ltr" href={`/admin/customers/${o.phone}`}>{o.phone}</a></td>
                 <td class="c-city"><bdi>{o.city}</bdi></td>
                 <td class="c-items">{o.items}<span class="a-ph">{Number(o.items) === 1 ? ' item' : ' items'}</span></td>
                 <td class="num c-tot">{fmtLyd(Number(o.total))} LYD</td>
                 <td class="c-pay">{PAY[String(o.payment)]}{o.payment === 'cod_card' ? <span class="tag warn">bring card machine</span> : null}</td>
                 <td class="c-ch">{o.channel}</td>
-                <td class="c-st"><span class={`tag st-${o.status}`}>{o.status}</span></td>
+                <td class="c-st"><span class={`tag st-${o.status}`}>{stLabel(o.status)}</span>{Number(o.paid) ? <span class="tag st-paid">Paid</span> : null}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {results.length ? null : <p class="a-muted">No orders yet.</p>}
+        {results.length ? null : <p class="a-muted">{where ? 'No orders match this filter.' : 'No orders yet.'}</p>}
       </div>
     </Shell>,
   )
@@ -323,34 +303,83 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const o = await c.env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(id).first<Record<string, string | number>>()
   if (!o) return c.redirect('/admin/orders')
-  const { results: items } = await c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id).all<Record<string, string | number>>()
-  const wa = `https://wa.me/218${String(o.phone).replace(/^0/, '')}`
+  const [[itemsRes, evRes, prevRes, rvRes], st] = await Promise.all([c.env.DB.batch([
+    c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id),
+    c.env.DB.prepare('SELECT e.status, e.at, e.admin_id, a.email FROM order_events e LEFT JOIN admins a ON a.id = e.admin_id WHERE e.order_id = ? ORDER BY e.id').bind(id),
+    c.env.DB.prepare("SELECT count(*) AS n, coalesce(sum(status = 'delivered'), 0) AS d FROM orders WHERE phone = ? AND id != ? AND status != 'cancelled'").bind(o.phone, id),
+    c.env.DB.prepare('SELECT count(*) AS n FROM reviews WHERE order_id = ?').bind(id),
+  ]), getSettings(c.env.DB)])
+  const items = itemsRes.results as Record<string, string | number>[]
+  const events = evRes.results as { status: string; at: string; admin_id: number | null; email: string | null }[]
+  const prev = (prevRes.results[0] ?? { n: 0, d: 0 }) as { n: number; d: number }
+  const sum = sumFromRow(o)
+  const lang = o.lang === 'en' ? 'en' : 'ar'
+  const track = o.view_token ? trackUrl(new URL(c.req.url).origin, lang, String(o.number), String(o.view_token)) : ''
+  const status = isStatus(o.status) ? o.status : 'new'
+  const msgFor = (st: Status) => updateMessage(st, { lang, number: String(o.number), name: String(o.name), total: Number(o.total), fee: sum?.fee ?? 0, track })
+  const sends: Status[] = ['confirmed', 'out', 'delivered', 'cancelled']
+  const reviewed = Number((rvRes.results[0] as { n: number } | undefined)?.n ?? 0)
+  const linkOk = !!o.view_token && Date.parse(String(o.created_at).replace(' ', 'T') + 'Z') > Date.now() - LINK_DAYS * 86400000
+  const askMsg = askReviewMessage(lang, { name: String(o.name), number: String(o.number), link: reviewUrl(new URL(c.req.url).origin, lang, String(o.number), String(o.view_token)) })
   return c.html(
     <Shell title={String(o.number)} nav="orders">
-      <div class="a-head"><h1>Order {o.number}</h1><a class="a-btn" href="/admin/orders">All orders</a></div>
+      <div class="a-head"><h1>Order {o.number} <span class={`tag st-${o.status}`}>{stLabel(o.status)}</span>{Number(o.paid) ? <span class="tag st-paid">Paid</span> : null}</h1><a class="a-btn" href="/admin/orders">All orders</a></div>
       <div class="a-cols">
         <div class="a-card">
-          <h2>Customer</h2>
+          <h2>Customer {prev.n > 0 ? <span class="tag ret">Returning · {prev.n} other order{prev.n === 1 ? '' : 's'}</span> : <span class="tag">First order</span>}</h2>
           <dl class="a-dl">
             <dt>Name</dt><dd dir="auto">{o.name}</dd>
-            <dt>Phone</dt><dd dir="ltr">{o.phone} · <a href={wa} target="_blank" rel="noopener">WhatsApp</a></dd>
+            <dt>Phone</dt><dd dir="ltr">{o.phone} · <a href={waCustomer(String(o.phone))} target="_blank" rel="noopener">WhatsApp</a> · <a href={`/admin/customers/${o.phone}`}>All their orders</a></dd>
             <dt>City</dt><dd dir="auto">{o.city}</dd>
             <dt>Address</dt><dd dir="auto">{o.address || '—'}</dd>
             <dt>Note</dt><dd dir="auto">{o.note || '—'}</dd>
             <dt>Payment</dt><dd>{PAY[String(o.payment)]}{o.payment === 'cod_card' ? ' · bring card machine' : ''}</dd>
             <dt>Sent via</dt><dd>{o.channel} · {o.lang === 'ar' ? 'Arabic' : 'English'}</dd>
             <dt>Created</dt><dd>{libyaTime(o.created_at)} <span class="a-muted">Libya time</span></dd>
+            {track ? <><dt>Tracker</dt><dd><a href={track} target="_blank" rel="noopener">Customer’s order page ↗</a></dd></> : null}
           </dl>
         </div>
         <div class="a-card">
           <h2>Items</h2>
-          <table class="a-table"><tbody>{items.map((i) => <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code></td><td>× {i.qty}</td><td class="num">{fmtLyd(Number(i.price) * Number(i.qty))}</td></tr>)}</tbody></table>
-          <p class="a-total">Total <b>{fmtLyd(Number(o.total))} LYD</b></p>
+          <table class="a-table"><tbody>{items.map((i) => {
+            const was = sum && Number(i.orig_price) > Number(i.price) ? Number(i.orig_price) * Number(i.qty) : 0
+            if (Number(i.is_gift)) return <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code></td><td>× {i.qty}</td><td class="num"><span class="tag ret">Free gift</span><br /><s class="a-muted">{fmtLyd(Number(i.orig_price))}</s></td></tr>
+            return <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code>{i.flash_id ? <> <span class="tag">Flash deal</span></> : null}</td><td>× {i.qty}</td><td class="num">{fmtLyd(Number(i.price) * Number(i.qty))}{was ? <><br /><s class="a-muted">{fmtLyd(was)}</s></> : null}</td></tr>
+          })}</tbody></table>
+          {sum ? <dl class="a-dl">{sumRows({ lang: 'en', total: Number(o.total), sum }).map((r) => <><dt>{r.label}</dt><dd>{r.value}</dd></>)}{sum.area ? <><dt>Area</dt><dd dir="auto">{sum.area}</dd></> : null}</dl> : null}
+          <p class="a-total">Total <b>{fmtLyd(Number(o.total))} LYD</b>{sum && sum.fee ? <span class="a-muted"> (incl. {fmtLyd(sum.fee)} delivery, cash to the driver)</span> : null}</p>
+        </div>
+        <div class="a-card">
+          <h2>Status</h2>
           <form class="a-order-form" data-order-form={o.id}>
-            <label class="a-f">Status<select name="status">{STATUSES.map((s) => <option value={s} selected={o.status === s}>{s}</option>)}</select></label>
+            <label class="a-f">Status the customer sees<select name="status">{STATUSES.map((s) => <option value={s} selected={status === s}>{STATUS_EN[s]}</option>)}</select></label>
+            <label class="a-check"><input type="checkbox" name="paid" checked={!!Number(o.paid)} /> Paid <span class="a-muted">(team only, the customer never sees this)</span></label>
             <label class="a-f">Team note<textarea name="admin_note" rows={3}>{o.admin_note}</textarea></label>
             <button class="a-btn p" type="submit">Save</button>
           </form>
+          <h2>History</h2>
+          <ol class="a-hist">
+            {events.map((e) => <li><b>{stLabel(e.status)}</b> <span class="a-muted">{libyaTime(e.at)}{e.admin_id ? ` · ${e.email ?? 'removed admin'}` : e.status === 'new' ? ' · placed by the customer' : ''}</span></li>)}
+          </ol>
+        </div>
+        <div class="a-card">
+          <h2>Send update</h2>
+          <p class="a-muted">Opens WhatsApp with the message written for the customer{lang === 'en' ? ' (in English, the language they ordered in)' : ' (in Arabic, the language they ordered in)'}, including their tracking link. Change the status first, then send.</p>
+          <div class="a-sends">
+            {sends.map((st) => <a class={`a-btn${st === status ? ' p' : ''}`} href={waCustomer(String(o.phone), msgFor(st))} target="_blank" rel="noopener" data-send-update={st}>{STATUS_EN[st]}</a>)}
+          </div>
+          {status !== 'new' ? <details class="a-preview"><summary>Message for “{STATUS_EN[status]}”</summary><pre dir="auto">{msgFor(status)}</pre></details> : null}
+        </div>
+        <div class="a-card">
+          <h2>Ask for a review {reviewed ? <span class="tag ok">{reviewed} received</span> : null}</h2>
+          {!onSwitch(st, 'reviews_on') ? <p class="a-muted">Reviews are switched off. Turn them on in <a href="/admin/reviews">Reviews</a> to use this button.</p>
+            : status !== 'delivered' ? <p class="a-muted">Available once the order is marked Delivered.</p>
+            : !linkOk ? <p class="a-muted">This order is older than {LINK_DAYS} days, so its private link has expired.</p>
+            : <>
+              <p class="a-muted">Opens WhatsApp with a short message and the customer’s own review link. Reviews sent from it are marked “Verified buyer”, and you approve them in <a href="/admin/reviews">Reviews</a> before they show.</p>
+              <div class="a-sends"><a class="a-btn p" href={waCustomer(String(o.phone), askMsg)} target="_blank" rel="noopener">Ask for a review</a></div>
+              <details class="a-preview"><summary>Message</summary><pre dir="auto">{askMsg}</pre></details>
+            </>}
         </div>
       </div>
     </Shell>,

@@ -5,6 +5,10 @@ import type { Brand, ProductWithMedia } from '../lib/db'
 import { fmtLyd, pName } from '../lib/db'
 import { firstImage, mediaUrl, srcset } from '../lib/media'
 import { waNumber, igHandle } from '../lib/orders'
+import { assetPath } from '../lib/assets'
+import type { Offer } from '../lib/pricing'
+import { shopPrice } from '../lib/pricing'
+import { OfferHead, OfferStrip, OfferBadge, TeaserStrip } from './offer'
 
 declare const __BUILD__: string
 export const V = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'
@@ -44,7 +48,7 @@ export const bname = (n: string) => n.replace(/ & /g, ' &\u00a0')
 /** 2189XXXXXXXX → +218 9X XXX XXXX */
 const prettyPhone = (d: string) => (/^218\d{9}$/.test(d) ? `+218 ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : `+${d}`)
 
-export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<string, string>; children: Child }) {
+export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<string, string>; offer?: Offer | null; teaser?: Offer | null; early?: boolean; children: Child }) {
   const { lang, path, origin } = props
   const tr = t(lang)
   const other: Lang = lang === 'ar' ? 'en' : 'ar'
@@ -89,10 +93,12 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600&family=Cormorant+Garamond:wght@600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" />
-        <link rel="stylesheet" href={`/static/site.css?v=${V}`} />
+        <link rel="stylesheet" href={assetPath('site.css', V)} />
+        <OfferHead offer={props.offer ?? props.teaser ?? null} />
       </head>
       <body data-lang={lang}>
         <a class="skip" href="#main">{lang === 'ar' ? 'تخطَّ إلى المحتوى' : 'Skip to content'}</a>
+        {props.offer ? <OfferStrip offer={props.offer} lang={lang} early={props.early} /> : <TeaserStrip offer={props.teaser ?? null} lang={lang} />}
         <header class="top">
           <div class="top-in">
             <a class="logo" href={`/${lang}/`} aria-label={tr.siteName}>
@@ -150,6 +156,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
                 <h2>{tr.footHelp}</h2>
                 <a href={`/${lang}/page/about`}>{tr.about}</a>
                 <a href={`/${lang}/page/delivery`}>{tr.deliveryReturns}</a>
+                <a href={`/${lang}/page/trust`}>{tr.trust}</a>
                 <a href={`/${lang}/page/contact`}>{tr.contact}</a>
               </nav>
               <div class="fcol fpay">
@@ -171,14 +178,14 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
           <a href={`/${lang}/cart`} class={props.active === 'cart' ? 'on' : ''}>{I.bag}<span>{tr.cart}</span><span class="badge" data-cart-count hidden>0</span></a>
         </nav>
         <div class="toast" role="status" aria-live="polite" hidden></div>
-        <script src={`/static/site.js?v=${V}`} defer></script>
+        <script src={assetPath('site.js', V)} defer></script>
       </body>
     </html>
   )
 }
 
-export const Price = ({ value, compare, lang }: { value: number; compare?: number | null; lang: Lang }) => (
-  <span class="price">
+export const Price = ({ value, compare, lang, sale }: { value: number; compare?: number | null; lang: Lang; sale?: boolean }) => (
+  <span class={sale ? 'price sale' : 'price'}>
     {fmtLyd(value)} {t(lang).currency}
     {compare && compare > value ? <s>{fmtLyd(compare)}</s> : null}
   </span>
@@ -202,20 +209,22 @@ export function Pic({ p, lang, w = 400, eager = false }: { p: ProductWithMedia; 
   )
 }
 
-export function Card({ p, lang, brands, eager }: { p: ProductWithMedia; lang: Lang; brands: Brand[]; eager?: boolean }) {
+export function Card({ p, lang, brands, eager, offer }: { p: ProductWithMedia; lang: Lang; brands: Brand[]; eager?: boolean; offer?: Offer | null }) {
   const tr = t(lang)
   const brand = brands.find((b) => b.id === p.brand_id)
+  const sp = shopPrice(p, offer ?? null)
   return (
     <a class={`card${p.in_stock ? '' : ' out'}`} href={`/${lang}/p/${p.id}`}>
-      <span class={`ph t-${brand?.tint ?? 'swa'}`}><Pic p={p} lang={lang} eager={eager} /><span class={`stk${p.in_stock ? ' on' : ''}`}><i aria-hidden="true" />{p.in_stock ? tr.inStock : tr.outShort}</span></span>
+      <span class={`ph t-${brand?.tint ?? 'swa'}`}><Pic p={p} lang={lang} eager={eager} />{sp.pct && p.in_stock && offer ? <OfferBadge offer={offer} lang={lang} pct={sp.pct} /> : null}<span class={`stk${p.in_stock ? ' on' : ''}`}><i aria-hidden="true" />{p.in_stock ? tr.inStock : tr.outShort}</span></span>
       <span class="bd">{brand?.name}</span>
       <span class="nm">{pName(p, lang)}</span>
-      {p.in_stock ? <Price value={p.price} compare={p.compare_price} lang={lang} /> : <span class="soldout">{tr.outOfStock}</span>}
+      {p.in_stock ? <Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /> : <span class="soldout">{tr.outOfStock}</span>}
+      {p.in_stock && sp.flash && sp.flash.left !== null ? <span class="fleft">{tr.flashLeft(sp.flash.left)}</span> : null}
     </a>
   )
 }
 
 /** `fit`: hide the extra cards so the last row is full at every width (shows 8 / 9 / 8 / 10 of 10). */
-export const Grid = ({ items, lang, brands, eagerFirst, fit }: { items: ProductWithMedia[]; lang: Lang; brands: Brand[]; eagerFirst?: number; fit?: boolean }) => (
-  <div class={fit && items.length >= 8 ? 'grid fit' : 'grid'}>{items.map((p, i) => <Card p={p} lang={lang} brands={brands} eager={i < (eagerFirst ?? 0)} />)}</div>
+export const Grid = ({ items, lang, brands, eagerFirst, fit, offer }: { items: ProductWithMedia[]; lang: Lang; brands: Brand[]; eagerFirst?: number; fit?: boolean; offer?: Offer | null }) => (
+  <div class={fit && items.length >= 8 ? 'grid fit' : 'grid'}>{items.map((p, i) => <Card p={p} lang={lang} brands={brands} eager={i < (eagerFirst ?? 0)} offer={offer} />)}</div>
 )

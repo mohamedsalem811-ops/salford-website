@@ -3,17 +3,21 @@ import type { Env, Media } from '../lib/db'
 import { toDirham } from '../lib/db'
 import { hashPassword, verifyLogin, endOtherSessions } from '../lib/auth'
 import { youtubeId } from '../lib/media'
-import { waNumber, igHandle, fbPage } from '../lib/orders'
+import { waNumber, igHandle, fbPage, isStatus } from '../lib/orders'
 import { bumpCatalog } from '../lib/catalog'
 
 import { translateProduct } from '../lib/translate'
+import { r1Api } from './admin-r1'
+import { r2Api } from './admin-r2'
+import { r3Api } from './admin-r3'
+import { r4Api } from './admin-r4'
 
 type Vars = { admin: { id: number; email: string } }
 
 export const adminApi = new Hono<{ Bindings: Env; Variables: Vars }>()
 
 /** Anything saved here that the shop shows makes every copy of the shop reload its in-memory catalog. */
-const NO_SHOP_CHANGE = /^\/admin\/api\/(orders|password|sessions|admins|upload|video\/(start|part))(\/|$)/
+const NO_SHOP_CHANGE = /^\/admin\/api\/(orders|password|sessions|admins|upload|waitlist|reminders|occasions|offers\/[0-9]+\/early-sent|video\/(start|part))(\/|$)/
 adminApi.use('*', async (c, next) => {
   await next()
   if (c.req.method !== 'GET' && c.res.status < 400 && !NO_SHOP_CHANGE.test(c.req.path)) await bumpCatalog(c.env.DB)
@@ -137,9 +141,9 @@ adminApi.put('/products/:id{[0-9]+}', async (c) => {
   const shortAr = arOf('short', 300), descAr = arOf('desc', 4000)
   await c.env.DB.prepare(
     `UPDATE products SET brand_id=?, category_id=?, code=?, price=?, compare_price=?, name_en=?, short_ar=?, short_en=?, desc_ar=?, desc_en=?,
-     set_codes=?, status=?, in_stock=?, is_new=?, best_seller=?, is_set=?, updated_at=${now} WHERE id=?`,
+     set_codes=?, status=?, in_stock=?, is_new=?, best_seller=?, is_set=?, no_discount=?, updated_at=${now} WHERE id=?`,
   ).bind(brand, cat, s('code', 60), toDirham(s('price')), compare, s('name_en', 200), shortAr, s('short_en', 300), descAr, s('desc_en'),
-    JSON.stringify(codes), status, flag('in_stock'), flag('is_new'), flag('best_seller'), flag('is_set'), id).run()
+    JSON.stringify(codes), status, flag('in_stock'), flag('is_new'), flag('best_seller'), flag('is_set'), flag('no_discount'), id).run()
   const missing = (s('short_en', 300) && !shortAr) || (s('desc_en') && !descAr)
   if (missing && c.env.AI) {
     const r = await translateProduct(c.env, id)
@@ -323,11 +327,19 @@ adminApi.post('/media/batch', async (c) => {
 })
 
 /* ---------- orders ---------- */
+// Status (what the customer sees), the team-only Paid tick and the team note. A status change is recorded in order_events.
 adminApi.post('/orders/:id{[0-9]+}', async (c) => {
-  const b = await c.req.json<{ status: string; admin_note: string }>()
-  if (!['new', 'confirmed', 'paid', 'delivered', 'cancelled'].includes(b.status)) return c.json({ error: 'Bad status' }, 400)
-  await c.env.DB.prepare('UPDATE orders SET status=?, admin_note=? WHERE id=?').bind(b.status, String(b.admin_note ?? '').slice(0, 1000), Number(c.req.param('id'))).run()
-  return c.json({ ok: true })
+  const b = await c.req.json<{ status: string; admin_note: string; paid?: unknown }>()
+  if (!isStatus(b.status)) return c.json({ error: 'Bad status' }, 400)
+  const id = Number(c.req.param('id'))
+  const db = c.env.DB
+  const o = await db.prepare('SELECT status FROM orders WHERE id = ?').bind(id).first<{ status: string }>()
+  if (!o) return c.json({ error: 'Order not found' }, 404)
+  const paid = b.paid === true || b.paid === 'on' || b.paid === '1' || b.paid === 1 ? 1 : 0
+  const stmts = [db.prepare('UPDATE orders SET status=?, paid=?, admin_note=? WHERE id=?').bind(b.status, paid, String(b.admin_note ?? '').slice(0, 1000), id)]
+  if (o.status !== b.status) stmts.push(db.prepare('INSERT INTO order_events (order_id, status, admin_id) VALUES (?, ?, ?)').bind(id, b.status, c.get('admin').id))
+  await db.batch(stmts)
+  return c.json({ ok: true, changed: o.status !== b.status })
 })
 
 /* ---------- settings ---------- */
@@ -392,3 +404,9 @@ adminApi.post('/sessions/end-others', async (c) => {
   await endOtherSessions(c, c.get('admin').id)
   return c.json({ ok: true })
 })
+
+/* ---------- Release 1: offers, codes, delivery (admin-r1.tsx) ---------- */
+adminApi.route('/', r1Api)
+adminApi.route('/', r2Api)
+adminApi.route('/', r3Api)
+adminApi.route('/', r4Api)

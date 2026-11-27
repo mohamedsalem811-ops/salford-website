@@ -6,7 +6,8 @@ export const media = new Hono<{ Bindings: Env }>()
 /** Serves files from R2. Keys are unique, so files are cached for a year. Supports Range (needed for video on iPhone). */
 media.get('/*', async (c) => {
   const key = decodeURIComponent(c.req.path.replace(/^\/m\//, ''))
-  if (!key || key.includes('..')) return c.notFound()
+  // review photos (rv/) are private until approved and are served only by /api/review-photo
+  if (!key || key.includes('..') || key.startsWith('rv/')) return c.notFound()
   const rangeHeader = c.req.header('range')
   let range: R2Range | undefined
   const m = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/)
