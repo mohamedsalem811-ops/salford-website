@@ -335,24 +335,37 @@
     var LD = {}; try { LD = JSON.parse($('#look-defaults').textContent); } catch (err) { LD = {}; }
     var MAP = { banner: 'ttl', sub: 'sub', kicker: 'kick', caption: 'strip' };
     var lookNow = function () { var r = $('input[name="template"]:checked', off); return r ? r.value : 'ind'; };
+    var kindNow = function () { var r = $('input[name="kind"]:checked', off); return r ? r.value : 'percent'; };
+    var topTier = function () { var m = 0; for (var i = 0; i < 4; i++) { var v = Number(off.elements['tier_pct_' + i].value); if (v > m) m = v; } return m; };
+    var showKind = function () {
+      var k = kindNow();
+      $$('[data-kind]', off).forEach(function (el) { el.hidden = el.getAttribute('data-kind') !== k; });
+    };
     var showDefaults = function () {
       var d = LD[lookNow()]; if (!d) return;
-      var pct = off.elements.percent.value || d.pct;
+      var k = kindNow();
+      var pct = (k === 'tiers' ? topTier() : off.elements.percent.value) || d.pct;
       $$('[data-def]', off).forEach(function (inp) {
         var f = inp.getAttribute('data-def'), l = inp.getAttribute('data-lang');
-        inp.placeholder = f === 'badge' ? '−' + pct + '%' : String(d[l][MAP[f]] || '').replace(/\{pct\}/g, pct).replace(/\{year\}/g, new Date().getFullYear() + (lookNow() === 'ny' && new Date().getMonth() === 11 ? 1 : 0));
+        var def = String(d[l][MAP[f]] || '');
+        if (k === 'none' && (f === 'badge' || def.indexOf('{pct}') >= 0)) { inp.placeholder = f === 'banner' ? '(write your own title)' : '(empty)'; return; }
+        if (k === 'tiers' && f !== 'badge') def = def.replace(/\{pct\}%/g, l === 'ar' ? 'حتى {pct}%' : 'up to {pct}%');
+        inp.placeholder = f === 'badge' ? '−' + pct + '%' : def.replace(/\{pct\}/g, pct).replace(/\{year\}/g, new Date().getFullYear() + (lookNow() === 'ny' && new Date().getMonth() === 11 ? 1 : 0));
       });
       off.elements.name_en.placeholder = d.en.name; off.elements.name_ar.placeholder = d.ar.name;
       $('[data-photo-field]', off).hidden = !d.photo;
     };
     $$('input[name="template"]', off).forEach(function (r) { r.addEventListener('change', function () { var d = LD[r.value]; if (d && !oid) off.elements.percent.value = d.pct; showDefaults(); }); });
     off.elements.percent.addEventListener('input', showDefaults);
+    $$('input[name="kind"], input[name^="tier_pct_"]', off).forEach(function (r) { r.addEventListener('input', function () { showKind(); showDefaults(); }); r.addEventListener('change', function () { showKind(); showDefaults(); }); });
+    showKind();
     $$('input[name="scope_mode"]', off).forEach(function (r) { r.addEventListener('change', function () { $('[data-scope-some]', off).hidden = $('input[name="scope_mode"]:checked', off).value === 'all'; }); });
     showDefaults();
     off.addEventListener('submit', function (e) {
       e.preventDefault(); formErr(off, '');
       var b = formJSON(off);
       b.template = lookNow();
+      b.kind = kindNow();
       b.scope_mode = ($('input[name="scope_mode"]:checked', off) || {}).value || 'all';
       b.brands = $$('input[name="sc_brand"]:checked', off).map(function (x) { return x.value; });
       b.cats = $$('input[name="sc_cat"]:checked', off).map(function (x) { return x.value; });
@@ -368,6 +381,120 @@
     if (odel) odel.addEventListener('click', function () {
       if (confirm('Delete this offer? Past orders keep their prices.')) api('DELETE', '/offers/' + oid).then(function () { location.href = '/admin/offers'; }).catch(function (err) { toast(err.message, true); });
     });
+  }
+
+  /* ---------- Release 4: reminders, early access, calendar, Instagram images ---------- */
+  document.addEventListener('click', function (e) {
+    // the link opens WhatsApp as usual; the person is marked as sent at the same time
+    var es = e.target.closest('[data-early-sent]');
+    if (es) { var ep = es.getAttribute('data-early-sent').split(':'); api('POST', '/offers/' + ep[0] + '/early-sent', { phone: ep[1] }).then(function () { es.classList.toggle('p', false); es.textContent = 'Send again'; }).catch(function (err) { toast(err.message, true); }); }
+    var rs = e.target.closest('[data-rm-sent]');
+    if (rs) api('POST', '/reminders/' + rs.getAttribute('data-rm-sent') + '/sent').then(function () { rs.classList.toggle('p', false); rs.textContent = 'Send again'; }).catch(function (err) { toast(err.message, true); });
+    var rd = e.target.closest('[data-rm-del]');
+    if (rd && confirm('Remove this person from the list?')) api('DELETE', '/reminders/' + rd.getAttribute('data-rm-del')).then(function () { var tr = rd.closest('tr'); if (tr) tr.hidden = true; toast('Removed'); }).catch(function (err) { toast(err.message, true); });
+    var od = e.target.closest('[data-occ-del]');
+    if (od && confirm('Delete this occasion from the calendar?')) api('DELETE', '/occasions/' + od.getAttribute('data-occ-del')).then(function () { var f = od.closest('form'); if (f) f.hidden = true; toast('Deleted'); }).catch(function (err) { toast(err.message, true); });
+  });
+  $$('[data-occ]').forEach(function (f) {
+    var id = Number(f.getAttribute('data-occ'));
+    f.addEventListener('submit', function (e) {
+      e.preventDefault(); saving(f, true);
+      api(id ? 'PUT' : 'POST', '/occasions' + (id ? '/' + id : ''), formJSON(f)).then(function () { saving(f, false); toast('Saved'); setTimeout(function () { location.reload(); }, 500); })
+        .catch(function (err) { saving(f, false); toast(err.message, true); });
+    });
+  });
+
+  var im = $('[data-offer-image]');
+  if (im) {
+    var D = {}; try { D = JSON.parse($('#img-data').textContent); } catch (err) { D = { ar: {}, en: {}, photos: [], g: ['#ffffff', '#ffffff'] }; }
+    var cv = $('canvas', im), ctx = cv.getContext('2d'), blob = null;
+    var pics = D.photos.map(function (u) { return new Promise(function (ok) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { ok(null); }; i.src = u; }); });
+    var FONT = 'Alexandria, "IBM Plex Sans Arabic", system-ui, sans-serif';
+    var val = function (n) { var r = $('input[name="' + n + '"]:checked', im); return r ? r.value : ''; };
+    var wrap = function (text, max) {
+      var words = String(text || '').split(/\s+/), lines = [], line = '';
+      words.forEach(function (w) { var t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > max && line) { lines.push(line); line = w; } else line = t; });
+      if (line) lines.push(line);
+      return lines;
+    };
+    var say = function (text, y, size, weight, color, max, gap) {
+      if (!text) return y;
+      ctx.font = weight + ' ' + size + 'px ' + FONT; ctx.fillStyle = color;
+      wrap(text, max).forEach(function (l) { ctx.fillText(l, cv.width / 2, y + size); y += size * (gap || 1.3); });
+      return y + size * 0.35;
+    };
+    var cover = function (img, x, y, w, h, r) {
+      ctx.save(); ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+      ctx.clip();
+      var s = Math.max(w / img.width, h / img.height), iw = img.width * s, ih = img.height * s;
+      ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); ctx.restore();
+    };
+    var draw = function (imgs) {
+      var story = val('img_fmt') !== 'post', L = val('img_lang') === 'en' ? 'en' : 'ar', W = D[L] || {};
+      var withPics = $('input[name="img_photos"]', im).checked;
+      imgs = withPics ? imgs.filter(Boolean) : [];
+      cv.width = 1080; cv.height = story ? 1920 : 1080;
+      var w = cv.width, h = cv.height;
+      var g = D.radial ? ctx.createRadialGradient(w / 2, 0, 50, w / 2, 0, h * 1.1) : ctx.createLinearGradient(0, 0, w * 0.35, h);
+      g.addColorStop(0, D.g[0]); g.addColorStop(1, D.g[D.g.length - 1]);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.direction = L === 'ar' ? 'rtl' : 'ltr'; ctx.textAlign = 'center';
+      ctx.strokeStyle = D.acc; ctx.globalAlpha = 0.5; ctx.lineWidth = 3; ctx.strokeRect(36, 36, w - 72, h - 72); ctx.globalAlpha = 1;
+      var y = story ? 170 : 90, max = w - 200;
+      y = say('SALFORD', y, story ? 40 : 30, '700', D.acc, max);
+      y += story ? 30 : 6;
+      y = say(W.kick, y, story ? 46 : 34, '500', D.acc, max);
+      y = say(W.ttl, y, story ? 104 : (imgs.length ? 70 : 86), '700', D.ttl, max, 1.2);
+      y = say(W.sub, y, story ? 54 : 40, '500', D.ink, max);
+      (W.extras || []).forEach(function (x) { y = say(x, y, story ? 40 : 30, '500', D.ink, max); });
+      var foot = story ? 300 : 150;
+      if (imgs.length) {
+        var top = y + 30, bottom = h - foot - 20, ph = bottom - top;
+        if (ph > 160) {
+          if (imgs.length === 1 || !story) {
+            var n = story ? 1 : Math.min(3, imgs.length), gap = 24, pw = (w - 160 - gap * (n - 1)) / n, sz = Math.min(pw, ph);
+            var x0 = (w - (sz * n + gap * (n - 1))) / 2;
+            for (var i = 0; i < n; i++) cover(imgs[i], x0 + i * (sz + gap), top + (ph - sz) / 2, sz, sz, 28);
+          } else {
+            var big = Math.min(w - 220, ph * 0.66), sm = Math.min((w - 220 - 24) / 2, ph - big - 24);
+            cover(imgs[0], (w - big) / 2, top, big, big, 32);
+            var rest = imgs.slice(1, 3), xs = (w - (sm * rest.length + 24 * (rest.length - 1))) / 2;
+            rest.forEach(function (img, k) { cover(img, xs + k * (sm + 24), top + big + 24, sm, sm, 24); });
+          }
+        }
+      }
+      if (W.badge) {
+        var r = story ? 110 : 80, bx = L === 'ar' ? 150 : w - 150, by = story ? 520 : 250;
+        if (!imgs.length) by = h - foot - r - 40;
+        ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = D.sbg; ctx.fill();
+        ctx.font = '700 ' + (story ? 62 : 46) + 'px ' + FONT; ctx.fillStyle = D.sink; ctx.textBaseline = 'middle'; ctx.fillText(W.badge, bx, by); ctx.textBaseline = 'alphabetic';
+      }
+      var fy = h - foot + (story ? 30 : 0);
+      fy = say(W.dates, fy, story ? 44 : 32, '500', D.ink, max);
+      var bw = story ? 560 : 440, bh = story ? 100 : 76, bx2 = (w - bw) / 2;
+      ctx.fillStyle = D.bbg; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx2, fy, bw, bh, bh / 2); else ctx.rect(bx2, fy, bw, bh); ctx.fill();
+      ctx.font = '700 ' + (story ? 42 : 32) + 'px ' + FONT; ctx.fillStyle = D.bink; ctx.textBaseline = 'middle'; ctx.fillText('salfordlibya.com', w / 2, fy + bh / 2); ctx.textBaseline = 'alphabetic';
+      blob = null;
+      cv.toBlob(function (b) { blob = b; }, 'image/png');
+    };
+    var redraw = function () { Promise.all(pics).then(draw); };
+    $$('input', im).forEach(function (x) { x.addEventListener('change', redraw); });
+    var fileName = function () { return 'salford-' + D.name + '-' + (val('img_fmt') || 'story') + '-' + (val('img_lang') || 'ar') + '.png'; };
+    var download = function () {
+      if (!blob) { toast('One moment…'); return; }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName(); document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 1500);
+    };
+    $('[data-img-dl]', im).addEventListener('click', download);
+    $('[data-img-share]', im).addEventListener('click', function () {
+      if (!blob) { toast('One moment…'); return; }
+      var f = new File([blob], fileName(), { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f] }).catch(function () {});
+      else download();
+    });
+    var fontsReady = document.fonts && document.fonts.load ? Promise.all([document.fonts.load('700 80px Alexandria', 'سالفورد'), document.fonts.load('500 40px Alexandria', 'Salford')]).catch(function () {}) : Promise.resolve();
+    fontsReady.then(redraw);
   }
 
   var cf = $('[data-code-form]');

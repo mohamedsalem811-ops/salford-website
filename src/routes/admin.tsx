@@ -12,6 +12,7 @@ import { Shell, libyaTime } from '../views/admin-shell'
 import { r1Pages } from './admin-r1'
 import { r2Pages } from './admin-r2'
 import { r3Pages } from './admin-r3'
+import { r4Pages, OccasionsDue } from './admin-r4'
 import { askReviewMessage, onSwitch, reviewUrl } from '../lib/r3'
 
 type Vars = { admin: { id: number; email: string } }
@@ -96,6 +97,7 @@ admin.route('/api', adminApi)
 admin.route('/', r1Pages)
 admin.route('/', r2Pages)
 admin.route('/', r3Pages)
+admin.route('/', r4Pages)
 
 /* ---------- products ---------- */
 admin.get('/', async (c) => {
@@ -139,6 +141,7 @@ admin.get('/', async (c) => {
           <form method="post" action="/admin/api/products/new"><button class="a-btn p" type="submit">New product</button></form>
         </div>
       </div>
+      <OccasionsDue db={c.env.DB} />
       <div class="a-card a-tools">
         <span>Links not yet checked: <b>{stats!.unchecked}</b> · Without safe copy: <b>{stats!.nocopy}</b> · Stored: <b>{(stats!.stored / 1048576).toFixed(1)} MB</b> of 10,240 MB free</span>
         <span class="a-btns">
@@ -262,7 +265,7 @@ admin.get('/orders', async (c) => {
   const unpaid = q === 'unpaid' // delivered but not ticked paid yet
   const where = status ? 'WHERE o.status = ?' : unpaid ? "WHERE o.status = 'delivered' AND o.paid = 0" : ''
   const { results } = await c.env.DB.prepare(
-    `SELECT o.*, (SELECT sum(qty) FROM order_items i WHERE i.order_id = o.id) items,
+    `SELECT o.*, (SELECT sum(qty) FROM order_items i WHERE i.order_id = o.id AND i.is_gift = 0) items,
       (SELECT count(*) FROM orders p WHERE p.phone = o.phone AND p.id < o.id AND p.status != 'cancelled') prev
      FROM orders o ${where} ORDER BY o.id DESC LIMIT 300`,
   ).bind(...(status ? [status] : [])).all<Record<string, string | number>>()
@@ -340,7 +343,8 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
           <h2>Items</h2>
           <table class="a-table"><tbody>{items.map((i) => {
             const was = sum && Number(i.orig_price) > Number(i.price) ? Number(i.orig_price) * Number(i.qty) : 0
-            return <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code></td><td>× {i.qty}</td><td class="num">{fmtLyd(Number(i.price) * Number(i.qty))}{was ? <><br /><s class="a-muted">{fmtLyd(was)}</s></> : null}</td></tr>
+            if (Number(i.is_gift)) return <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code></td><td>× {i.qty}</td><td class="num"><span class="tag ret">Free gift</span><br /><s class="a-muted">{fmtLyd(Number(i.orig_price))}</s></td></tr>
+            return <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code>{i.flash_id ? <> <span class="tag">Flash deal</span></> : null}</td><td>× {i.qty}</td><td class="num">{fmtLyd(Number(i.price) * Number(i.qty))}{was ? <><br /><s class="a-muted">{fmtLyd(was)}</s></> : null}</td></tr>
           })}</tbody></table>
           {sum ? <dl class="a-dl">{sumRows({ lang: 'en', total: Number(o.total), sum }).map((r) => <><dt>{r.label}</dt><dd>{r.value}</dd></>)}{sum.area ? <><dt>Area</dt><dd dir="auto">{sum.area}</dd></> : null}</dl> : null}
           <p class="a-total">Total <b>{fmtLyd(Number(o.total))} LYD</b>{sum && sum.fee ? <span class="a-muted"> (incl. {fmtLyd(sum.fee)} delivery, cash to the driver)</span> : null}</p>

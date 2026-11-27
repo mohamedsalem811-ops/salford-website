@@ -1,17 +1,17 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { getCookie } from 'hono/cookie'
+import { getCookie, setCookie } from 'hono/cookie'
 import { currentAdmin } from '../lib/auth'
 import type { Env, Brand, ProductWithMedia } from '../lib/db'
 import { pName, pShort, pDesc, fmtLyd } from '../lib/db'
-import { catalog, listFrom, productFrom, offerNow, type Catalog } from '../lib/catalog'
-import type { Offer } from '../lib/pricing'
-import { shopPrice, inScope, parseScope, discountable } from '../lib/pricing'
-import { OfferBanner, isoUtc } from '../views/offer'
+import { catalog, listFrom, productFrom, offerNow, teaserNow, earlyOf, attachFlash, FLASH_SQL, EARLY_COOKIE, type Catalog } from '../lib/catalog'
+import type { Offer, Flash } from '../lib/pricing'
+import { shopPrice, inScope, parseScope, discountable, isEarlyNow, tiersOf } from '../lib/pricing'
+import { OfferBanner, TeaserBanner, isoUtc } from '../views/offer'
 import { t, isLang, CITIES_AR, type Lang } from '../lib/i18n'
 import { Layout, Grid, Price, Pic, Icons, bname, type PageMeta } from '../views/layout'
 import { mediaUrl, srcset, youtubeId, firstImage, absUrl } from '../lib/media'
-import { loadOrderForCustomer, channelLinks, waNumber, igHandle, sumRows, isStatus, STATUS_WORDS, type Status, type OrderEvent } from '../lib/orders'
+import { loadOrderForCustomer, channelLinks, waNumber, igHandle, sumRows, lineValue, isStatus, STATUS_WORDS, type Status, type OrderEvent } from '../lib/orders'
 import { onSwitch, stars, parseGallery, type Review } from '../lib/r3'
 import { freeMinOf } from '../lib/checkout'
 
@@ -21,23 +21,37 @@ export const store = new Hono<{ Bindings: Env }>()
 const origin = (c: C) => new URL(c.req.url).origin
 const noindex = (c: C) => new URL(c.req.url).hostname.endsWith('.pages.dev')
 
-type Base = { brands: Brand[]; settings: Record<string, string>; cat: Catalog; offer: Offer | null }
+type Base = { brands: Brand[]; settings: Record<string, string>; cat: Catalog; offer: Offer | null; teaser: Offer | null; early: boolean }
 async function base(c: C, _lang: Lang): Promise<Base> {
   const cat = await catalog(c)
-  let offer = offerNow(cat)
-  // Admin → Offers → "Preview": shows that offer (even before it starts, or switched off) to a logged-in team member only
-  const pv = Number(c.req.query('offer_preview'))
-  if (pv && getCookie(c, 'sl_admin') && (await currentAdmin(c))) {
-    const o = await c.env.DB.prepare('SELECT * FROM offers WHERE id = ?').bind(pv).first<Offer>()
-    if (o) offer = { ...o, kind: 'percent' }
+  // Release 4 early access: the offer's private link (/ar/?early=…) opens it early_hours before everyone else, in this browser only
+  let early = earlyOf(c)
+  const q = c.req.query('early') ?? ''
+  if (/^[0-9a-f]{32}$/.test(q) && cat.offers.some((o) => o.early_token === q)) {
+    early = q
+    setCookie(c, EARLY_COOKIE, q, { path: '/', httpOnly: true, secure: true, sameSite: 'Lax', maxAge: 14 * 86400 })
   }
-  return { brands: cat.brands, settings: cat.settings, cat, offer }
+  let offer = offerNow(cat, early)
+  let teaser = offer ? null : teaserNow(cat)
+  // Admin → Offers → "Preview": shows that offer (even before it starts, or switched off) to a logged-in team member only.
+  // ?offer_preview=id shows it running; ?teaser_preview=id shows its "coming soon" look.
+  const pv = Number(c.req.query('offer_preview')) || Number(c.req.query('teaser_preview'))
+  if (pv && getCookie(c, 'sl_admin') && (await currentAdmin(c))) {
+    const db = c.env.DB
+    const [o, f] = await db.batch([db.prepare('SELECT * FROM offers WHERE id = ?').bind(pv), db.prepare(`${FLASH_SQL} WHERE f.offer_id = ?`).bind(pv)])
+    const row = o.results[0] as Offer | undefined
+    if (row) {
+      const full = attachFlash([row], f.results as Flash[])[0]
+      if (c.req.query('teaser_preview')) { offer = null; teaser = full } else { offer = full; teaser = null }
+    }
+  }
+  return { brands: cat.brands, settings: cat.settings, cat, offer, teaser, early: !!offer && isEarlyNow(offer) }
 }
 
 function render(c: C, meta: Omit<PageMeta, 'origin'>, b: Base, body: unknown, status = 200) {
   // header and footer list only brands that have pieces to show
   return c.html(
-    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.cat.shopBrands} settings={b.settings} offer={b.offer}>
+    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.cat.shopBrands} settings={b.settings} offer={b.offer} teaser={b.teaser} early={b.early}>
       {body as never}
     </Layout>,
     status as 200,
@@ -105,6 +119,7 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
     <>
       <section class="wrap">
         <OfferBanner offer={b.offer} lang={lang} photo={offerPhoto} />
+        {b.offer ? null : <TeaserBanner offer={b.teaser} lang={lang} />}
         <div class="hero">
           <picture class="hero-pic">
             <source media="(max-width: 639px)" type="image/webp" srcset="/static/brand/hero-m-480.webp 480w, /static/brand/hero-m-864.webp 864w" sizes="100vw" />
@@ -415,6 +430,22 @@ function ReviewForm({ lang, productId, order }: { lang: Lang; productId?: number
   )
 }
 
+/** Release 4 notes on the product page: spend-more levels and the free gift of the live offer. */
+function OfferExtras({ b, lang, p, flash }: { b: Base; lang: Lang; p: ProductWithMedia; flash: boolean }) {
+  const o = b.offer
+  if (!o || !p.in_stock) return null
+  const tr = t(lang)
+  const tiers = o.kind === 'tiers' && !flash && discountable(p) && inScope(p, parseScope(o.scope)) ? tiersOf(o) : []
+  const gift = o.gift_product_id && o.gift_min ? b.cat.byId.get(o.gift_product_id) : undefined
+  if (!tiers.length && !(gift && gift.in_stock)) return null
+  return (
+    <div class="oextras">
+      {tiers.length ? <p class="freehint">{tr.tierNote(tiers.map((x) => tr.tierLevel(x.pct, fmtLyd(x.min))).join(' · '))}</p> : null}
+      {gift && gift.in_stock ? <p class="freehint">🎁 {tr.giftNote(pName(gift, lang), fmtLyd(o.gift_min!))}</p> : null}
+    </div>
+  )
+}
+
 function WaitForm({ lang, id }: { lang: Lang; id: number }) {
   const tr = t(lang)
   return (
@@ -479,9 +510,11 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
           <h1 class="pname">{name}</h1>
           <div class="prow">
             <Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} />
-            {sp.pct && p.in_stock ? <span class="ochip" dir="ltr">−{sp.pct}%</span> : null}
+            {sp.pct && p.in_stock ? <span class="ochip" dir="ltr">{sp.flash ? `${tr.flashTag} −${sp.pct}%` : `−${sp.pct}%`}</span> : null}
             <span class={p.in_stock ? 'instock' : 'nostock'}>{p.in_stock ? tr.inStock : tr.outOfStock}</span>
           </div>
+          {p.in_stock && sp.flash && sp.flash.left !== null ? <p class="fleft big">{tr.flashLeft(sp.flash.left)}</p> : null}
+          <OfferExtras b={b} lang={lang} p={p} flash={!!sp.flash} />
           <div class="buybar" data-buybar>
             {p.in_stock ? (
               <button class="btn wide" type="button" data-add={p.id}>{Icons.bag}{tr.addToCart}</button>
@@ -543,6 +576,34 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
 })
 
 /* ---------- cart / checkout / order ---------- */
+/* ---------- Release 4: "coming soon" page with Remind me ---------- */
+store.get('/:lang{(?:ar|en)}/offer', async (c) => {
+  const lang = c.req.param('lang') as Lang
+  const tr = t(lang)
+  const b = await base(c, lang)
+  if (b.offer) return c.redirect(`/${lang}/shop`, 302)
+  const o = b.teaser
+  if (!o) return c.redirect(`/${lang}/`, 302)
+  return render(c, { lang, path: '/offer', title: `${tr.soon} · ${tr.siteName}`, noindex: true }, b, (
+    <section class="wrap tpage">
+      <TeaserBanner offer={o} lang={lang} page />
+      <form class="form tform" data-remind={String(o.id)} novalidate>
+        <p class="wl-h"><b>{tr.remindT}</b><span>{tr.remindS}</span></p>
+        <div class="wl-row">
+          <label class="field" data-field="name"><span>{tr.wlName}</span><input name="name" maxlength={60} autocomplete="name" required /></label>
+          <label class="field" data-field="phone"><span>{tr.wlPhone}</span><input name="phone" type="tel" inputmode="tel" maxlength={20} autocomplete="tel" dir="ltr" placeholder="09XXXXXXXX" required /></label>
+        </div>
+        <input class="vh" name="website" tabindex={-1} autocomplete="off" aria-hidden="true" />
+        <p class="form-err" data-form-err hidden data-gone={tr.remindGone}></p>
+        <button class="btn wide" type="submit">{tr.remindBtn}</button>
+        <small class="muted">{tr.remindNote}</small>
+        <p class="rv-ok" data-ok hidden>{tr.remindOk}</p>
+      </form>
+      <a class="btn ghost wide" href={`/${lang}/shop`}>{tr.keepShopping}</a>
+    </section>
+  ))
+})
+
 store.get('/:lang{(?:ar|en)}/cart', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
@@ -695,7 +756,7 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
       <h2 class="h">{tr.yourOrder}</h2>
       <div class="sum">
         {v.info.lines.map((l) => (
-          <div><span><bdi>{l.brand} · {l.name}</bdi>{l.qty > 1 ? ` × ${l.qty}` : ''}</span><span>{fmtLyd((v.info.sum && l.orig_price ? l.orig_price : l.price) * l.qty)} {cur}</span></div>
+          <div class={Number(l.is_gift) ? 'r-gift' : undefined}><span><bdi>{Number(l.is_gift) ? '🎁 ' : ''}{l.brand} · {l.name}</bdi>{l.qty > 1 ? ` × ${l.qty}` : ''}</span><span>{lineValue(l, lang, !!v.info.sum)}</span></div>
         ))}
         {sumRows(v.info).map((r) => <div class={`r-${r.kind}`}><span>{r.label}</span><span>{r.value}</span></div>)}
         <div class="tot"><span>{tr.total}</span><span>{fmtLyd(v.info.total)} {cur}</span></div>

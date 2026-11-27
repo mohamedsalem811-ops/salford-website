@@ -80,6 +80,13 @@ const ar = {
   rvSend: 'أرسل رأيك', rvOk: 'شكراً لك! يظهر رأيك بعد ما نراجعه.', rvErrRating: 'اختر عدد النجوم', rvErrPhoto: 'لم نقدر نقرأ هذه الصورة. جرّب صورة أخرى.',
   rvPiece: 'القطعة', rvShop: 'سالفورد بشكل عام', rvPage: 'رأيك في طلبيتك', rvPageSub: (n: string) => `طلبية ${n}. يسعدنا نسمع منك.`,
   rvNotYet: 'تقدر تكتب رأيك بعد ما توصلك طلبيتك.', rvDone: 'وصلنا رأيك في هذه الطلبية، شكراً لك!', rvOff: 'الآراء غير متاحة حالياً.',
+  flashLeft: (n: number) => `بقي ${n} فقط بسعر العرض`, flashTag: 'عرض خاطف',
+  tierNote: (lv: string) => `كل ما زادت طلبيتك زاد خصمك: ${lv}`, tierLevel: (pct: number, x: string) => `${pct}% من ${x} د.ل`,
+  giftNote: (name: string, x: string) => `هدية مجانية (${name}) مع الطلبيات من ${x} د.ل`,
+  soon: 'قريباً', soonIn: 'يبدأ خلال', soonStarts: 'يبدأ العرض خلال', remindT: 'ذكّرني عند البدء',
+  remindS: 'اترك اسمك ورقمك ونرسل لك رسالة واتساب أول ما يبدأ العرض.', remindBtn: 'ذكّرني',
+  remindOk: 'تم! نرسل لك رسالة أول ما يبدأ العرض.', remindNote: 'نستخدم رقمك لهذه الرسالة فقط ونحذفه بعد 90 يوماً.',
+  remindGone: 'بدأ هذا العرض أو لم يعد متاحاً.', early: 'وصول مبكر',
   errTooMany: 'محاولات كثيرة. حاول بعد ساعة.',
 }
 
@@ -161,6 +168,13 @@ const en: typeof ar = {
   rvSend: 'Send review', rvOk: 'Thank you! Your review appears once we have checked it.', rvErrRating: 'Choose the number of stars', rvErrPhoto: 'We could not read this photo. Try another one.',
   rvPiece: 'Piece', rvShop: 'Salford in general', rvPage: 'Review your order', rvPageSub: (n: string) => `Order ${n}. We would love to hear from you.`,
   rvNotYet: 'You can review your order once it has been delivered.', rvDone: 'We have your review of this order, thank you!', rvOff: 'Reviews are not available right now.',
+  flashLeft: (n: number) => `Only ${n} left at this price`, flashTag: 'Flash deal',
+  tierNote: (lv: string) => `Spend more, save more: ${lv}`, tierLevel: (pct: number, x: string) => `${pct}% from ${x} LYD`,
+  giftNote: (name: string, x: string) => `Free gift (${name}) with orders from ${x} LYD`,
+  soon: 'Coming soon', soonIn: 'Starts in', soonStarts: 'The offer starts in', remindT: 'Remind me when it starts',
+  remindS: 'Leave your name and number and we will WhatsApp you as soon as the offer starts.', remindBtn: 'Remind me',
+  remindOk: 'Done! We will message you as soon as the offer starts.', remindNote: 'We use your number only for this message and delete it after 90 days.',
+  remindGone: 'This offer has started or is no longer available.', early: 'Early access',
   errTooMany: 'Too many tries. Please try again in an hour.',
 }
 

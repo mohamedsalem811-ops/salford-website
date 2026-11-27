@@ -7,8 +7,8 @@ import { lookOf, lookCss, lookFontHref, offerWords, flagSvg } from '../lib/looks
 export const isoUtc = (s: string) => (s ? s.replace(' ', 'T') + 'Z' : '')
 
 const U = {
-  ar: { d: 'يوم', h: 'ساعة', m: 'دقيقة', s: 'ثانية', ends: 'ينتهي العرض خلال' },
-  en: { d: 'days', h: 'hours', m: 'min', s: 'sec', ends: 'Ends in' },
+  ar: { d: 'يوم', h: 'ساعة', m: 'دقيقة', s: 'ثانية', ends: 'ينتهي العرض خلال', starts: 'يبدأ العرض خلال', soon: 'قريباً', early: 'وصول مبكر', remind: 'ذكّرني عند البدء' },
+  en: { d: 'days', h: 'hours', m: 'min', s: 'sec', ends: 'Ends in', starts: 'Starts in', soon: 'Coming soon', early: 'Early access', remind: 'Remind me when it starts' },
 }
 const two = (n: number) => String(Math.max(0, n)).padStart(2, '0')
 function parts(endIso: string, now = Date.now()) {
@@ -17,13 +17,13 @@ function parts(endIso: string, now = Date.now()) {
 }
 
 /** Boxes with days, hours, minutes, seconds. The page shows the right numbers before any script runs; site.js keeps them ticking. */
-export function Countdown({ end, lang, noDays }: { end: string; lang: Lang; noDays?: boolean }) {
+export function Countdown({ end, lang, noDays, starts }: { end: string; lang: Lang; noDays?: boolean; starts?: boolean }) {
   const iso = isoUtc(end)
   const p = parts(iso)
   const u = U[lang]
   const h = noDays ? p.d * 24 + p.h : p.h
   return (
-    <span class="ocd" data-cd={iso} data-nodays={noDays ? '1' : undefined} dir="ltr" role="timer" aria-label={u.ends}>
+    <span class="ocd" data-cd={iso} data-nodays={noDays ? '1' : undefined} dir="ltr" role="timer" aria-label={starts ? u.starts : u.ends}>
       {noDays ? null : <span class="u"><b data-f="d">{two(p.d)}</b><i>{u.d}</i></span>}
       <span class="u"><b data-f="h">{two(h)}</b><i>{u.h}</i></span>
       <span class="u"><b data-f="m">{two(p.m)}</b><i>{u.m}</i></span>
@@ -45,14 +45,14 @@ export function OfferHead({ offer }: { offer: Offer | null }) {
   )
 }
 
-export function OfferStrip({ offer, lang }: { offer: Offer | null; lang: Lang }) {
-  if (!offer || !offer.show_strip) return null
+export function OfferStrip({ offer, lang, early }: { offer: Offer | null; lang: Lang; early?: boolean }) {
+  if (!offer || (!offer.show_strip && !early)) return null
   const look = lookOf(offer.template)
   const w = offerWords(offer, lang)
   const p = offer.ends_at ? parts(isoUtc(offer.ends_at)) : null
   return (
     <a class="ostrip" href={`/${lang}/shop`}>
-      <span>{w.strip}</span>
+      {early ? <b>{U[lang].early} · </b> : null}<span>{w.strip || w.name}</span>
       {look.stripCd && p && offer.show_countdown ? (
         <> · <bdi dir="ltr" class="ocd-t" data-cd={isoUtc(offer.ends_at)} data-txt="1">{`${two(p.d * 24 + p.h)}:${two(p.m)}:${two(p.s)}`}</bdi></>
       ) : null}
@@ -69,7 +69,7 @@ export function OfferBanner({ offer, lang, photo }: { offer: Offer | null; lang:
     <>
       {look.emb === 'flag' ? <span class="oflag" dangerouslySetInnerHTML={{ __html: flagSvg() }} /> : null}
       <span class={`okick${look.kick ? ' ' + look.kick : ''}`}>{w.kick}</span>
-      <span class="ottl">{w.ttl}</span>
+      <span class="ottl">{w.ttl || w.name}</span>
       {w.sub ? <span class="osub">{w.sub}</span> : null}
       {cd}
       <span class="obtn">{w.btn}</span>
@@ -77,7 +77,7 @@ export function OfferBanner({ offer, lang, photo }: { offer: Offer | null; lang:
   )
   const photoLayout = look.layout === 'photo' && photo
   return (
-    <a class={`obanner${photoLayout ? ' photo' : ''}${look.dark ? ' dark' : ''}`} href={`/${lang}/shop`} style={look.pt ? `padding-top:${look.pt}px` : undefined} aria-label={`${w.ttl}. ${w.sub}`}>
+    <a class={`obanner${photoLayout ? ' photo' : ''}${look.dark ? ' dark' : ''}`} href={`/${lang}/shop`} style={look.pt ? `padding-top:${look.pt}px` : undefined} aria-label={`${w.ttl || w.name}. ${w.sub}`}>
       {look.orn ? <span class="orn" aria-hidden="true" dangerouslySetInnerHTML={{ __html: look.orn }} /> : null}
       {photoLayout ? (
         <>
@@ -89,8 +89,44 @@ export function OfferBanner({ offer, lang, photo }: { offer: Offer | null; lang:
   )
 }
 
+/** Release 4 "coming soon": the strip and banner count down to the start and lead to the Remind me page. */
+export function TeaserStrip({ offer, lang }: { offer: Offer | null; lang: Lang }) {
+  if (!offer || !offer.show_strip || !offer.starts_at) return null
+  const w = offerWords(offer, lang)
+  const p = parts(isoUtc(offer.starts_at))
+  return (
+    <a class="tstrip" href={`/${lang}/offer`}>
+      <span>{U[lang].soon}: {w.name}</span> · <span>{U[lang].starts}</span>{' '}
+      <bdi dir="ltr" class="ocd-t" data-cd={isoUtc(offer.starts_at)} data-txt="1">{`${two(p.d * 24 + p.h)}:${two(p.m)}:${two(p.s)}`}</bdi>
+    </a>
+  )
+}
+
+export function TeaserBanner({ offer, lang, page }: { offer: Offer | null; lang: Lang; page?: boolean }) {
+  if (!offer || !offer.starts_at || (!offer.show_banner && !page)) return null
+  const look = lookOf(offer.template)
+  const w = offerWords(offer, lang)
+  const inner = (
+    <>
+      {look.orn ? <span class="orn" aria-hidden="true" dangerouslySetInnerHTML={{ __html: look.orn }} /> : null}
+      {look.emb === 'flag' ? <span class="oflag" dangerouslySetInnerHTML={{ __html: flagSvg() }} /> : null}
+      <span class={`okick${look.kick ? ' ' + look.kick : ''}`}>{U[lang].soon}</span>
+      <span class="ottl">{w.ttl || w.name}</span>
+      {w.sub ? <span class="osub">{w.sub}</span> : null}
+      <span class="osub">{U[lang].starts}</span>
+      <Countdown end={offer.starts_at} lang={lang} starts />
+      {page ? null : <span class="obtn">{U[lang].remind}</span>}
+    </>
+  )
+  const cls = `obanner tbanner${look.dark ? ' dark' : ''}`
+  return page
+    ? <div class={cls} style={look.pt ? `padding-top:${look.pt}px` : undefined}>{inner}</div>
+    : <a class={cls} href={`/${lang}/offer`} style={look.pt ? `padding-top:${look.pt}px` : undefined}>{inner}</a>
+}
+
 /** The small "−24%" on product photos. */
 export const OfferBadge = ({ offer, lang, pct }: { offer: Offer; lang: Lang; pct: number }) => {
-  const w = offerWords(offer, lang)
-  return <span class="obadge" dir="ltr">{w.badge || `−${pct}%`}</span>
+  // the team's own badge words, else this product's own % (flash deals and percent offers differ per product)
+  const own = lang === 'ar' ? offer.badge_ar : offer.badge_en
+  return <span class="obadge" dir="ltr">{own || `−${pct}%`}</span>
 }

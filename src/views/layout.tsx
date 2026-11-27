@@ -8,7 +8,7 @@ import { waNumber, igHandle } from '../lib/orders'
 import { assetPath } from '../lib/assets'
 import type { Offer } from '../lib/pricing'
 import { shopPrice } from '../lib/pricing'
-import { OfferHead, OfferStrip, OfferBadge } from './offer'
+import { OfferHead, OfferStrip, OfferBadge, TeaserStrip } from './offer'
 
 declare const __BUILD__: string
 export const V = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'
@@ -48,7 +48,7 @@ export const bname = (n: string) => n.replace(/ & /g, ' &\u00a0')
 /** 2189XXXXXXXX → +218 9X XXX XXXX */
 const prettyPhone = (d: string) => (/^218\d{9}$/.test(d) ? `+218 ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : `+${d}`)
 
-export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<string, string>; offer?: Offer | null; children: Child }) {
+export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<string, string>; offer?: Offer | null; teaser?: Offer | null; early?: boolean; children: Child }) {
   const { lang, path, origin } = props
   const tr = t(lang)
   const other: Lang = lang === 'ar' ? 'en' : 'ar'
@@ -94,11 +94,11 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600&family=Cormorant+Garamond:wght@600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" />
         <link rel="stylesheet" href={assetPath('site.css', V)} />
-        <OfferHead offer={props.offer ?? null} />
+        <OfferHead offer={props.offer ?? props.teaser ?? null} />
       </head>
       <body data-lang={lang}>
         <a class="skip" href="#main">{lang === 'ar' ? 'تخطَّ إلى المحتوى' : 'Skip to content'}</a>
-        <OfferStrip offer={props.offer ?? null} lang={lang} />
+        {props.offer ? <OfferStrip offer={props.offer} lang={lang} early={props.early} /> : <TeaserStrip offer={props.teaser ?? null} lang={lang} />}
         <header class="top">
           <div class="top-in">
             <a class="logo" href={`/${lang}/`} aria-label={tr.siteName}>
@@ -219,6 +219,7 @@ export function Card({ p, lang, brands, eager, offer }: { p: ProductWithMedia; l
       <span class="bd">{brand?.name}</span>
       <span class="nm">{pName(p, lang)}</span>
       {p.in_stock ? <Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /> : <span class="soldout">{tr.outOfStock}</span>}
+      {p.in_stock && sp.flash && sp.flash.left !== null ? <span class="fleft">{tr.flashLeft(sp.flash.left)}</span> : null}
     </a>
   )
 }

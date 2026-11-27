@@ -161,21 +161,24 @@ export const lookOf = (id: string): Look => LOOKS[(LOOK_IDS as string[]).include
 export const fill = (s: string, pct: number, year: number) => s.replace(/\{pct\}/g, String(pct)).replace(/\{year\}/g, String(year))
 
 /** The offer's own words, or the look's default wording in that language. */
-export function offerWords(o: { template: string; percent: number; starts_at: string; ends_at?: string; banner_ar: string; banner_en: string; sub_ar: string; sub_en: string; kicker_ar: string; kicker_en: string; caption_ar: string; caption_en: string; badge_ar: string; badge_en: string; name_ar: string; name_en: string }, lang: Lang) {
+export function offerWords(o: { template: string; percent: number; kind?: string; starts_at: string; ends_at?: string; banner_ar: string; banner_en: string; sub_ar: string; sub_en: string; kicker_ar: string; kicker_en: string; caption_ar: string; caption_en: string; badge_ar: string; badge_en: string; name_ar: string; name_en: string }, lang: Lang) {
   const look = lookOf(o.template)
   const d = look.copy[lang]
   const when = o.starts_at || o.ends_at || new Date().toISOString()
   const year = Number(when.slice(0, 4)) || new Date().getUTCFullYear()
   // New Year offers often run in late December: the banner should show the coming year
   const y = look.id === 'ny' && when.slice(5, 7) === '12' ? year + 1 : year
-  const pick = (ar: string, en: string, def: string) => (lang === 'ar' ? ar : en) || fill(def, o.percent, y)
+  // "extras only" offers have no percent: default words that mention one are left out (the team writes their own)
+  // spend-more offers: the % is the top level, so the default words say "up to"
+  const upTo = (def: string) => (o.kind === 'tiers' ? def.replace(/\{pct\}%/g, lang === 'ar' ? 'حتى {pct}%' : 'up to {pct}%') : def)
+  const pick = (ar: string, en: string, def: string) => (lang === 'ar' ? ar : en) || (o.kind === 'none' && def.includes('{pct}') ? '' : fill(upTo(def), o.percent, y))
   return {
     name: (lang === 'ar' ? o.name_ar : o.name_en) || (lang === 'ar' ? o.name_en : o.name_ar) || d.name,
     strip: pick(o.caption_ar, o.caption_en, d.strip),
     kick: pick(o.kicker_ar, o.kicker_en, d.kick),
     ttl: pick(o.banner_ar, o.banner_en, d.ttl),
     sub: pick(o.sub_ar, o.sub_en, d.sub),
-    badge: (lang === 'ar' ? o.badge_ar : o.badge_en) || `−${o.percent}%`,
+    badge: (lang === 'ar' ? o.badge_ar : o.badge_en) || (o.kind === 'none' ? '' : `−${o.percent}%`),
     btn: d.btn,
   }
 }

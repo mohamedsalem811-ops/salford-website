@@ -2,8 +2,8 @@ import { Hono } from 'hono'
 import type { Env } from '../lib/db'
 import { getBrands, getSettings, fmtLyd, pName } from '../lib/db'
 import { lookOf } from '../lib/looks'
-import { catalog, productsByIds, offerNow } from '../lib/catalog'
-import { shopPrice } from '../lib/pricing'
+import { catalog, productsByIds, offerNow, earlyOf, bumpCatalog } from '../lib/catalog'
+import { shopPrice, isEarlyNow, tiersOf } from '../lib/pricing'
 import type { Quote } from '../lib/pricing'
 import { parseItems, loadFromCatalog, loadFresh, runQuote, placeName } from '../lib/checkout'
 import { firstImage, mediaUrl } from '../lib/media'
@@ -23,14 +23,14 @@ api.get('/cart', async (c) => {
   const cat = await catalog(c)
   const withMedia = productsByIds(cat, ids)
   const brands = cat.allBrands
-  const offer = offerNow(cat)
+  const offer = offerNow(cat, earlyOf(c))
   return c.json({
     items: withMedia.map((p) => {
       const img = firstImage(p.media)
       const sp = shopPrice(p, offer)
       return {
         id: p.id, code: p.code, name: pName(p, lang), brand: brands.find((b) => b.id === p.brand_id)?.name ?? '',
-        price: sp.price, priceText: fmtLyd(sp.price), was: sp.was, inStock: !!p.in_stock, image: img ? mediaUrl(img, 400) : '',
+        price: sp.price, priceText: fmtLyd(sp.price), was: sp.was, flashLeft: sp.flash ? sp.flash.left : undefined, inStock: !!p.in_stock, image: img ? mediaUrl(img, 400) : '',
       }
     }),
   })
@@ -41,13 +41,23 @@ const ipHashOf = async (c: { req: { header: (k: string) => string | undefined } 
 const areaIdOf = (v: unknown) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : 0 }
 
 /** What the cart and checkout show; the same sums the order will be charged (prices from the shop, never from the browser). */
-function quoteJson(q: Quote, lang: Lang) {
+function quoteJson(q: Quote, lang: Lang, giftOf?: (id: number) => { name: string; image: string } | null) {
   const o = q.offer
   const d = q.delivery
+  const giftInfo = o?.gift_product_id && giftOf ? giftOf(o.gift_product_id) : null
   return {
     subtotal: q.subtotal, discount: q.discount, kind: q.kind, items: q.items, fee: q.fee, total: q.total,
-    lines: q.lines.map((l) => ({ id: l.id, qty: l.qty, orig: l.orig, price: l.price })),
-    offer: o ? { name: (lang === 'ar' ? o.name_ar || o.name_en : o.name_en || o.name_ar) || lookOf(o.template).occasion[lang], pct: o.percent, ends: o.ends_at } : null,
+    lines: q.lines.map((l) => ({ id: l.id, qty: l.qty, orig: l.orig, price: l.price, ...(l.flash ? { flash: true } : {}) })),
+    offer: o ? {
+      name: (lang === 'ar' ? o.name_ar || o.name_en : o.name_en || o.name_ar) || lookOf(o.template).occasion[lang], pct: o.percent, ends: o.ends_at, kind: o.kind,
+      tiers: o.kind === 'tiers' ? tiersOf(o) : [],
+    } : null,
+    flashSaving: q.flashSaving, flashShort: q.flashShort, offerSaving: q.offerSaving,
+    tier: q.tier,
+    // R4: the free gift added to this order, or how much more until it (only while the gift is in stock)
+    gift: q.gift && giftInfo ? { ...giftInfo, orig: q.gift.orig } : null,
+    giftNeed: giftInfo ? q.giftNeed : 0,
+    giftName: giftInfo && !q.gift && q.giftNeed > 0 ? giftInfo.name : '',
     code: q.code ? { code: q.code.code, status: q.code.status, saving: q.code.saving, min: q.code.min ?? 0, kind: q.code.row?.kind ?? '', value: q.code.row?.value ?? 0 } : null,
     loyalty: q.loyalty ? { pct: q.loyalty.pct, saving: q.loyalty.saving } : null,
     delivery: {
@@ -74,9 +84,14 @@ api.post('/quote', async (c) => {
     const r = await db.prepare("SELECT count(*) AS n FROM attempts WHERE kind = 'code' AND ip_hash = ? AND at > datetime('now', '-1 hour')").bind(ipHash).first<{ n: number }>()
     slow = (r?.n ?? 0) >= CODE_TRIES
   }
-  const loaded = await loadFromCatalog(db, cat, want, body.code, phone, areaIdOf(body.area_id), !slow)
+  const loaded = await loadFromCatalog(db, cat, want, body.code, phone, areaIdOf(body.area_id), !slow, earlyOf(c))
   const q = runQuote(loaded, want, !!phone)
-  const out = quoteJson(q, lang)
+  const out = quoteJson(q, lang, (id) => {
+    const g = loaded.gift && loaded.gift.id === id && loaded.gift.in_stock ? productsByIds(cat, [id])[0] : null
+    if (!g) return null
+    const img = firstImage(g.media)
+    return { name: pName(g, lang), image: img ? mediaUrl(img, 400) : '' }
+  })
   if (out.code && slow) out.code.status = 'slow' as never
   else if (out.code?.status === 'invalid' && ipHash) {
     await db.batch([
@@ -132,7 +147,7 @@ api.post('/orders', async (c) => {
   if ((recent?.byPhone ?? 0) >= 5 || (recent?.byIp ?? 0) >= 15) return c.json({ error: 'too_many' }, 429)
 
   // R7: everything recalculated from fresh rows: products, offer, code (with its use counts) and the delivery area
-  const loaded = await loadFresh(c.env.DB, want, body.code, phone, areaId)
+  const loaded = await loadFresh(c.env.DB, want, body.code, phone, areaId, earlyOf(c))
   if (!loaded.products.length) return c.json({ error: 'unavailable' }, 409)
   const area = loaded.deliveryOn ? loaded.area : null
   const place = area ? placeName(area, lang) : null
@@ -143,8 +158,12 @@ api.post('/orders', async (c) => {
   const byId = new Map(loaded.products.map((p) => [p.id, p]))
   const lines = q.lines.map((l) => {
     const p = byId.get(l.id)!
-    return { product_id: p.id, code: p.code, brand: brands.find((b) => b.id === p.brand_id)?.name ?? '', name: pName(p, lang), price: l.price, orig_price: l.orig, qty: l.qty }
+    return { product_id: p.id, code: p.code, brand: brands.find((b) => b.id === p.brand_id)?.name ?? '', name: pName(p, lang), price: l.price, orig_price: l.orig, qty: l.qty, flash_id: l.flash ?? null, is_gift: 0 }
   })
+  // R4: one free gift per order (price 0), added as its own line
+  const g = q.gift && loaded.gift && loaded.gift.id === q.gift.id ? loaded.gift : null
+  if (g) lines.push({ product_id: g.id, code: g.code, brand: brands.find((b) => b.id === g.brand_id)?.name ?? '', name: pName(g, lang), price: 0, orig_price: q.gift!.orig, qty: 1, flash_id: null, is_gift: 1 })
+  const early = isEarlyNow(q.offer) ? 1 : 0
   const unavailable = [...want.keys()].filter((id) => !byId.has(id))
   const o = q.offer
   const offerName = q.kind === 'offer' && o ? (lang === 'ar' ? o.name_ar || o.name_en : o.name_en || o.name_ar) || lookOf(o.template).occasion[lang] : ''
@@ -161,20 +180,22 @@ api.post('/orders', async (c) => {
   const token = randomToken()
   const ins = await c.env.DB.prepare(
     `INSERT INTO orders (name, phone, city, address, note, payment, channel, lang, total, view_token, ip_hash,
-      subtotal, discount_total, discount_kind, offer_id, offer_name, code, loyalty, area, area_id, delivery_fee, delivery_free, delivery_chat, delivery_time)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      subtotal, discount_total, discount_kind, offer_id, offer_name, code, loyalty, area, area_id, delivery_fee, delivery_free, delivery_chat, delivery_time, gift, early)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
   )
     .bind(name, phone, city, address, note, payment, channel, lang, q.total, token, ipHash,
-      q.subtotal, q.discount, q.kind, q.kind === 'offer' && o ? o.id : null, offerName, sum.code, loyalty, sum.area, area ? area.id : null,
-      q.fee, sum.delivery === 'free' ? 1 : 0, sum.delivery === 'chat' ? 1 : 0, sum.time)
+      q.subtotal, q.discount, q.kind, o && (q.kind === 'offer' || q.flashSaving > 0 || g) ? o.id : null, offerName, sum.code, loyalty, sum.area, area ? area.id : null,
+      q.fee, sum.delivery === 'free' ? 1 : 0, sum.delivery === 'chat' ? 1 : 0, sum.time, g ? pName(g, lang) : '', early)
     .first<{ id: number }>()
   const id = ins!.id
   const number = `SL-${1000 + id}`
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE orders SET number = ? WHERE id = ?').bind(number, id),
     c.env.DB.prepare("INSERT INTO order_events (order_id, status) VALUES (?, 'new')").bind(id),
-    ...lines.map((l) => c.env.DB.prepare('INSERT INTO order_items (order_id, product_id, code, brand, name, price, qty, orig_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, l.product_id, l.code, l.brand, l.name, l.price, l.qty, l.orig_price)),
+    ...lines.map((l) => c.env.DB.prepare('INSERT INTO order_items (order_id, product_id, code, brand, name, price, qty, orig_price, flash_id, is_gift) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, l.product_id, l.code, l.brand, l.name, l.price, l.qty, l.orig_price, l.flash_id, l.is_gift)),
   ])
+  // flash deals: the shop's "X left" counts this order straight away
+  if (lines.some((l) => l.flash_id)) await bumpCatalog(c.env.DB)
   const track = trackUrl(new URL(c.req.url).origin, lang, number, token)
   const message = buildMessage({ lang, number, lines, total: q.total, name, phone, city, address, note, payment, sum, track })
   const codeNote = q.code && q.code.status !== 'ok' ? q.code.status : ''
@@ -222,6 +243,32 @@ api.post('/waitlist', async (c) => {
     db.prepare(`INSERT INTO waitlist (product_id, name, phone, lang, ip_hash) VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(product_id, phone) DO UPDATE SET name = excluded.name, lang = excluded.lang, ip_hash = excluded.ip_hash, created_at = datetime('now'), notified_at = NULL`).bind(pid, name, phone, lang, ipHash),
     db.prepare(`DELETE FROM waitlist WHERE created_at < datetime('now', '-${WAITLIST_DAYS} days')`),
+  ])
+  return c.json({ ok: true })
+})
+
+/** Release 4 "Remind me": one entry per phone per offer, only while the offer has not started. Deleted after 90 days. */
+const REMIND_TRIES = 10
+api.post('/remind', async (c) => {
+  let body: Record<string, unknown>
+  try { body = await c.req.json() } catch { return c.json({ error: 'bad_request' }, 400) }
+  if (String(body.website ?? '')) return c.json({ error: 'bad_request' }, 400)
+  const db = c.env.DB
+  const lang: Lang = isLang(String(body.lang)) ? (body.lang as Lang) : 'ar'
+  const oid = Number(body.offer_id)
+  const name = clean(body.name, 60)
+  const phone = normalizePhone(String(body.phone ?? '')) ?? ''
+  const fields = [...(name ? [] : ['name']), ...(phone ? [] : ['phone'])]
+  if (!Number.isInteger(oid) || oid <= 0) fields.push('offer')
+  if (fields.length) return c.json({ error: 'invalid', fields }, 422)
+  const o = await db.prepare("SELECT id FROM offers WHERE id = ? AND enabled = 1 AND teaser_days > 0 AND starts_at > datetime('now')").bind(oid).first()
+  if (!o) return c.json({ error: 'gone' }, 409)
+  const ipHash = await ipHashOf(c, 'sl-remind:')
+  if (await overLimit(db, 'remind', ipHash, REMIND_TRIES)) return c.json({ error: 'too_many' }, 429)
+  await db.batch([
+    db.prepare(`INSERT INTO offer_reminders (offer_id, name, phone, lang, ip_hash) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(offer_id, phone) DO UPDATE SET name = excluded.name, lang = excluded.lang, ip_hash = excluded.ip_hash, created_at = datetime('now')`).bind(oid, name, phone, lang, ipHash),
+    db.prepare("DELETE FROM offer_reminders WHERE created_at < datetime('now', '-90 days')"),
   ])
   return c.json({ ok: true })
 })

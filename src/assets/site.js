@@ -14,7 +14,11 @@
       code: { ok: function (x) { return 'تم تطبيق الكود، وفّرت ' + x + ' د.ل'; }, not_better: function (o) { return 'عرض ' + o + ' يعطيك سعراً أفضل، فطبّقناه بدل الكود'; }, not_better_loyal: 'خصم الوفاء يعطيك سعراً أفضل، فطبّقناه بدل الكود',
         invalid: 'هذا الكود غير صحيح', expired: 'هذا الكود منتهي أو لم يبدأ بعد', used_up: 'هذا الكود وصل للحد الأقصى من الاستخدام',
         used: 'استخدمت هذا الكود من قبل بهذا الرقم', min: function (x) { return 'هذا الكود يعمل للطلبيات من ' + x + ' د.ل'; },
-        no_items: 'هذا الكود لا ينطبق على القطع في سلتك', slow: 'محاولات كثيرة، حاول بعد قليل' } },
+        no_items: 'هذا الكود لا ينطبق على القطع في سلتك', slow: 'محاولات كثيرة، حاول بعد قليل' },
+      tierNext: function (x, p) { return 'أضف ' + x + ' د.ل وتحصل على خصم ' + p + '%'; }, tierOn: function (p) { return 'طبّقنا خصم ' + p + '% على طلبيتك'; },
+      tierTop: function (p) { return 'حصلت على أعلى خصم: ' + p + '%'; },
+      giftMore: function (x, n) { return 'أضف ' + x + ' د.ل وتحصل على هدية مجانية: ' + n; }, giftYes: 'هدية مجانية مع طلبيتك', giftW: 'هدية مجانية',
+      flashShort: function (n) { return 'بقي ' + n + ' فقط بسعر العرض الخاطف، فحسبنا القطعة بسعرها العادي. قلّل الكمية إلى ' + n + ' لتحصل على سعر العرض'; } },
     en: { added: 'Added to cart', remove: 'Remove', items: 'Items', delivery: 'Delivery', byCity: 'Depends on city', total: 'Total',
       cont: 'Continue', empty: 'Your cart is empty. Have a look at what’s new.', shop: 'Shop now', note: 'We confirm price and availability with you before sending.',
       cur: 'LYD', out: 'Out of stock', errName: 'Enter your name', errPhone: 'Enter a valid Libyan phone number, e.g. 0912345678', errCity: 'Enter your city',
@@ -26,7 +30,11 @@
       code: { ok: function (x) { return 'Code applied: you save ' + x + ' LYD'; }, not_better: function (o) { return 'The ' + o + ' offer gives you a better price, so we applied it instead'; }, not_better_loyal: 'Your loyalty discount gives you a better price, so we applied it instead',
         invalid: 'This code is not valid', expired: 'This code has ended or has not started yet', used_up: 'This code has reached its limit',
         used: 'You have already used this code with this phone number', min: function (x) { return 'This code works on orders from ' + x + ' LYD'; },
-        no_items: 'This code does not apply to the pieces in your cart', slow: 'Too many tries, please wait a little' } }
+        no_items: 'This code does not apply to the pieces in your cart', slow: 'Too many tries, please wait a little' },
+      tierNext: function (x, p) { return 'Add ' + x + ' LYD to get ' + p + '% off'; }, tierOn: function (p) { return p + '% off is applied to your order'; },
+      tierTop: function (p) { return 'You have the top discount: ' + p + '%'; },
+      giftMore: function (x, n) { return 'Add ' + x + ' LYD for a free gift: ' + n; }, giftYes: 'Free gift with your order', giftW: 'Free gift',
+      flashShort: function (n) { return 'Only ' + n + ' left at the flash price, so this piece is at its normal price. Lower the quantity to ' + n + ' to get the flash price'; } }
   }[lang];
 
   /* ---------- small helpers ---------- */
@@ -100,6 +108,25 @@
     if (!d.deliveryOn || !d.freeMin) return '';
     return '<p class="freehint">' + esc(d.items >= d.freeMin ? T.freeYes : T.freeMore(money(d.freeMin - d.items))) + '</p>';
   }
+  // Release 4: spend-more levels, free gift and flash-deal notes (all from the server's quote)
+  function offerHints(d) {
+    var h = '', t = d.tier;
+    if (t && (t.next || t.pct)) {
+      var w = t.next ? Math.max(4, Math.min(100, Math.round(t.base * 100 / t.next.min))) : 100;
+      h += '<div class="tierbar"><p>' + esc(t.next ? (t.pct ? T.tierOn(t.pct) + ' · ' : '') + T.tierNext(money(t.next.need), t.next.pct) : T.tierTop(t.pct)) +
+        '</p><span class="bar" aria-hidden="true"><i style="width:' + w + '%"></i></span></div>';
+    }
+    if (d.gift) h += '<p class="freehint gift">🎁 ' + esc(T.giftYes) + ': ' + esc(d.gift.name) + '</p>';
+    else if (d.giftNeed > 0 && d.giftName) h += '<p class="freehint gift">🎁 ' + esc(T.giftMore(money(d.giftNeed), d.giftName)) + '</p>';
+    (d.flashShort || []).forEach(function (f) { h += '<p class="code-msg bad">' + esc(T.flashShort(f.left)) + '</p>'; });
+    return h;
+  }
+  function giftLine(d, img) {
+    if (!d.gift) return '';
+    return img
+      ? '<div class="line gift">' + (d.gift.image ? '<img src="' + esc(d.gift.image) + '" alt="" loading="lazy">' : '<span></span>') + '<div><span class="bd">🎁 ' + esc(T.giftW) + '</span><div class="nm">' + esc(d.gift.name) + '</div></div><span class="price sale">' + esc(T.delFree) + ' <s>' + money(d.gift.orig) + '</s></span></div>'
+      : '<div class="r-gift"><span><bdi>🎁 ' + esc(d.gift.name) + '</bdi></span><span>' + esc(T.giftW) + '</span></div>';
+  }
   function renderCart() {
     var c = cart();
     if (!c.length) { cartEl.innerHTML = '<p class="empty">' + esc(T.empty) + '</p><a class="btn wide" href="/' + lang + '/">' + esc(T.shop) + '</a>'; return; }
@@ -117,8 +144,9 @@
             : '<span class="soldout">' + esc(T.out) + '</span>') +
           ' <button class="linkbtn" type="button" data-rm="' + it.id + '">' + esc(T.remove) + '</button></div>' + (it.inStock ? lineHtml(it) : '<span class="price muted">—</span>') + '</div>';
       });
+      html += giftLine(d, true);
       html += '<div class="sum">' + discRows(d) + row(T.delivery, '<span class="muted">' + esc(d.deliveryOn ? T.byArea : T.byCity) + '</span>') +
-        '<div class="tot"><span>' + T.total + '</span><span>' + cur(d.items) + '</span></div></div>' + freeHint(d) + '<p class="muted">' + esc(T.note) + '</p>' +
+        '<div class="tot"><span>' + T.total + '</span><span>' + cur(d.items) + '</span></div></div>' + offerHints(d) + freeHint(d) + '<p class="muted">' + esc(T.note) + '</p>' +
         (d.items ? '<a class="btn wide" href="/' + lang + '/checkout">' + esc(T.cont) + '</a>' : '');
       cartEl.innerHTML = html;
     }).catch(function () { cartEl.innerHTML = '<p class="form-err">' + esc(T.err) + '</p>'; });
@@ -173,6 +201,7 @@
         n += it.qty;
         html += '<div><span><bdi>' + esc(it.brand) + ' · ' + esc(it.name) + '</bdi>' + (it.qty > 1 ? ' × ' + it.qty : '') + '</span>' + lineHtml(it) + '</div>';
       });
+      html += giftLine(d, false);
       html += discRows(d);
       var dl = d.delivery || { mode: 'off' }, needArea = d.deliveryOn && citySel && (!citySel.value || (!areaWrap.hidden && areaSel.value === ''));
       if (d.deliveryOn) {
@@ -181,7 +210,7 @@
         if (!needArea && dl.time) html += row(T.time, esc(dl.time));
       }
       html += '<div class="tot"><span>' + (d.fee > 0 ? T.totDel : T.total) + ' (' + n + ')</span><span>' + cur(d.total) + '</span></div>';
-      $('#co-summary').innerHTML = html + freeHint(d) + (d.kind === 'loyalty' && d.loyalty ? '<p class="freehint loyal">' + esc(T.loyalHi(d.loyalty.pct)) + '</p>' : '');
+      $('#co-summary').innerHTML = html + offerHints(d) + freeHint(d) + (d.kind === 'loyalty' && d.loyalty ? '<p class="freehint loyal">' + esc(T.loyalHi(d.loyalty.pct)) + '</p>' : '');
       if (codeMsg) {
         var cs = d.code, m = '';
         if (cs) {
@@ -435,6 +464,7 @@
           var f = (d.fields || [])[0];
           if (r.status === 429) show(R3.many);
           else if (d.error === 'done') show(R3.done);
+          else if (d.error === 'gone') { var g = $('[data-form-err]', form); show(g.getAttribute('data-gone') || T.err); }
           else if (d.error === 'in_stock') { show(R3.back); setTimeout(function () { location.reload(); }, 1200); }
           else if (d.error === 'photo' || r.status === 413) show(R3.photo, 'photo');
           else if (f === 'name') show(T.errName, 'name');
@@ -451,6 +481,14 @@
       if (!name) { show(T.errName, 'name'); return null; }
       if (!phone) { show(T.errPhone, 'phone'); return null; }
       return fetch('/api/waitlist', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ product_id: Number(form.getAttribute('data-waitlist')), name: name, phone: phone, lang: lang, website: F.website.value }) });
+    });
+  });
+  $$('[data-remind]').forEach(function (form) {
+    r3Form(form, function (show) {
+      var F = form.elements, name = F.name.value.trim(), phone = libyanPhone(F.phone.value);
+      if (!name) { show(T.errName, 'name'); return null; }
+      if (!phone) { show(T.errPhone, 'phone'); return null; }
+      return fetch('/api/remind', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ offer_id: Number(form.getAttribute('data-remind')), name: name, phone: phone, lang: lang, website: F.website.value }) });
     });
   });
   $$('[data-review-form]').forEach(function (form) {

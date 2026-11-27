@@ -7,7 +7,9 @@ import { Hono } from 'hono'
 import type { Env } from '../lib/db'
 import { fmtLyd, toDirham, getBrands, getCategories, getSettings } from '../lib/db'
 import type { Offer, Code, City, Area } from '../lib/pricing'
-import { isLive, liveOffer, utcNow, parseScope, normalizeCode } from '../lib/pricing'
+import { isLive, liveOffer, utcNow, parseScope, normalizeCode, parseTiers, percentOff } from '../lib/pricing'
+import { FLASH_SQL } from '../lib/catalog'
+import { randomToken } from '../lib/orders'
 import { LOOKS, LOOK_IDS, lookOf, fill, type Look } from '../lib/looks'
 import { Shell, libyaTime, libyaToUtc, utcToLibyaInput } from '../views/admin-shell'
 
@@ -45,7 +47,7 @@ const LookChip = ({ look, pct }: { look: Look; pct: number }) => {
 }
 
 r1Pages.get('/offers', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM offers ORDER BY id DESC').all<Offer>()
+  const { results } = await c.env.DB.prepare('SELECT o.*, (SELECT count(*) FROM offer_flash f WHERE f.offer_id = o.id) AS nflash FROM offers o ORDER BY o.id DESC').all<Offer>()
   return c.html(
     <Shell title="Offers" nav="offers">
       <div class="a-head"><h1>Offers</h1><a class="a-btn p" href="/admin/offers/new">New offer</a></div>
@@ -60,11 +62,16 @@ r1Pages.get('/offers', async (c) => {
               <tr>
                 <td><a href={`/admin/offers/${o.id}`}><b dir="auto">{o.name_en || o.name_ar || lookOf(o.template).occasion.en}</b></a></td>
                 <td>{lookOf(o.template).occasion.en}</td>
-                <td class="num">{o.percent}%{o.free_delivery ? <span class="tag">free delivery</span> : null}</td>
+                <td class="num">{o.kind === 'tiers' ? `up to ${o.percent}% (levels)` : o.kind === 'none' ? 'Extras only' : `${o.percent}%`}
+                  {o.free_delivery ? <span class="tag">free delivery</span> : null}
+                  {(o as Offer & { nflash: number }).nflash ? <span class="tag">{(o as Offer & { nflash: number }).nflash} flash</span> : null}
+                  {o.gift_product_id ? <span class="tag">gift</span> : null}
+                  {o.teaser_days ? <span class="tag">coming soon</span> : null}
+                  {o.early_hours ? <span class="tag">early access</span> : null}</td>
                 <td class="num">{when(o.starts_at)}</td>
                 <td class="num">{when(o.ends_at)}</td>
                 <td><span class={`tag ${cls}`}>{st}</span></td>
-                <td><a class="a-btn sm" href={`/ar/?offer_preview=${o.id}`} target="_blank" rel="noopener">Preview ↗</a></td>
+                <td class="a-btns"><a class="a-btn sm" href={`/ar/?offer_preview=${o.id}`} target="_blank" rel="noopener">Preview ↗</a><a class="a-btn sm" href={`/admin/offers/${o.id}/report`}>Report</a></td>
               </tr>
             )
           })}</tbody>
@@ -77,8 +84,14 @@ r1Pages.get('/offers', async (c) => {
 r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
   const isNew = c.req.param('id') === 'new'
   const look0 = (c.req.query('look') && (LOOK_IDS as string[]).includes(c.req.query('look')!) ? c.req.query('look') : 'ind') as string
+  // from the occasions calendar: ?look=&pct=&start=YYYY-MM-DD (starts 00:00 Libya time, ends 3 days later, 1 day for a flash sale)
+  const pct0 = Math.floor(Number(c.req.query('pct')))
+  const day0 = /^\d{4}-\d{2}-\d{2}$/.test(c.req.query('start') ?? '') ? c.req.query('start')! : ''
+  const start0 = day0 ? libyaToUtc(`${day0}T00:00`) ?? '' : ''
+  const end0 = day0 ? libyaToUtc(`${new Date(Date.parse(day0) + (look0 === 'flash' ? 1 : 3) * 86400000).toISOString().slice(0, 10)}T00:00`) ?? '' : ''
   const blank = {
-    id: 0, template: look0, name_ar: '', name_en: '', starts_at: '', ends_at: '', enabled: 1, percent: LOOKS[look0 as 'ind'].pct, scope: '{"all":true}',
+    id: 0, template: look0, name_ar: '', name_en: '', starts_at: start0, ends_at: end0, enabled: 1, percent: pct0 >= 1 && pct0 <= 90 ? pct0 : LOOKS[look0 as 'ind'].pct, scope: '{"all":true}', kind: 'percent', tiers: '[]',
+    gift_product_id: null, gift_min: 0, teaser_days: 0, early_hours: 0, early_token: '',
     free_delivery: 0, banner_ar: '', banner_en: '', sub_ar: '', sub_en: '', kicker_ar: '', kicker_en: '', caption_ar: '', caption_en: '', badge_ar: '', badge_en: '',
     show_countdown: 1, show_banner: 1, show_strip: 1, photo_product_id: null,
   } as unknown as Offer
@@ -86,13 +99,18 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
   if (!o) return c.redirect('/admin/offers')
   const [brands, cats] = await Promise.all([getBrands(c.env.DB, true), getCategories(c.env.DB)])
   const sc = parseScope(o.scope)
-  const ids = [...(sc.products ?? []), ...(o.photo_product_id ? [o.photo_product_id] : [])]
+  const flash = isNew ? [] : (await c.env.DB.prepare(`${FLASH_SQL} WHERE f.offer_id = ? ORDER BY f.sort, f.id`).bind(o.id).all<{ id: number; product_id: number; price: number; max_qty: number; sold: number }>()).results
+  const ids = [...(sc.products ?? []), ...(o.photo_product_id ? [o.photo_product_id] : []), ...(o.gift_product_id ? [o.gift_product_id] : []), ...flash.map((f) => f.product_id)]
   const codeOf = new Map<number, string>()
+  const priceOf = new Map<number, number>()
   if (ids.length) {
-    const { results } = await c.env.DB.prepare(`SELECT id, code FROM products WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<{ id: number; code: string }>()
-    for (const r of results) codeOf.set(r.id, r.code)
+    const { results } = await c.env.DB.prepare(`SELECT id, code, price, name_en FROM products WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<{ id: number; code: string; price: number; name_en: string }>()
+    for (const r of results) { codeOf.set(r.id, r.code); priceOf.set(r.id, r.price) }
   }
   const look = lookOf(o.template)
+  const kind = o.kind === 'tiers' || o.kind === 'none' ? o.kind : 'percent'
+  const tiers = parseTiers(o.tiers)
+  const flashText = flash.map((f) => `${codeOf.get(f.product_id) ?? ''}, ${lyd(f.price)}${f.max_qty ? `, ${f.max_qty}` : ''}`).join('\n')
   const defaults = Object.fromEntries(LOOK_IDS.map((id) => [id, { pct: LOOKS[id].pct, photo: LOOKS[id].layout === 'photo', ar: LOOKS[id].copy.ar, en: LOOKS[id].copy.en }]))
   const W = (f: string, label: string, help?: string) => (
     <div class="a-grid2">
@@ -106,6 +124,9 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
         <h1>{isNew ? 'New offer' : 'Edit offer'}</h1>
         <div class="a-btns">
           {isNew ? null : <a class="a-btn" href={`/ar/?offer_preview=${o.id}`} target="_blank" rel="noopener">Preview on the site ↗</a>}
+          {isNew || !o.teaser_days ? null : <a class="a-btn" href={`/ar/?teaser_preview=${o.id}`} target="_blank" rel="noopener">Preview “coming soon” ↗</a>}
+          {isNew ? null : <a class="a-btn" href={`/admin/offers/${o.id}/image`}>Instagram images</a>}
+          {isNew ? null : <a class="a-btn" href={`/admin/offers/${o.id}/report`}>Report</a>}
           <button class="a-btn p" type="submit" form="oform">Save offer</button>
         </div>
       </div>
@@ -119,9 +140,24 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
         ))}</div>
 
         <h2>2 · Discount</h2>
+        <div class="a-checks a-kinds">
+          <label><input type="radio" name="kind" value="percent" checked={kind === 'percent'} /> <b>One % off</b> <span class="a-muted">· every product in the offer</span></label>
+          <label><input type="radio" name="kind" value="tiers" checked={kind === 'tiers'} /> <b>Spend more, save more</b> <span class="a-muted">· a bigger % for a bigger order</span></label>
+          <label><input type="radio" name="kind" value="none" checked={kind === 'none'} /> <b>No % off</b> <span class="a-muted">· only the extras below (flash deals, free gift, free delivery)</span></label>
+        </div>
         <div class="a-grid2">
-          <label class="a-f">Percent off<input name="percent" type="number" min="1" max="90" step="1" required value={String(o.percent || '')} /><span class="a-muted">New prices are rounded down to a whole 5 LYD (590 − 24% → 445).</span></label>
+          <label class="a-f" data-kind="percent">Percent off<input name="percent" type="number" min="1" max="90" step="1" value={String(kind === 'percent' ? o.percent || '' : LOOKS[(o.template in LOOKS ? o.template : 'ind') as 'ind'].pct)} /><span class="a-muted">New prices are rounded down to a whole 5 LYD (590 − 24% → 445).</span></label>
           <label class="a-f">Internal name (optional)<input name="name_en" maxlength={100} value={o.name_en} placeholder={look.occasion.en} /><span class="a-muted">Shown in the order message as the reason for the discount.</span></label>
+        </div>
+        <div class="a-card a-sub" data-kind="tiers">
+          <p class="a-muted">The % depends on the order’s products total (before the discount, only products in the offer). Each level needs a bigger total and gives a bigger %. Up to 4 levels; leave rows empty.
+            The shop shows “up to” the top %, and the cart shows how much more is needed for the next level.</p>
+          {[0, 1, 2, 3].map((i) => (
+            <div class="a-grid2">
+              <label class="a-f">Level {i + 1}: orders from (LYD)<input name={`tier_min_${i}`} type="number" min="1" step="1" inputmode="numeric" value={tiers[i] ? lyd(tiers[i].min) : ''} placeholder={['500', '1000', '1500', ''][i]} /></label>
+              <label class="a-f">% off<input name={`tier_pct_${i}`} type="number" min="1" max="90" step="1" inputmode="numeric" value={tiers[i] ? String(tiers[i].pct) : ''} placeholder={['10', '15', '20', ''][i]} /></label>
+            </div>
+          ))}
         </div>
         <label class="a-inline"><input type="checkbox" name="free_delivery" checked={!!o.free_delivery} /> Free delivery during this offer (when delivery prices are switched on)</label>
 
@@ -135,14 +171,43 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
           <label class="a-f">Product codes (comma separated)<input name="sc_codes" value={(sc.products ?? []).map((id) => codeOf.get(id) ?? '').filter(Boolean).join(', ')} /></label>
         </div>
 
-        <h2>4 · Dates (Libya time)</h2>
+        <h2>4 · Extras (optional)</h2>
+        <div class="a-f">Flash deals: a special price for chosen products while the offer runs
+          <textarea name="flash" rows={4} dir="ltr" placeholder={'SW-5640, 299, 5\nPN-1020, 30%'}>{flashText}</textarea>
+          <span class="a-muted">One product per line: <b>product code, flash price in LYD (or a % like 30%), how many pieces</b> (leave the last part out for no limit).
+            The flash price replaces any other discount on that product. When the pieces are sold, it goes back to its normal price. The shop shows “Only X left”. Up to 50 lines.</span>
+        </div>
+        {flash.length ? (
+          <div class="a-table-wrap"><table class="a-table">
+            <thead><tr><th>Product</th><th>Normal price</th><th>Flash price</th><th>Sold</th><th>Left</th></tr></thead>
+            <tbody>{flash.map((f) => (
+              <tr><td><code>{codeOf.get(f.product_id) ?? '—'}</code></td><td class="num">{fmtLyd(priceOf.get(f.product_id) ?? 0)} LYD</td><td class="num">{fmtLyd(f.price)} LYD</td>
+                <td class="num">{f.sold}</td><td class="num">{f.max_qty ? Math.max(0, f.max_qty - f.sold) : 'no limit'}</td></tr>
+            ))}</tbody>
+          </table></div>
+        ) : null}
+        <div class="a-grid2">
+          <label class="a-f">Free gift: product code<input name="gift_code" maxlength={60} value={o.gift_product_id ? codeOf.get(o.gift_product_id) ?? '' : ''} placeholder="empty = no gift" />
+            <span class="a-muted">One gift per order, free, only while it is in stock.</span></label>
+          <label class="a-f">… for orders from (LYD)<input name="gift_min" type="number" min="1" step="1" inputmode="numeric" value={o.gift_min ? lyd(o.gift_min) : ''} placeholder="800" />
+            <span class="a-muted">Products total after the discount. The cart tells the customer how much more is needed.</span></label>
+        </div>
+        <div class="a-grid2">
+          <label class="a-f">“Coming soon” page: days before the start<input name="teaser_days" type="number" min="0" max="30" step="1" inputmode="numeric" value={String(o.teaser_days ?? 0)} />
+            <span class="a-muted">0 = off. The site shows a countdown to the start and a “Remind me” form. Needs a start time.</span></label>
+          <label class="a-f">Early access link: hours before the start<input name="early_hours" type="number" min="0" max="72" step="1" inputmode="numeric" value={String(o.early_hours ?? 0)} />
+            <span class="a-muted">0 = off. Whoever opens the private link gets the offer this many hours early (e.g. 24). Send it to returning customers from this page after saving. Needs a start time.</span></label>
+        </div>
+        {o.early_token ? <label class="a-inline"><input type="checkbox" name="early_new" /> Make a new early access link (the old link stops working)</label> : null}
+
+        <h2>5 · Dates (Libya time)</h2>
         <div class="a-grid2">
           <label class="a-f">Starts<input name="starts_at" type="datetime-local" value={utcToLibyaInput(o.starts_at)} /><span class="a-muted">Empty = straight away.</span></label>
           <label class="a-f">Ends<input name="ends_at" type="datetime-local" required value={utcToLibyaInput(o.ends_at)} /></label>
         </div>
 
-        <h2>5 · Words on the site</h2>
-        <p class="a-muted">Leave a box empty to use the look’s own words (shown in grey). <code>{'{pct}'}</code> becomes the percent.</p>
+        <h2>6 · Words on the site</h2>
+        <p class="a-muted">Leave a box empty to use the look’s own words (shown in grey). <code>{'{pct}'}</code> becomes the percent. With “No % off”, the look’s words that show a % are left out, so write your own title (e.g. “Free gift with every order from 800 LYD”).</p>
         {W('banner', 'Big title')}
         {W('sub', 'Line under the title')}
         {W('kicker', 'Small line above the title')}
@@ -150,7 +215,7 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
         {W('badge', 'Badge on product photos', 'Empty = “−24%”.')}
         <div class="a-grid2"><label class="a-f">Arabic name (order message)<input name="name_ar" dir="rtl" maxlength={100} value={o.name_ar} placeholder={look.occasion.ar} /></label></div>
 
-        <h2>6 · Show</h2>
+        <h2>7 · Show</h2>
         <div class="a-checks">
           <label><input type="checkbox" name="show_banner" checked={!!o.show_banner} /> Banner on the home page</label>
           <label><input type="checkbox" name="show_strip" checked={!!o.show_strip} /> Thin strip on every page</label>
@@ -158,7 +223,7 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
         </div>
         <label class="a-f" data-photo-field>Banner photo: product code (photo looks only; empty = the first product in the offer)<input name="photo_code" value={o.photo_product_id ? codeOf.get(o.photo_product_id) ?? '' : ''} /></label>
 
-        <h2>7 · Switch</h2>
+        <h2>8 · Switch</h2>
         <label class="a-inline"><input type="checkbox" name="enabled" checked={!!o.enabled} /> Switched on (it still waits for its start time)</label>
         <p class="a-err" data-form-err hidden></p>
         <div class="a-btns">
@@ -166,6 +231,11 @@ r1Pages.get('/offers/:id{new|[0-9]+}', async (c) => {
           {isNew ? null : <button class="a-btn danger" type="button" data-offer-delete={o.id}>Delete offer</button>}
         </div>
       </form>
+      {isNew || !(o.teaser_days || o.early_hours) ? null : (
+        <div class="a-card"><h2>Reminders and early access</h2>
+          <p class="a-muted">Send the early access link to returning customers, and tell the people who pressed “Remind me” when the offer starts.</p>
+          <a class="a-btn p" href={`/admin/offers/${o.id}/people`}>Open the list</a></div>
+      )}
       <script type="application/json" id="look-defaults" dangerouslySetInnerHTML={{ __html: JSON.stringify(defaults).replace(/</g, '\\u003c') }} />
     </Shell>,
   )
@@ -186,8 +256,27 @@ async function saveOffer(c: { env: Env; req: { json: <T>() => Promise<T> } }, id
   const b = await c.req.json<Record<string, unknown>>()
   const template = String(b.template ?? '')
   if (!(LOOK_IDS as string[]).includes(template)) return { error: 'Choose an occasion look.' }
-  const percent = Math.floor(Number(b.percent))
-  if (!(percent >= 1 && percent <= 90)) return { error: 'Percent off must be a whole number from 1 to 90.' }
+  const kind = b.kind === 'tiers' || b.kind === 'none' ? String(b.kind) : 'percent'
+  let percent = 0
+  let tiers = '[]'
+  if (kind === 'percent') {
+    percent = Math.floor(Number(b.percent))
+    if (!(percent >= 1 && percent <= 90)) return { error: 'Percent off must be a whole number from 1 to 90.' }
+  } else if (kind === 'tiers') {
+    const rows: { min: number; pct: number }[] = []
+    for (let i = 0; i < 4; i++) {
+      const m = String(b[`tier_min_${i}`] ?? '').trim(), q = String(b[`tier_pct_${i}`] ?? '').trim()
+      if (!m && !q) continue
+      const min = toDirham(m), pct = Number(q)
+      if (!(min > 0) || !Number.isInteger(pct) || pct < 1 || pct > 90) return { error: `Level ${i + 1}: type the amount in LYD and a whole % from 1 to 90.` }
+      rows.push({ min, pct })
+    }
+    if (!rows.length) return { error: 'Spend more, save more: fill in at least one level (amount and %).' }
+    const ok = parseTiers(JSON.stringify(rows))
+    if (ok.length !== rows.length) return { error: 'Each level must need a bigger amount and give a bigger % than the level before.' }
+    tiers = JSON.stringify(ok)
+    percent = ok[ok.length - 1].pct
+  }
   const starts = b.starts_at ? libyaToUtc(String(b.starts_at)) : ''
   const ends = libyaToUtc(String(b.ends_at ?? ''))
   if (starts === null) return { error: 'The start time is not valid.' }
@@ -212,18 +301,67 @@ async function saveOffer(c: { env: Env; req: { json: <T>() => Promise<T> } }, id
     photo = p.ids[0]
   }
   const flag = (k: string) => (b[k] ? 1 : 0)
+  // Release 4 extras
+  const flashRows: { product_id: number; price: number; max_qty: number }[] = []
+  const lines = String(b.flash ?? '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  if (lines.length > 50) return { error: 'Flash deals: up to 50 lines.' }
+  if (lines.length) {
+    const parsed = lines.map((l) => l.split(/\s*[,،;\t]\s*/).map((x) => x.trim()))
+    const { results: prods } = await db.prepare(`SELECT id, code, price, no_discount FROM products WHERE deleted_at IS NULL AND upper(code) IN (${parsed.map(() => '?').join(',')})`)
+      .bind(...parsed.map((x) => x[0].toUpperCase())).all<{ id: number; code: string; price: number; no_discount: number }>()
+    const by = new Map(prods.map((r) => [r.code.toUpperCase(), r]))
+    for (const [i, x] of parsed.entries()) {
+      const at = `Flash deals, line ${i + 1} (${lines[i].slice(0, 40)})`
+      const p = by.get(x[0].toUpperCase())
+      if (!p) return { error: `${at}: product code ${x[0]} was not found.` }
+      if (p.no_discount) return { error: `${at}: this product is ticked “Never discount”.` }
+      if (flashRows.some((f) => f.product_id === p.id)) return { error: `${at}: this product is listed twice.` }
+      const pm = /^(\d{1,2})\s*%$/.exec(x[1] ?? '')
+      const price = pm ? percentOff(p.price, Number(pm[1])) : toDirham(String(x[1] ?? '').replace(/\s*(lyd|د\.?ل)\s*$/i, ''))
+      if (!(price > 0) || price >= p.price || (pm && !(Number(pm[1]) >= 1 && Number(pm[1]) <= 90))) return { error: `${at}: the flash price must be more than 0 and less than the normal price (${fmtLyd(p.price)} LYD).` }
+      const max = x[2] === undefined || x[2] === '' ? 0 : Number(x[2])
+      if (!Number.isInteger(max) || max < 0 || max > 9999) return { error: `${at}: the number of pieces must be a whole number (or leave it out for no limit).` }
+      flashRows.push({ product_id: p.id, price, max_qty: max })
+    }
+  }
+  let giftId: number | null = null
+  let giftMin = 0
+  const gc = T200(b, 'gift_code', 60)
+  if (gc) {
+    const p = await productIdsByCode(db, [gc])
+    if (!p.ids.length) return { error: `Free gift: product code ${gc} was not found.` }
+    giftId = p.ids[0]
+    giftMin = toDirham(String(b.gift_min ?? ''))
+    if (!(giftMin > 0)) return { error: 'Free gift: type the order amount (LYD) from which the gift is given.' }
+  }
+  if (kind === 'none' && !flashRows.length && !giftId && !flag('free_delivery')) return { error: 'With “No % off”, add at least one extra: a flash deal, a free gift or free delivery.' }
+  const teaser = Math.floor(Number(b.teaser_days || 0)), earlyH = Math.floor(Number(b.early_hours || 0))
+  if (!(teaser >= 0 && teaser <= 30)) return { error: '“Coming soon” days must be from 0 to 30.' }
+  if (!(earlyH >= 0 && earlyH <= 72)) return { error: 'Early access hours must be from 0 to 72.' }
+  if ((teaser || earlyH) && !starts) return { error: '“Coming soon” and early access need a start time (section 5).' }
+  const old = id ? await db.prepare('SELECT early_token FROM offers WHERE id = ?').bind(id).first<{ early_token: string }>() : null
+  if (id && !old) return { error: 'Offer not found.', status: 404 }
+  const token = !old?.early_token || b.early_new ? randomToken() : old.early_token
   const vals = [template, T200(b, 'name_ar', 100), T200(b, 'name_en', 100), starts, ends, flag('enabled'), percent, scope, flag('free_delivery'),
     T200(b, 'banner_ar'), T200(b, 'banner_en'), T200(b, 'sub_ar'), T200(b, 'sub_en'), T200(b, 'kicker_ar'), T200(b, 'kicker_en'),
-    T200(b, 'caption_ar'), T200(b, 'caption_en'), T200(b, 'badge_ar', 30), T200(b, 'badge_en', 30), flag('show_countdown'), flag('show_banner'), flag('show_strip'), photo]
-  const cols = 'template, name_ar, name_en, starts_at, ends_at, enabled, percent, scope, free_delivery, banner_ar, banner_en, sub_ar, sub_en, kicker_ar, kicker_en, caption_ar, caption_en, badge_ar, badge_en, show_countdown, show_banner, show_strip, photo_product_id'
+    T200(b, 'caption_ar'), T200(b, 'caption_en'), T200(b, 'badge_ar', 30), T200(b, 'badge_en', 30), flag('show_countdown'), flag('show_banner'), flag('show_strip'), photo,
+    kind, tiers, giftId, giftMin, teaser, earlyH, token]
+  const cols = 'template, name_ar, name_en, starts_at, ends_at, enabled, percent, scope, free_delivery, banner_ar, banner_en, sub_ar, sub_en, kicker_ar, kicker_en, caption_ar, caption_en, badge_ar, badge_en, show_countdown, show_banner, show_strip, photo_product_id, kind, tiers, gift_product_id, gift_min, teaser_days, early_hours, early_token'
   let newId = id
   if (id) {
-    const r = await db.prepare(`UPDATE offers SET ${cols.split(', ').map((k) => `${k}=?`).join(', ')}, kind='percent' WHERE id=?`).bind(...vals, id).run()
+    const r = await db.prepare(`UPDATE offers SET ${cols.split(', ').map((k) => `${k}=?`).join(', ')} WHERE id=?`).bind(...vals, id).run()
     if (!r.meta.changes) return { error: 'Offer not found.', status: 404 }
   } else {
-    const r = await db.prepare(`INSERT INTO offers (${cols}, kind) VALUES (${vals.map(() => '?').join(', ')}, 'percent') RETURNING id`).bind(...vals).first<{ id: number }>()
+    const r = await db.prepare(`INSERT INTO offers (${cols}) VALUES (${vals.map(() => '?').join(', ')}) RETURNING id`).bind(...vals).first<{ id: number }>()
     newId = r!.id
   }
+  // flash deals: update in place (keeps each deal's id, so its sold count stays), drop the lines that were taken out
+  const keep = flashRows.map((f) => f.product_id)
+  await db.batch([
+    ...flashRows.map((f, i) => db.prepare(`INSERT INTO offer_flash (offer_id, product_id, price, max_qty, sort) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(offer_id, product_id) DO UPDATE SET price = excluded.price, max_qty = excluded.max_qty, sort = excluded.sort`).bind(newId, f.product_id, f.price, f.max_qty, i)),
+    db.prepare(`DELETE FROM offer_flash WHERE offer_id = ?${keep.length ? ` AND product_id NOT IN (${keep.map(() => '?').join(',')})` : ''}`).bind(newId, ...keep),
+  ])
   // more than one switched-on offer on the same dates: only the newest shows, so say so
   let warning = ''
   if (flag('enabled')) {

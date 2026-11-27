@@ -4,14 +4,14 @@
  */
 import type { Product } from './db'
 import type { Catalog } from './catalog'
-import { offerNow } from './catalog'
-import type { Area, City, Code, CodeCheck, Offer, Quote } from './pricing'
+import { offerNow, attachFlash, FLASH_SQL } from './catalog'
+import type { Area, City, Code, CodeCheck, Flash, Offer, Quote } from './pricing'
 import { liveOffer, normalizeCode, quote } from './pricing'
 
 export type AreaFull = Area & { city: City }
 export type Want = Map<number, number> // product id → qty
 
-export type Loaded = { products: Product[]; offer: Offer | null; deliveryOn: boolean; freeMin: number; area: AreaFull | null; code: CodeCheck | null; loyaltyPct: number }
+export type Loaded = { products: Product[]; offer: Offer | null; deliveryOn: boolean; freeMin: number; area: AreaFull | null; code: CodeCheck | null; loyaltyPct: number; gift: Product | null }
 
 /** Up to 30 different products, 1–10 of each (same limits the order form always had). */
 export function parseItems(raw: unknown): Want {
@@ -55,7 +55,7 @@ async function codeCheck(db: D1Database, entered: string, phone: string): Promis
 }
 
 /** For /api/quote: products, offer and areas from the catalog; the code is always looked up fresh. */
-export async function loadFromCatalog(db: D1Database, cat: Catalog, want: Want, codeRaw: unknown, phone: string, areaId: number, lookupCode = true): Promise<Loaded> {
+export async function loadFromCatalog(db: D1Database, cat: Catalog, want: Want, codeRaw: unknown, phone: string, areaId: number, lookupCode = true, early = ''): Promise<Loaded> {
   const products = [...want.keys()].map((id) => cat.byId.get(id)).filter((p): p is Product => !!p)
   const a = areaId ? cat.areas.find((x) => x.id === areaId) : undefined
   const city = a ? cat.cities.find((x) => x.id === a.city_id) : undefined
@@ -64,9 +64,11 @@ export async function loadFromCatalog(db: D1Database, cat: Catalog, want: Want, 
     entered && lookupCode ? codeCheck(db, entered, phone) : Promise.resolve(entered ? { entered, row: null, uses: 0, phoneUses: 0 } : null),
     loyaltyFor(db, loyaltyPctOf(cat.settings), phone),
   ])
+  const offer = offerNow(cat, early)
   return {
     products,
-    offer: offerNow(cat),
+    offer,
+    gift: offer?.gift_product_id ? cat.byId.get(offer.gift_product_id) ?? null : null,
     deliveryOn: cat.settings.delivery_on === '1',
     freeMin: freeMinOf(cat.settings),
     area: a && city ? { ...a, city } : null,
@@ -76,7 +78,7 @@ export async function loadFromCatalog(db: D1Database, cat: Catalog, want: Want, 
 }
 
 /** For /api/orders: everything read fresh in one round trip. Only live, in-stock products can be ordered. */
-export async function loadFresh(db: D1Database, want: Want, codeRaw: unknown, phone: string, areaId: number): Promise<Loaded> {
+export async function loadFresh(db: D1Database, want: Want, codeRaw: unknown, phone: string, areaId: number, early = ''): Promise<Loaded> {
   const ids = [...want.keys()]
   const entered = normalizeCode(codeRaw)
   const res = await db.batch([
@@ -86,12 +88,16 @@ export async function loadFresh(db: D1Database, want: Want, codeRaw: unknown, ph
     db.prepare(
       'SELECT a.*, c.name_ar AS c_ar, c.name_en AS c_en, c.sort AS c_sort FROM delivery_areas a JOIN delivery_cities c ON c.id = a.city_id WHERE a.id = ? AND a.enabled = 1 AND c.enabled = 1',
     ).bind(areaId || 0),
+    db.prepare(`${FLASH_SQL} WHERE f.offer_id IN (SELECT id FROM offers WHERE enabled = 1)`),
+    db.prepare("SELECT * FROM products WHERE id IN (SELECT gift_product_id FROM offers WHERE enabled = 1) AND status = 'live' AND deleted_at IS NULL"),
   ])
   const s = Object.fromEntries((res[2].results as { key: string; value: string }[]).map((r) => [r.key, r.value]))
   const ar = res[3].results[0] as (Area & { c_ar: string; c_en: string; c_sort: number }) | undefined
+  const offer = liveOffer(attachFlash(res[1].results as Offer[], res[4].results as Flash[]), undefined, early)
   return {
     products: res[0].results as Product[],
-    offer: liveOffer(res[1].results as Offer[]),
+    offer,
+    gift: offer?.gift_product_id ? (res[5].results as Product[]).find((p) => p.id === offer.gift_product_id) ?? null : null,
     deliveryOn: s.delivery_on === '1',
     freeMin: freeMinOf(s),
     area: ar ? { ...ar, city: { id: ar.city_id, name_ar: ar.c_ar, name_en: ar.c_en, sort: ar.c_sort, enabled: 1 } } : null,
@@ -110,6 +116,7 @@ export function runQuote(l: Loaded, want: Want, phoneKnown: boolean): Quote {
     deliveryOn: l.deliveryOn,
     area: l.area,
     freeMin: l.freeMin,
+    gift: l.gift,
   })
 }
 

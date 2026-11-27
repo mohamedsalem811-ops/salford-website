@@ -65,7 +65,14 @@ export const PAY: Record<string, { ar: string; en: string }> = {
   lypay: { ar: 'LyPay', en: 'LyPay' },
 }
 
-export type OrderLine = { brand: string; name: string; code: string; price: number; qty: number; orig_price?: number }
+export type OrderLine = { brand: string; name: string; code: string; price: number; qty: number; orig_price?: number; is_gift?: number }
+/** R4: the free gift is an order line with price 0; it shows as "Free gift", never with its shop price. */
+export const GIFT_WORD = { ar: 'هدية مجانية', en: 'Free gift' } as const
+/** What one line shows: its total (before the order's discount when there is a breakdown), or the gift word. */
+export const lineValue = (l: OrderLine, lang: Lang, hasSum: boolean) => {
+  if (Number(l.is_gift)) return GIFT_WORD[lang]
+  return `${fmtLyd((hasSum && l.orig_price ? l.orig_price : l.price) * l.qty)} ${lang === 'ar' ? 'د.ل' : 'LYD'}`
+}
 /** The price breakdown stored with each order (Release 1). Older orders have none of it, and their message is unchanged. */
 export type OrderSum = {
   subtotal: number; discount: number; kind: string; offerName: string; code: string
@@ -102,8 +109,7 @@ export function sumRows(o: { lang: Lang; total: number; sum?: OrderSum }): { lab
 export function buildMessage(o: OrderInfo) {
   const ar = o.lang === 'ar'
   const cur = ar ? 'د.ل' : 'LYD'
-  const lineTotal = (l: OrderLine) => (o.sum && l.orig_price ? l.orig_price : l.price) * l.qty
-  const items = o.lines.map((l, i) => `${i + 1}) ${l.brand} · ${l.name} · ${l.code}${l.qty > 1 ? ` × ${l.qty}` : ''} · ${fmtLyd(lineTotal(l))} ${cur}`)
+  const items = o.lines.map((l, i) => `${i + 1}) ${Number(l.is_gift) ? '🎁 ' : ''}${l.brand} · ${l.name} · ${l.code}${l.qty > 1 ? ` × ${l.qty}` : ''} · ${lineValue(l, o.lang, !!o.sum)}`)
   const pay = PAY[o.payment]?.[o.lang] ?? o.payment
   const sums = sumRows(o).map((r) => `${r.label}: ${r.value}`)
   const place = o.sum?.area ? `${o.city} · ${o.sum.area}` : o.city
@@ -197,7 +203,7 @@ export async function loadOrderForCustomer(db: D1Database, number: string, token
   for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ o.view_token.charCodeAt(i)
   if (diff) return null
   const [items, ev] = await db.batch([
-    db.prepare('SELECT brand, name, code, price, qty, orig_price FROM order_items WHERE order_id = ? ORDER BY rowid').bind(o.id),
+    db.prepare('SELECT brand, name, code, price, qty, orig_price, is_gift FROM order_items WHERE order_id = ? ORDER BY rowid').bind(o.id),
     db.prepare('SELECT status, at, admin_id FROM order_events WHERE order_id = ? ORDER BY id').bind(o.id),
   ])
   const lang: Lang = o.lang === 'en' ? 'en' : 'ar'
