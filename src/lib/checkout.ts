@@ -11,7 +11,7 @@ import { liveOffer, normalizeCode, quote } from './pricing'
 export type AreaFull = Area & { city: City }
 export type Want = Map<number, number> // product id → qty
 
-export type Loaded = { products: Product[]; offer: Offer | null; deliveryOn: boolean; freeMin: number; area: AreaFull | null; code: CodeCheck | null }
+export type Loaded = { products: Product[]; offer: Offer | null; deliveryOn: boolean; freeMin: number; area: AreaFull | null; code: CodeCheck | null; loyaltyPct: number }
 
 /** Up to 30 different products, 1–10 of each (same limits the order form always had). */
 export function parseItems(raw: unknown): Want {
@@ -29,6 +29,20 @@ const freeMinOf = (s: Record<string, string>) => {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
 
+/** The loyalty % switched on in the settings (0 when off). */
+export const loyaltyPctOf = (s: Record<string, string>) => {
+  if (s.loyalty_on !== '1') return 0
+  const n = Math.floor(Number(s.loyalty_pct ?? '5'))
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 50) : 0
+}
+
+/** Loyalty applies from the second order on: this phone already has a delivered order. */
+export async function loyaltyFor(db: D1Database, pct: number, phone: string): Promise<number> {
+  if (!pct || !phone) return 0
+  const r = await db.prepare("SELECT 1 AS y FROM orders WHERE phone = ? AND status = 'delivered' LIMIT 1").bind(phone).first<{ y: number }>()
+  return r ? pct : 0
+}
+
 async function codeCheck(db: D1Database, entered: string, phone: string): Promise<CodeCheck> {
   const [row, uses] = await db.batch([
     db.prepare('SELECT * FROM codes WHERE code = ?').bind(entered),
@@ -44,13 +58,18 @@ export async function loadFromCatalog(db: D1Database, cat: Catalog, want: Want, 
   const a = areaId ? cat.areas.find((x) => x.id === areaId) : undefined
   const city = a ? cat.cities.find((x) => x.id === a.city_id) : undefined
   const entered = normalizeCode(codeRaw)
+  const [code, loyaltyPct] = await Promise.all([
+    entered && lookupCode ? codeCheck(db, entered, phone) : Promise.resolve(entered ? { entered, row: null, uses: 0, phoneUses: 0 } : null),
+    loyaltyFor(db, loyaltyPctOf(cat.settings), phone),
+  ])
   return {
     products,
     offer: offerNow(cat),
     deliveryOn: cat.settings.delivery_on === '1',
     freeMin: freeMinOf(cat.settings),
     area: a && city ? { ...a, city } : null,
-    code: entered && lookupCode ? await codeCheck(db, entered, phone) : entered ? { entered, row: null, uses: 0, phoneUses: 0 } : null,
+    code,
+    loyaltyPct,
   }
 }
 
@@ -61,7 +80,7 @@ export async function loadFresh(db: D1Database, want: Want, codeRaw: unknown, ph
   const res = await db.batch([
     db.prepare(`SELECT * FROM products WHERE id IN (${ids.map(() => '?').join(',')}) AND status = 'live' AND deleted_at IS NULL AND in_stock = 1`).bind(...ids),
     db.prepare('SELECT * FROM offers WHERE enabled = 1'),
-    db.prepare("SELECT key, value FROM settings WHERE key IN ('delivery_on', 'free_delivery_min')"),
+    db.prepare("SELECT key, value FROM settings WHERE key IN ('delivery_on', 'free_delivery_min', 'loyalty_on', 'loyalty_pct')"),
     db.prepare(
       'SELECT a.*, c.name_ar AS c_ar, c.name_en AS c_en, c.sort AS c_sort FROM delivery_areas a JOIN delivery_cities c ON c.id = a.city_id WHERE a.id = ? AND a.enabled = 1 AND c.enabled = 1',
     ).bind(areaId || 0),
@@ -75,6 +94,7 @@ export async function loadFresh(db: D1Database, want: Want, codeRaw: unknown, ph
     freeMin: freeMinOf(s),
     area: ar ? { ...ar, city: { id: ar.city_id, name_ar: ar.c_ar, name_en: ar.c_en, sort: ar.c_sort, enabled: 1 } } : null,
     code: entered ? await codeCheck(db, entered, phone) : null,
+    loyaltyPct: await loyaltyFor(db, loyaltyPctOf(s), phone),
   }
 }
 
@@ -84,6 +104,7 @@ export function runQuote(l: Loaded, want: Want, phoneKnown: boolean): Quote {
     offer: l.offer,
     code: l.code,
     phoneKnown,
+    loyaltyPct: l.loyaltyPct,
     deliveryOn: l.deliveryOn,
     area: l.area,
     freeMin: l.freeMin,

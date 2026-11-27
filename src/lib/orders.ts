@@ -70,12 +70,14 @@ export type OrderLine = { brand: string; name: string; code: string; price: numb
 export type OrderSum = {
   subtotal: number; discount: number; kind: string; offerName: string; code: string
   area: string; delivery: 'off' | 'chat' | 'free' | 'fee'; fee: number; time: string
+  loyalty?: number // the loyalty % when kind is 'loyalty'
 }
-export type OrderInfo = { lang: Lang; number: string; lines: OrderLine[]; total: number; name: string; phone: string; city: string; address: string; note: string; payment: string; sum?: OrderSum }
+/** `track` is the customer's private tracking link (Release 2), added as the message's last line. */
+export type OrderInfo = { lang: Lang; number: string; lines: OrderLine[]; total: number; name: string; phone: string; city: string; address: string; note: string; payment: string; sum?: OrderSum; track?: string }
 
 const W = {
-  ar: { items: 'المنتجات', disc: 'الخصم', code: 'كود', del: 'التوصيل', cash: 'نقداً للمندوب', free: 'مجاني', chat: 'نتفق عليه في المحادثة', time: 'مدة التوصيل', total: 'المجموع' },
-  en: { items: 'Items', disc: 'Discount', code: 'code', del: 'Delivery', cash: 'cash to the driver', free: 'Free', chat: 'agreed in the chat', time: 'Delivery time', total: 'Total' },
+  ar: { items: 'المنتجات', disc: 'الخصم', code: 'كود', loyal: 'خصم الوفاء', del: 'التوصيل', cash: 'نقداً للمندوب', free: 'مجاني', chat: 'نتفق عليه في المحادثة', time: 'مدة التوصيل', total: 'المجموع' },
+  en: { items: 'Items', disc: 'Discount', code: 'code', loyal: 'loyalty', del: 'Delivery', cash: 'cash to the driver', free: 'Free', chat: 'agreed in the chat', time: 'Delivery time', total: 'Total' },
 }
 
 /** The breakdown lines shared by the message, the order page and the admin: [label, value] pairs. */
@@ -86,7 +88,7 @@ export function sumRows(o: { lang: Lang; total: number; sum?: OrderSum }): { lab
   const rows: { label: string; value: string; kind: 'items' | 'disc' | 'del' | 'time' }[] = []
   if (s.discount > 0) {
     rows.push({ label: w.items, value: `${fmtLyd(s.subtotal)} ${cur}`, kind: 'items' })
-    const why = s.kind === 'code' ? `${w.code} ${s.code}` : s.offerName
+    const why = s.kind === 'code' ? `${w.code} ${s.code}` : s.kind === 'loyalty' ? `${w.loyal}${s.loyalty ? ` ${s.loyalty}%` : ''}` : s.offerName
     rows.push({ label: why ? `${w.disc} (${why})` : w.disc, value: `−${fmtLyd(s.discount)} ${cur}`, kind: 'disc' })
   }
   if (s.delivery === 'fee') rows.push({ label: w.del, value: `${fmtLyd(s.fee)} ${cur} (${w.cash})`, kind: 'del' })
@@ -109,11 +111,13 @@ export function buildMessage(o: OrderInfo) {
     return [
       'مرحبتين سالفورد، أريد تأكيد طلبيتي', `رقم الطلبية: ${o.number}`, ...items, ...sums, `المجموع: ${fmtLyd(o.total)} ${cur}`,
       `الاسم: ${o.name}`, `الهاتف: ${o.phone}`, `المدينة: ${place}`, o.address ? `العنوان: ${o.address}` : '', o.note ? `ملاحظة: ${o.note}` : '', `الدفع: ${pay}`,
+      o.track ? `تتبّع طلبيتك: ${o.track}` : '',
     ].filter(Boolean).join('\n')
   }
   return [
     'Hello Salford, I’d like to confirm my order', `Order number: ${o.number}`, ...items, ...sums, `Total: ${fmtLyd(o.total)} ${cur}`,
     `Name: ${o.name}`, `Phone: ${o.phone}`, `City: ${place}`, o.address ? `Address: ${o.address}` : '', o.note ? `Note: ${o.note}` : '', `Payment: ${pay}`,
+    o.track ? `Track your order: ${o.track}` : '',
   ].filter(Boolean).join('\n')
 }
 
@@ -123,8 +127,57 @@ export function sumFromRow(o: Record<string, unknown>): OrderSum | undefined {
   const t = (k: string) => String(o[k] ?? '')
   if (!n('subtotal')) return undefined
   const delivery = n('delivery_free') ? 'free' : n('delivery_fee') > 0 ? 'fee' : n('delivery_chat') ? 'chat' : 'off'
-  return { subtotal: n('subtotal'), discount: n('discount_total'), kind: t('discount_kind'), offerName: t('offer_name'), code: t('code'), area: t('area'), delivery, fee: n('delivery_fee'), time: t('delivery_time') }
+  return { subtotal: n('subtotal'), discount: n('discount_total'), kind: t('discount_kind'), offerName: t('offer_name'), code: t('code'), area: t('area'), delivery, fee: n('delivery_fee'), time: t('delivery_time'), ...(n('loyalty') ? { loyalty: n('loyalty') } : {}) }
 }
+
+/* ---------- Release 2: statuses, tracking link and update messages ---------- */
+
+/** What the customer sees, in order. "Paid" is a separate tick the team sees only. */
+export const STATUSES = ['new', 'confirmed', 'out', 'delivered', 'cancelled'] as const
+export type Status = (typeof STATUSES)[number]
+export const isStatus = (v: unknown): v is Status => STATUSES.includes(v as Status)
+export const STATUS_EN: Record<Status, string> = { new: 'New', confirmed: 'Confirmed', out: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled' }
+export const STATUS_WORDS: Record<Lang, Record<Status, string>> = {
+  ar: { new: 'استلمنا طلبيتك', confirmed: 'تم تأكيد الطلبية', out: 'في الطريق إليك', delivered: 'تم التسليم', cancelled: 'أُلغيت الطلبية' },
+  en: { new: 'Order received', confirmed: 'Order confirmed', out: 'Out for delivery', delivered: 'Delivered', cancelled: 'Order cancelled' },
+}
+
+/** How long the private order link works. */
+export const LINK_DAYS = 60
+
+/** The customer's private link to their order page (works for LINK_DAYS days). */
+export const trackUrl = (origin: string, lang: Lang, number: string, token: string) => `${origin}/${lang}/order/${number}?t=${token}`
+
+/** The one-tap WhatsApp text the team sends the customer when the status changes, in the order's language. */
+export function updateMessage(status: Status, o: { lang: Lang; number: string; name: string; total: number; fee: number; track: string }) {
+  const first = o.name.trim().split(/\s+/)[0] || ''
+  const cur = o.lang === 'ar' ? 'د.ل' : 'LYD'
+  if (o.lang === 'ar') {
+    const hi = first ? `مرحباً ${first}،` : 'مرحباً،'
+    const lines: Record<Status, string[]> = {
+      new: [`${hi} استلمنا طلبيتك ${o.number} من سالفورد، وسنؤكدها معك قريباً.`],
+      confirmed: [`${hi} تم تأكيد طلبيتك ${o.number} من سالفورد ✅`, `المجموع: ${fmtLyd(o.total)} ${cur}`],
+      out: [`${hi} طلبيتك ${o.number} في الطريق إليك مع المندوب 🚚`, o.fee ? `رسوم التوصيل ${fmtLyd(o.fee)} ${cur} تُدفع نقداً للمندوب.` : '', 'افحص القطعة عند الاستلام.'],
+      delivered: [`${hi} تم تسليم طلبيتك ${o.number}. شكراً لاختيارك سالفورد 🤍`],
+      cancelled: [`${hi} تم إلغاء طلبيتك ${o.number}. إذا كان هذا خطأ، راسلنا هنا ونكمل معك.`],
+    }
+    return [...lines[status], status === 'cancelled' ? '' : `تتبّع طلبيتك: ${o.track}`].filter(Boolean).join('\n')
+  }
+  const hi = first ? `Hello ${first},` : 'Hello,'
+  const lines: Record<Status, string[]> = {
+    new: [`${hi} we received your Salford order ${o.number} and will confirm it with you soon.`],
+    confirmed: [`${hi} your Salford order ${o.number} is confirmed ✅`, `Total: ${fmtLyd(o.total)} ${cur}`],
+    out: [`${hi} your order ${o.number} is on its way with our driver 🚚`, o.fee ? `The delivery fee of ${fmtLyd(o.fee)} ${cur} is paid in cash to the driver.` : '', 'Please check the piece when you receive it.'],
+    delivered: [`${hi} your order ${o.number} has been delivered. Thank you for choosing Salford 🤍`],
+    cancelled: [`${hi} your order ${o.number} has been cancelled. If this is a mistake, message us here and we will sort it out.`],
+  }
+  return [...lines[status], status === 'cancelled' ? '' : `Track your order: ${o.track}`].filter(Boolean).join('\n')
+}
+
+/** wa.me link to a customer's Libyan phone (0912345678 → 218912345678), with the text filled in. */
+export const waCustomer = (phone: string, text = '') => `https://wa.me/218${String(phone).replace(/^0/, '')}${text ? `?text=${encodeURIComponent(text)}` : ''}`
+
+export type OrderEvent = { status: string; at: string; admin_id: number | null }
 
 const enc = new TextEncoder()
 export const sha256hex = async (s: string) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -132,21 +185,26 @@ export const randomToken = () => [...crypto.getRandomValues(new Uint8Array(16))]
 
 type OrderRow = { id: number; number: string; created_at: string; name: string; phone: string; city: string; address: string; note: string; payment: string; channel: string; lang: string; total: number; view_token: string } & Record<string, unknown>
 
-/** The order as its customer may see it: needs the private link token, and only for 30 days. */
-export async function loadOrderForCustomer(db: D1Database, number: string, token: string) {
+/** The order as its customer may see it: needs the private link token, and only for LINK_DAYS days. */
+export async function loadOrderForCustomer(db: D1Database, number: string, token: string, origin = '') {
   if (!/^SL-\d{1,9}$/.test(number) || !/^[0-9a-f]{32}$/.test(token)) return null
   const o = await db
-    .prepare("SELECT * FROM orders WHERE number = ? AND created_at > datetime('now', '-30 days')")
+    .prepare(`SELECT * FROM orders WHERE number = ? AND created_at > datetime('now', '-${LINK_DAYS} days')`)
     .bind(number)
     .first<OrderRow>()
   if (!o || !o.view_token || o.view_token.length !== token.length) return null
   let diff = 0
   for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ o.view_token.charCodeAt(i)
   if (diff) return null
-  const { results } = await db.prepare('SELECT brand, name, code, price, qty, orig_price FROM order_items WHERE order_id = ? ORDER BY rowid').bind(o.id).all<OrderLine>()
+  const [items, ev] = await db.batch([
+    db.prepare('SELECT brand, name, code, price, qty, orig_price FROM order_items WHERE order_id = ? ORDER BY rowid').bind(o.id),
+    db.prepare('SELECT status, at, admin_id FROM order_events WHERE order_id = ? ORDER BY id').bind(o.id),
+  ])
+  const lang: Lang = o.lang === 'en' ? 'en' : 'ar'
   const info: OrderInfo = {
-    lang: o.lang === 'en' ? 'en' : 'ar', number: o.number, lines: results, total: o.total,
+    lang, number: o.number, lines: items.results as OrderLine[], total: o.total,
     name: o.name, phone: o.phone, city: o.city, address: o.address, note: o.note, payment: o.payment, sum: sumFromRow(o),
+    track: origin ? trackUrl(origin, lang, o.number, o.view_token) : undefined,
   }
-  return { order: o, info, message: buildMessage(info) }
+  return { order: o, info, message: buildMessage(info), events: ev.results as OrderEvent[] }
 }

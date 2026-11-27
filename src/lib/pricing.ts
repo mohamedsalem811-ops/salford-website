@@ -106,11 +106,12 @@ export type Quote = {
   lines: QuoteLine[]
   subtotal: number // products before any discount
   discount: number // the one saving applied (R3)
-  kind: '' | 'offer' | 'code'
+  kind: '' | 'offer' | 'code' | 'loyalty'
   items: number // products after discount: what commission and free delivery are worked out from
   offer: Offer | null // the live offer (even when the code won)
   offerSaving: number
   code: { code: string; status: CodeStatus; saving: number; min?: number; row?: Code } | null
+  loyalty: { pct: number; saving: number } | null // the returning customer's discount, when they qualify (applied only if it is the best saving)
   delivery: Delivery
   fee: number // delivery fee to pay in cash (0 when free, agreed in chat, or off)
   total: number // items + fee
@@ -121,6 +122,7 @@ export type QuoteIn = {
   offer: Offer | null
   code?: CodeCheck | null
   phoneKnown?: boolean
+  loyaltyPct?: number // > 0 only when loyalty is switched on and this phone has a delivered order
   deliveryOn: boolean
   area: Area | null // the chosen, listed, enabled area; null = not in the list
   freeMin: number // dirhams; free delivery when items >= freeMin (0 = never)
@@ -152,7 +154,20 @@ function codeResult(i: QuoteIn, subtotal: number): { status: CodeStatus; saving:
   return saving > 0 ? { status: 'ok', saving, prices, row } : { status: 'no_items', saving: 0 }
 }
 
-/** R3, R5, R6: one saving per order (offer or code, whichever leaves the lower products total), then delivery. */
+/** Loyalty: `pct` off every product that may be discounted, rounded down to 5 LYD like an offer. */
+function loyaltyResult(i: QuoteIn): { saving: number; prices: Map<number, number> } {
+  const pct = Math.min(Math.max(Math.floor(i.loyaltyPct ?? 0), 0), 50)
+  const prices = new Map<number, number>()
+  let saving = 0
+  if (pct > 0) for (const l of i.lines) {
+    if (!discountable(l.p)) continue
+    const np = percentOff(l.p.price, pct)
+    if (np < l.p.price) { prices.set(l.p.id, np); saving += (l.p.price - np) * l.qty }
+  }
+  return { saving, prices }
+}
+
+/** R3, R5, R6: one saving per order (offer, code or loyalty, whichever leaves the lower products total), then delivery. */
 export function quote(i: QuoteIn): Quote {
   const subtotal = i.lines.reduce((s, l) => s + l.p.price * l.qty, 0)
   const offerPrices = new Map<number, number>()
@@ -178,6 +193,19 @@ export function quote(i: QuoteIn): Quote {
       }
     }
   }
+  let loyalty: Quote['loyalty'] = null
+  if (i.loyaltyPct && i.loyaltyPct > 0) {
+    const r = loyaltyResult(i)
+    if (r.saving > 0) {
+      loyalty = { pct: Math.floor(i.loyaltyPct), saving: r.saving }
+      if (r.saving > discount) {
+        if (code && code.status === 'ok') code.status = 'not_better'
+        kind = 'loyalty'
+        discount = r.saving
+        lines = i.lines.map((l) => ({ id: l.p.id, qty: l.qty, orig: l.p.price, price: r.prices.get(l.p.id) ?? l.p.price }))
+      }
+    }
+  }
   const items = subtotal - discount
   let delivery: Delivery
   if (!i.deliveryOn) delivery = { mode: 'off' }
@@ -186,5 +214,5 @@ export function quote(i: QuoteIn): Quote {
   else if (i.area.price === null || i.area.price === undefined) delivery = { mode: 'chat', area: i.area }
   else delivery = { mode: 'fee', area: i.area, fee: Math.max(0, i.area.price) }
   const fee = delivery.mode === 'fee' ? delivery.fee : 0
-  return { lines, subtotal, discount, kind, items, offer: i.offer, offerSaving, code, delivery, fee, total: items + fee }
+  return { lines, subtotal, discount, kind, items, offer: i.offer, offerSaving, code, loyalty, delivery, fee, total: items + fee }
 }

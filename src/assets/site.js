@@ -8,10 +8,10 @@
       cur: 'د.ل', out: 'غير متوفر حالياً', errName: 'اكتب اسمك', errPhone: 'اكتب رقم هاتف ليبي صحيح، مثل 0912345678', errCity: 'اكتب مدينتك',
       err: 'صار خطأ، حاول مرة ثانية', tooMany: 'أرسلت طلبيات كثيرة. حاول بعد ساعة أو راسلنا مباشرة.', unavailable: 'المنتجات في سلتك لم تعد متوفرة.',
       copied: 'تم نسخ الرسالة، الصقها في المحادثة', copyFail: 'انسخ الرسالة من المربع بالأسفل',
-      disc: 'الخصم', codeW: 'كود', byArea: 'اختر منطقتك', delFree: 'مجاني', delChat: 'نتفق عليه في المحادثة', cash: 'نقداً للمندوب', time: 'مدة التوصيل',
+      disc: 'الخصم', codeW: 'كود', loyal: 'خصم الوفاء', loyalHi: function (p) { return 'أهلاً بعودتك! طبّقنا خصم الوفاء ' + p + '% على طلبيتك'; }, byArea: 'اختر منطقتك', delFree: 'مجاني', delChat: 'نتفق عليه في المحادثة', cash: 'نقداً للمندوب', time: 'مدة التوصيل',
       totDel: 'المجموع مع التوصيل', freeYes: 'التوصيل مجاني لطلبيتك', freeMore: function (x) { return 'أضف ' + x + ' د.ل وتحصل على توصيل مجاني'; },
       errArea: 'اختر منطقتك', errCityPick: 'اختر مدينتك', codeSaved: function (c) { return 'تم حفظ كود الخصم ' + c + '، يُطبّق عند إكمال الطلبية'; },
-      code: { ok: function (x) { return 'تم تطبيق الكود، وفّرت ' + x + ' د.ل'; }, not_better: function (o) { return 'عرض ' + o + ' يعطيك سعراً أفضل، فطبّقناه بدل الكود'; },
+      code: { ok: function (x) { return 'تم تطبيق الكود، وفّرت ' + x + ' د.ل'; }, not_better: function (o) { return 'عرض ' + o + ' يعطيك سعراً أفضل، فطبّقناه بدل الكود'; }, not_better_loyal: 'خصم الوفاء يعطيك سعراً أفضل، فطبّقناه بدل الكود',
         invalid: 'هذا الكود غير صحيح', expired: 'هذا الكود منتهي أو لم يبدأ بعد', used_up: 'هذا الكود وصل للحد الأقصى من الاستخدام',
         used: 'استخدمت هذا الكود من قبل بهذا الرقم', min: function (x) { return 'هذا الكود يعمل للطلبيات من ' + x + ' د.ل'; },
         no_items: 'هذا الكود لا ينطبق على القطع في سلتك', slow: 'محاولات كثيرة، حاول بعد قليل' } },
@@ -20,10 +20,10 @@
       cur: 'LYD', out: 'Out of stock', errName: 'Enter your name', errPhone: 'Enter a valid Libyan phone number, e.g. 0912345678', errCity: 'Enter your city',
       err: 'Something went wrong, please try again', tooMany: 'Too many orders. Try again in an hour or message us directly.', unavailable: 'The items in your cart are no longer available.',
       copied: 'Message copied. Paste it in the chat', copyFail: 'Copy the message from the box below',
-      disc: 'Discount', codeW: 'code', byArea: 'Choose your area', delFree: 'Free', delChat: 'Agreed in the chat', cash: 'cash to the driver', time: 'Delivery time',
+      disc: 'Discount', codeW: 'code', loyal: 'loyalty', loyalHi: function (p) { return 'Welcome back! Your ' + p + '% loyalty discount is applied'; }, byArea: 'Choose your area', delFree: 'Free', delChat: 'Agreed in the chat', cash: 'cash to the driver', time: 'Delivery time',
       totDel: 'Total with delivery', freeYes: 'Your delivery is free', freeMore: function (x) { return 'Add ' + x + ' LYD for free delivery'; },
       errArea: 'Choose your area', errCityPick: 'Choose your city', codeSaved: function (c) { return 'Discount code ' + c + ' saved. It is applied at checkout'; },
-      code: { ok: function (x) { return 'Code applied: you save ' + x + ' LYD'; }, not_better: function (o) { return 'The ' + o + ' offer gives you a better price, so we applied it instead'; },
+      code: { ok: function (x) { return 'Code applied: you save ' + x + ' LYD'; }, not_better: function (o) { return 'The ' + o + ' offer gives you a better price, so we applied it instead'; }, not_better_loyal: 'Your loyalty discount gives you a better price, so we applied it instead',
         invalid: 'This code is not valid', expired: 'This code has ended or has not started yet', used_up: 'This code has reached its limit',
         used: 'You have already used this code with this phone number', min: function (x) { return 'This code works on orders from ' + x + ' LYD'; },
         no_items: 'This code does not apply to the pieces in your cart', slow: 'Too many tries, please wait a little' } }
@@ -89,7 +89,7 @@
   function row(label, value, cls) { return '<div' + (cls ? ' class="' + cls + '"' : '') + '><span>' + esc(label) + '</span><span>' + value + '</span></div>'; }
   function discRows(d) {
     if (!(d.discount > 0)) return '';
-    var why = d.kind === 'code' && d.code ? T.codeW + ' ' + d.code.code : d.offer ? d.offer.name : '';
+    var why = d.kind === 'code' && d.code ? T.codeW + ' ' + d.code.code : d.kind === 'loyalty' && d.loyalty ? T.loyal + ' ' + d.loyalty.pct + '%' : d.offer ? d.offer.name : '';
     return row(T.items, cur(d.subtotal)) + row(why ? T.disc + ' (' + why + ')' : T.disc, '−' + cur(d.discount), 'r-disc');
   }
   function lineHtml(it, withQty) {
@@ -181,12 +181,12 @@
         if (!needArea && dl.time) html += row(T.time, esc(dl.time));
       }
       html += '<div class="tot"><span>' + (d.fee > 0 ? T.totDel : T.total) + ' (' + n + ')</span><span>' + cur(d.total) + '</span></div>';
-      $('#co-summary').innerHTML = html + freeHint(d);
+      $('#co-summary').innerHTML = html + freeHint(d) + (d.kind === 'loyalty' && d.loyalty ? '<p class="freehint loyal">' + esc(T.loyalHi(d.loyalty.pct)) + '</p>' : '');
       if (codeMsg) {
         var cs = d.code, m = '';
         if (cs) {
           var f = T.code[cs.status];
-          m = cs.status === 'ok' ? f(money(cs.saving)) : cs.status === 'not_better' ? f(d.offer ? d.offer.name : '') : cs.status === 'min' ? f(money(cs.min)) : f || '';
+          m = cs.status === 'ok' ? f(money(cs.saving)) : cs.status === 'not_better' ? (d.kind === 'loyalty' ? T.code.not_better_loyal : f(d.offer ? d.offer.name : '')) : cs.status === 'min' ? f(money(cs.min)) : f || '';
         }
         codeMsg.textContent = m; codeMsg.hidden = !m; codeMsg.className = 'code-msg' + (cs && cs.status === 'ok' ? ' ok' : cs && cs.status === 'not_better' ? '' : ' bad');
       }

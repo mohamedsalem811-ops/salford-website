@@ -1,7 +1,25 @@
 # Feature plan: offers, codes, delivery, tracking, customers, waiting list, reviews, trust
 
-Status: **Release 1 live (27 Nov 2026), with every new feature switched off** (no offers, no codes, delivery prices off).
-The owner switches them on from the admin. Release 2 is next.
+Status: **Release 2 live (27 Nov 2026).** Release 1 (offers, codes, delivery) and Release 2 (statuses, tracker, customers, loyalty) are live.
+The loyalty discount ships switched off; the owner turns it on in Admin → Customers. Release 3 is next.
+
+Release 2 record:
+- Customer-facing statuses: New → Confirmed → Out for delivery → Delivered, or Cancelled. "Paid" is a separate team-only tick
+  (old "paid" orders became Confirmed + Paid in migration 0004). Every status change is stored in `order_events` with the admin.
+- Tracker on the order page; the link (`/<lang>/order/SL-x?t=…`) works for 60 days and is the last line of the WhatsApp message.
+- Admin order page: status + Paid + team note, history, "Send update" buttons (WhatsApp message in the customer's language,
+  with the tracking link; none on Cancelled).
+- Customers tab: one phone number = one customer; Returning = 2+ orders that were not cancelled; CSV with UTF-8 BOM,
+  spreadsheet formulas made harmless.
+- Loyalty: % off (default 5, 1–50) once the phone has a delivered order; never added to an offer or code, the biggest saving wins.
+- Tests: 36 unit/route tests (7 new). Browser tests on the preview (test DB): orders on iPhone/iPad/desktop × ar/en,
+  admin status walk on iPad, cancelled tracker, customers tab + search + filter + CSV download, loyalty on/off through the form
+  (5% correctly lost to the 24% test offer; 30% won and showed in checkout and the message), tamper checks
+  (fake statuses, unknown order, 90% loyalty, no login, wrong tracking token).
+- Before going live: backup `live-20261127T122742Z.sql` (kept outside the repo); D1 Time Travel point 2026-11-27 12:27:42 UTC
+  (bookmark `00000329-00000000-00005130-6f660b712d0f056a44ea2f2be9e9b83c`).
+- Live smoke test: pages, one order with the tracking link on salfordlibya.com, tracker, admin Orders/Customers, Send update link,
+  CSV; the test order (SL-1003) and the temporary admin session were deleted afterwards.
 
 Release 1 record:
 - Tests: 29 unit/route tests (pricing, features-off message identical, offers, codes, guessing limit, delivery, tamper, admin).

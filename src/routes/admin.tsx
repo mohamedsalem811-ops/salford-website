@@ -7,9 +7,10 @@ import { mediaUrl } from '../lib/media'
 import { V } from '../views/layout'
 import { assetPath } from '../lib/assets'
 import { adminApi } from './admin-api'
-import { sumRows, sumFromRow } from '../lib/orders'
+import { sumRows, sumFromRow, STATUSES, STATUS_EN, isStatus, trackUrl, updateMessage, waCustomer, type Status } from '../lib/orders'
 import { Shell, libyaTime } from '../views/admin-shell'
 import { r1Pages } from './admin-r1'
+import { r2Pages } from './admin-r2'
 
 type Vars = { admin: { id: number; email: string } }
 export const admin = new Hono<{ Bindings: Env; Variables: Vars }>()
@@ -91,6 +92,7 @@ admin.use('/*', async (c, next) => {
 })
 admin.route('/api', adminApi)
 admin.route('/', r1Pages)
+admin.route('/', r2Pages)
 
 /* ---------- products ---------- */
 admin.get('/', async (c) => {
@@ -249,17 +251,22 @@ admin.get('/p/:id{[0-9]+}', async (c) => {
 
 /* ---------- orders ---------- */
 const PAY: Record<string, string> = { cod_cash: 'Cash on delivery', cod_card: 'Card on delivery', lypay: 'LyPay' }
-const STATUSES = ['new', 'confirmed', 'paid', 'delivered', 'cancelled']
+const stLabel = (s: unknown) => (isStatus(s) ? STATUS_EN[s] : String(s))
 
 admin.get('/orders', async (c) => {
-  const status = c.req.query('status') ?? ''
+  const q = c.req.query('status') ?? ''
+  const status = isStatus(q) ? q : ''
+  const unpaid = q === 'unpaid' // delivered but not ticked paid yet
+  const where = status ? 'WHERE o.status = ?' : unpaid ? "WHERE o.status = 'delivered' AND o.paid = 0" : ''
   const { results } = await c.env.DB.prepare(
-    `SELECT o.*, (SELECT sum(qty) FROM order_items i WHERE i.order_id = o.id) items FROM orders o ${status ? 'WHERE status = ?' : ''} ORDER BY o.id DESC LIMIT 300`,
+    `SELECT o.*, (SELECT sum(qty) FROM order_items i WHERE i.order_id = o.id) items,
+      (SELECT count(*) FROM orders p WHERE p.phone = o.phone AND p.id < o.id AND p.status != 'cancelled') prev
+     FROM orders o ${where} ORDER BY o.id DESC LIMIT 300`,
   ).bind(...(status ? [status] : [])).all<Record<string, string | number>>()
   return c.html(
     <Shell title="Orders" nav="orders">
       <div class="a-head"><h1>Orders</h1>
-        <form method="get" class="a-filter"><select name="status" aria-label="Status"><option value="">All</option>{STATUSES.map((s) => <option value={s} selected={status === s}>{s}</option>)}</select><button class="a-btn">Filter</button></form>
+        <form method="get" class="a-filter"><select name="status" aria-label="Status"><option value="">All</option>{STATUSES.map((s) => <option value={s} selected={status === s}>{STATUS_EN[s]}</option>)}<option value="unpaid" selected={unpaid}>Delivered, not paid</option></select><button class="a-btn">Filter</button></form>
       </div>
       <div class="a-table-wrap">
         <table class="a-table a-olist">
@@ -269,18 +276,18 @@ admin.get('/orders', async (c) => {
               <tr>
                 <td class="c-no"><a href={`/admin/orders/${o.id}`}><b>{o.number}</b></a></td>
                 <td class="c-date">{libyaTime(o.created_at)}</td>
-                <td class="c-cust"><bdi>{o.name}</bdi><br /><span class="a-muted" dir="ltr">{o.phone}</span></td>
+                <td class="c-cust"><bdi>{o.name}</bdi>{Number(o.prev) > 0 ? <span class="tag ret">Returning</span> : null}<br /><a class="a-muted" dir="ltr" href={`/admin/customers/${o.phone}`}>{o.phone}</a></td>
                 <td class="c-city"><bdi>{o.city}</bdi></td>
                 <td class="c-items">{o.items}<span class="a-ph">{Number(o.items) === 1 ? ' item' : ' items'}</span></td>
                 <td class="num c-tot">{fmtLyd(Number(o.total))} LYD</td>
                 <td class="c-pay">{PAY[String(o.payment)]}{o.payment === 'cod_card' ? <span class="tag warn">bring card machine</span> : null}</td>
                 <td class="c-ch">{o.channel}</td>
-                <td class="c-st"><span class={`tag st-${o.status}`}>{o.status}</span></td>
+                <td class="c-st"><span class={`tag st-${o.status}`}>{stLabel(o.status)}</span>{Number(o.paid) ? <span class="tag st-paid">Paid</span> : null}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {results.length ? null : <p class="a-muted">No orders yet.</p>}
+        {results.length ? null : <p class="a-muted">{where ? 'No orders match this filter.' : 'No orders yet.'}</p>}
       </div>
     </Shell>,
   )
@@ -290,24 +297,36 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const o = await c.env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(id).first<Record<string, string | number>>()
   if (!o) return c.redirect('/admin/orders')
-  const { results: items } = await c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id).all<Record<string, string | number>>()
-  const wa = `https://wa.me/218${String(o.phone).replace(/^0/, '')}`
+  const [itemsRes, evRes, prevRes] = await c.env.DB.batch([
+    c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id),
+    c.env.DB.prepare('SELECT e.status, e.at, e.admin_id, a.email FROM order_events e LEFT JOIN admins a ON a.id = e.admin_id WHERE e.order_id = ? ORDER BY e.id').bind(id),
+    c.env.DB.prepare("SELECT count(*) AS n, coalesce(sum(status = 'delivered'), 0) AS d FROM orders WHERE phone = ? AND id != ? AND status != 'cancelled'").bind(o.phone, id),
+  ])
+  const items = itemsRes.results as Record<string, string | number>[]
+  const events = evRes.results as { status: string; at: string; admin_id: number | null; email: string | null }[]
+  const prev = (prevRes.results[0] ?? { n: 0, d: 0 }) as { n: number; d: number }
   const sum = sumFromRow(o)
+  const lang = o.lang === 'en' ? 'en' : 'ar'
+  const track = o.view_token ? trackUrl(new URL(c.req.url).origin, lang, String(o.number), String(o.view_token)) : ''
+  const status = isStatus(o.status) ? o.status : 'new'
+  const msgFor = (st: Status) => updateMessage(st, { lang, number: String(o.number), name: String(o.name), total: Number(o.total), fee: sum?.fee ?? 0, track })
+  const sends: Status[] = ['confirmed', 'out', 'delivered', 'cancelled']
   return c.html(
     <Shell title={String(o.number)} nav="orders">
-      <div class="a-head"><h1>Order {o.number}</h1><a class="a-btn" href="/admin/orders">All orders</a></div>
+      <div class="a-head"><h1>Order {o.number} <span class={`tag st-${o.status}`}>{stLabel(o.status)}</span>{Number(o.paid) ? <span class="tag st-paid">Paid</span> : null}</h1><a class="a-btn" href="/admin/orders">All orders</a></div>
       <div class="a-cols">
         <div class="a-card">
-          <h2>Customer</h2>
+          <h2>Customer {prev.n > 0 ? <span class="tag ret">Returning · {prev.n} other order{prev.n === 1 ? '' : 's'}</span> : <span class="tag">First order</span>}</h2>
           <dl class="a-dl">
             <dt>Name</dt><dd dir="auto">{o.name}</dd>
-            <dt>Phone</dt><dd dir="ltr">{o.phone} · <a href={wa} target="_blank" rel="noopener">WhatsApp</a></dd>
+            <dt>Phone</dt><dd dir="ltr">{o.phone} · <a href={waCustomer(String(o.phone))} target="_blank" rel="noopener">WhatsApp</a> · <a href={`/admin/customers/${o.phone}`}>All their orders</a></dd>
             <dt>City</dt><dd dir="auto">{o.city}</dd>
             <dt>Address</dt><dd dir="auto">{o.address || '—'}</dd>
             <dt>Note</dt><dd dir="auto">{o.note || '—'}</dd>
             <dt>Payment</dt><dd>{PAY[String(o.payment)]}{o.payment === 'cod_card' ? ' · bring card machine' : ''}</dd>
             <dt>Sent via</dt><dd>{o.channel} · {o.lang === 'ar' ? 'Arabic' : 'English'}</dd>
             <dt>Created</dt><dd>{libyaTime(o.created_at)} <span class="a-muted">Libya time</span></dd>
+            {track ? <><dt>Tracker</dt><dd><a href={track} target="_blank" rel="noopener">Customer’s order page ↗</a></dd></> : null}
           </dl>
         </div>
         <div class="a-card">
@@ -318,11 +337,27 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
           })}</tbody></table>
           {sum ? <dl class="a-dl">{sumRows({ lang: 'en', total: Number(o.total), sum }).map((r) => <><dt>{r.label}</dt><dd>{r.value}</dd></>)}{sum.area ? <><dt>Area</dt><dd dir="auto">{sum.area}</dd></> : null}</dl> : null}
           <p class="a-total">Total <b>{fmtLyd(Number(o.total))} LYD</b>{sum && sum.fee ? <span class="a-muted"> (incl. {fmtLyd(sum.fee)} delivery, cash to the driver)</span> : null}</p>
+        </div>
+        <div class="a-card">
+          <h2>Status</h2>
           <form class="a-order-form" data-order-form={o.id}>
-            <label class="a-f">Status<select name="status">{STATUSES.map((s) => <option value={s} selected={o.status === s}>{s}</option>)}</select></label>
+            <label class="a-f">Status the customer sees<select name="status">{STATUSES.map((s) => <option value={s} selected={status === s}>{STATUS_EN[s]}</option>)}</select></label>
+            <label class="a-check"><input type="checkbox" name="paid" checked={!!Number(o.paid)} /> Paid <span class="a-muted">(team only, the customer never sees this)</span></label>
             <label class="a-f">Team note<textarea name="admin_note" rows={3}>{o.admin_note}</textarea></label>
             <button class="a-btn p" type="submit">Save</button>
           </form>
+          <h2>History</h2>
+          <ol class="a-hist">
+            {events.map((e) => <li><b>{stLabel(e.status)}</b> <span class="a-muted">{libyaTime(e.at)}{e.admin_id ? ` · ${e.email ?? 'removed admin'}` : e.status === 'new' ? ' · placed by the customer' : ''}</span></li>)}
+          </ol>
+        </div>
+        <div class="a-card">
+          <h2>Send update</h2>
+          <p class="a-muted">Opens WhatsApp with the message written for the customer{lang === 'en' ? ' (in English, the language they ordered in)' : ' (in Arabic, the language they ordered in)'}, including their tracking link. Change the status first, then send.</p>
+          <div class="a-sends">
+            {sends.map((st) => <a class={`a-btn${st === status ? ' p' : ''}`} href={waCustomer(String(o.phone), msgFor(st))} target="_blank" rel="noopener" data-send-update={st}>{STATUS_EN[st]}</a>)}
+          </div>
+          {status !== 'new' ? <details class="a-preview"><summary>Message for “{STATUS_EN[status]}”</summary><pre dir="auto">{msgFor(status)}</pre></details> : null}
         </div>
       </div>
     </Shell>,

@@ -48,6 +48,7 @@ export const Shell = ({ title, children, nav }: { title: string; children: Child
             <img class="a-logo" src="/static/brand/word-white.webp" alt="Salford" width="480" height="127" />
             <a href="/admin" class={nav === 'products' ? 'on' : ''}>Products</a>
             <a href="/admin/orders" class={nav === 'orders' ? 'on' : ''}>Orders</a>
+            <a href="/admin/customers" class={nav === 'customers' ? 'on' : ''}>Customers</a>
             <a href="/admin/offers" class={nav === 'offers' ? 'on' : ''}>Offers</a>
             <a href="/admin/codes" class={nav === 'codes' ? 'on' : ''}>Discount codes</a>
             <a href="/admin/delivery" class={nav === 'delivery' ? 'on' : ''}>Delivery</a>

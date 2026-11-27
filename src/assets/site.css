@@ -290,6 +290,24 @@ img.pimg.broken { opacity: 0; }
 .done .sends { width: 100%; }
 .steps { text-align: start; width: 100%; margin: 0; padding: 14px 14px 14px 34px; border-radius: 14px; background: #fff; border: 1px solid var(--line); display: grid; gap: 8px; }
 [dir="rtl"] .steps { padding: 14px 34px 14px 14px; }
+/* order tracker (Release 2) */
+.ok-ico.st-out { background: var(--soft); color: var(--mauve); } .ok-ico.st-out svg { width: 30px; height: 30px; }
+.ok-ico.st-cancelled { background: #FBE3E1; color: #9A2219; }
+.track-h { margin-top: 28px; }
+.track { list-style: none; margin: 0; padding: 16px; width: 100%; text-align: start; background: #fff; border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 0; }
+.track li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; position: relative; padding-bottom: 18px; }
+.track li:last-child { padding-bottom: 0; }
+.track li:not(:last-child)::before { content: ''; position: absolute; inset-inline-start: 13px; top: 28px; bottom: 0; width: 2px; background: var(--line); }
+.track li.t-done:not(:last-child)::before { background: var(--ok); }
+.t-dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; border: 2px solid var(--line); background: #fff; color: #fff; }
+.t-done .t-dot { background: var(--ok); border-color: var(--ok); }
+.t-cancel.t-done .t-dot { background: #9A2219; border-color: #9A2219; }
+.t-now .t-dot { border-color: var(--mauve); box-shadow: inset 0 0 0 5px #fff; background: var(--mauve); }
+.t-txt { display: grid; gap: 2px; padding-top: 3px; }
+.t-txt b { font-weight: 600; }
+.t-todo .t-txt b { color: var(--muted); font-weight: 500; }
+.t-txt small { color: var(--muted); font-size: .85rem; }
+.t-txt small[dir="ltr"] { justify-self: start; }
 .para { max-width: 65ch; }
 
 /* footer: a night card (like the hero) floating over the top edge, then links, payment and delivery */

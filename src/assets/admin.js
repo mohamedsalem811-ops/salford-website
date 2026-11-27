@@ -290,7 +290,12 @@
 
   /* ---------- orders ---------- */
   var of = $('[data-order-form]');
-  if (of) of.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/orders/' + of.getAttribute('data-order-form'), formJSON(of)).then(function () { toast('Saved'); }).catch(function (err) { toast(err.message, true); }); });
+  // a new status is added to the history and changes which "Send update" button is highlighted, so the page reloads
+  if (of) of.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/orders/' + of.getAttribute('data-order-form'), formJSON(of)).then(function (r) { toast('Saved'); if (r && r.changed) setTimeout(function () { location.reload(); }, 600); }).catch(function (err) { toast(err.message, true); }); });
+
+  /* ---------- customers: loyalty switch ---------- */
+  var lf = $('[data-loyalty-form]');
+  if (lf) lf.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/loyalty', formJSON(lf)).then(function () { toast('Loyalty saved'); setTimeout(function () { location.reload(); }, 600); }).catch(function (err) { toast(err.message, true); }); });
 
   /* ---------- settings ---------- */
   var sf = $('[data-settings-form]');

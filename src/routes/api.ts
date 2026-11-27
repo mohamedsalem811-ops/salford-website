@@ -8,7 +8,7 @@ import type { Quote } from '../lib/pricing'
 import { parseItems, loadFromCatalog, loadFresh, runQuote, placeName } from '../lib/checkout'
 import { firstImage, mediaUrl } from '../lib/media'
 import { isLang, type Lang } from '../lib/i18n'
-import { normalizePhone, channelLinks, buildMessage, sha256hex, randomToken, type OrderSum } from '../lib/orders'
+import { normalizePhone, channelLinks, buildMessage, sha256hex, randomToken, trackUrl, type OrderSum } from '../lib/orders'
 
 export { normalizePhone, channelLinks, buildMessage }
 
@@ -48,6 +48,7 @@ function quoteJson(q: Quote, lang: Lang) {
     lines: q.lines.map((l) => ({ id: l.id, qty: l.qty, orig: l.orig, price: l.price })),
     offer: o ? { name: (lang === 'ar' ? o.name_ar || o.name_en : o.name_en || o.name_ar) || lookOf(o.template).occasion[lang], pct: o.percent, ends: o.ends_at } : null,
     code: q.code ? { code: q.code.code, status: q.code.status, saving: q.code.saving, min: q.code.min ?? 0, kind: q.code.row?.kind ?? '', value: q.code.row?.value ?? 0 } : null,
+    loyalty: q.loyalty ? { pct: q.loyalty.pct, saving: q.loyalty.saving } : null,
     delivery: {
       mode: d.mode,
       fee: d.mode === 'fee' ? d.fee : 0,
@@ -147,8 +148,9 @@ api.post('/orders', async (c) => {
   const o = q.offer
   const offerName = q.kind === 'offer' && o ? (lang === 'ar' ? o.name_ar || o.name_en : o.name_en || o.name_ar) || lookOf(o.template).occasion[lang] : ''
   const d = q.delivery
+  const loyalty = q.kind === 'loyalty' && q.loyalty ? q.loyalty.pct : 0
   const sum: OrderSum = {
-    subtotal: q.subtotal, discount: q.discount, kind: q.kind, offerName, code: q.kind === 'code' ? q.code!.code : '',
+    subtotal: q.subtotal, discount: q.discount, kind: q.kind, offerName, code: q.kind === 'code' ? q.code!.code : '', ...(loyalty ? { loyalty } : {}),
     area: place?.area ?? '',
     delivery: d.mode === 'fee' && d.fee === 0 ? 'free' : d.mode,
     fee: q.fee,
@@ -158,20 +160,22 @@ api.post('/orders', async (c) => {
   const token = randomToken()
   const ins = await c.env.DB.prepare(
     `INSERT INTO orders (name, phone, city, address, note, payment, channel, lang, total, view_token, ip_hash,
-      subtotal, discount_total, discount_kind, offer_id, offer_name, code, area, area_id, delivery_fee, delivery_free, delivery_chat, delivery_time)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      subtotal, discount_total, discount_kind, offer_id, offer_name, code, loyalty, area, area_id, delivery_fee, delivery_free, delivery_chat, delivery_time)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
   )
     .bind(name, phone, city, address, note, payment, channel, lang, q.total, token, ipHash,
-      q.subtotal, q.discount, q.kind, q.kind === 'offer' && o ? o.id : null, offerName, sum.code, sum.area, area ? area.id : null,
+      q.subtotal, q.discount, q.kind, q.kind === 'offer' && o ? o.id : null, offerName, sum.code, loyalty, sum.area, area ? area.id : null,
       q.fee, sum.delivery === 'free' ? 1 : 0, sum.delivery === 'chat' ? 1 : 0, sum.time)
     .first<{ id: number }>()
   const id = ins!.id
   const number = `SL-${1000 + id}`
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE orders SET number = ? WHERE id = ?').bind(number, id),
+    c.env.DB.prepare("INSERT INTO order_events (order_id, status) VALUES (?, 'new')").bind(id),
     ...lines.map((l) => c.env.DB.prepare('INSERT INTO order_items (order_id, product_id, code, brand, name, price, qty, orig_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, l.product_id, l.code, l.brand, l.name, l.price, l.qty, l.orig_price)),
   ])
-  const message = buildMessage({ lang, number, lines, total: q.total, name, phone, city, address, note, payment, sum })
+  const track = trackUrl(new URL(c.req.url).origin, lang, number, token)
+  const message = buildMessage({ lang, number, lines, total: q.total, name, phone, city, address, note, payment, sum, track })
   const codeNote = q.code && q.code.status !== 'ok' ? q.code.status : ''
   return c.json({ number, token, message, links: channelLinks(settings, message), channel, unavailable, total: fmtLyd(q.total), codeNote })
 })

@@ -3,11 +3,12 @@ import type { Env, Media } from '../lib/db'
 import { toDirham } from '../lib/db'
 import { hashPassword, verifyLogin, endOtherSessions } from '../lib/auth'
 import { youtubeId } from '../lib/media'
-import { waNumber, igHandle, fbPage } from '../lib/orders'
+import { waNumber, igHandle, fbPage, isStatus } from '../lib/orders'
 import { bumpCatalog } from '../lib/catalog'
 
 import { translateProduct } from '../lib/translate'
 import { r1Api } from './admin-r1'
+import { r2Api } from './admin-r2'
 
 type Vars = { admin: { id: number; email: string } }
 
@@ -324,11 +325,19 @@ adminApi.post('/media/batch', async (c) => {
 })
 
 /* ---------- orders ---------- */
+// Status (what the customer sees), the team-only Paid tick and the team note. A status change is recorded in order_events.
 adminApi.post('/orders/:id{[0-9]+}', async (c) => {
-  const b = await c.req.json<{ status: string; admin_note: string }>()
-  if (!['new', 'confirmed', 'paid', 'delivered', 'cancelled'].includes(b.status)) return c.json({ error: 'Bad status' }, 400)
-  await c.env.DB.prepare('UPDATE orders SET status=?, admin_note=? WHERE id=?').bind(b.status, String(b.admin_note ?? '').slice(0, 1000), Number(c.req.param('id'))).run()
-  return c.json({ ok: true })
+  const b = await c.req.json<{ status: string; admin_note: string; paid?: unknown }>()
+  if (!isStatus(b.status)) return c.json({ error: 'Bad status' }, 400)
+  const id = Number(c.req.param('id'))
+  const db = c.env.DB
+  const o = await db.prepare('SELECT status FROM orders WHERE id = ?').bind(id).first<{ status: string }>()
+  if (!o) return c.json({ error: 'Order not found' }, 404)
+  const paid = b.paid === true || b.paid === 'on' || b.paid === '1' || b.paid === 1 ? 1 : 0
+  const stmts = [db.prepare('UPDATE orders SET status=?, paid=?, admin_note=? WHERE id=?').bind(b.status, paid, String(b.admin_note ?? '').slice(0, 1000), id)]
+  if (o.status !== b.status) stmts.push(db.prepare('INSERT INTO order_events (order_id, status, admin_id) VALUES (?, ?, ?)').bind(id, b.status, c.get('admin').id))
+  await db.batch(stmts)
+  return c.json({ ok: true, changed: o.status !== b.status })
 })
 
 /* ---------- settings ---------- */
@@ -396,3 +405,4 @@ adminApi.post('/sessions/end-others', async (c) => {
 
 /* ---------- Release 1: offers, codes, delivery (admin-r1.tsx) ---------- */
 adminApi.route('/', r1Api)
+adminApi.route('/', r2Api)

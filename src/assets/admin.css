@@ -129,3 +129,10 @@ h1 { font-size: 1.4rem; margin: 0; } h2 { font-size: 1.05rem; margin: 0 0 10px; 
 .d-areas input:not([type="checkbox"]) { min-height: 34px; padding: 4px 8px; border-radius: 7px; border: 1px solid #E2CFD5; font: 14px system-ui, 'IBM Plex Sans Arabic', sans-serif; width: 100%; min-width: 90px; }
 .d-areas .d-num { width: 90px; min-width: 70px; }
 .d-areas td input[type="checkbox"] { width: 18px; height: 18px; }
+/* Release 2: order status, history, send update, customers */
+.st-out { background: #E7E3FB; color: #3F2F8F; } .st-new { background: #F3E8FB; color: #5B3A87; } .tag.ret { background: #FFF1C9; color: #6E4E00; }
+.a-check { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .a-check input { width: 20px; height: 20px; }
+.a-hist { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; }
+.a-sends { display: flex; flex-wrap: wrap; gap: 8px; } .a-sends .a-btn { min-height: 44px; display: inline-flex; align-items: center; }
+.a-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 system-ui, 'IBM Plex Sans Arabic', sans-serif; background: #FAF6F7; border-radius: 8px; padding: 10px; margin: 8px 0 0; }
+.a-stats { display: flex; flex-wrap: wrap; gap: 10px; } .a-stats div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; min-width: 120px; } .a-stats b { display: block; font-size: 20px; }

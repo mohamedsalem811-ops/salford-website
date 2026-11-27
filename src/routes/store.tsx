@@ -11,7 +11,7 @@ import { OfferBanner, isoUtc } from '../views/offer'
 import { t, isLang, CITIES_AR, type Lang } from '../lib/i18n'
 import { Layout, Grid, Price, Pic, Icons, bname, type PageMeta } from '../views/layout'
 import { mediaUrl, srcset, youtubeId, firstImage, absUrl } from '../lib/media'
-import { loadOrderForCustomer, channelLinks, waNumber, igHandle, sumRows } from '../lib/orders'
+import { loadOrderForCustomer, channelLinks, waNumber, igHandle, sumRows, isStatus, STATUS_WORDS, type Status, type OrderEvent } from '../lib/orders'
 
 type C = Context<{ Bindings: Env }>
 export const store = new Hono<{ Bindings: Env }>()
@@ -524,7 +524,7 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
   const num = c.req.param('num')
-  const [b, v] = await Promise.all([base(c, lang), loadOrderForCustomer(c.env.DB, num, c.req.query('t') ?? '')])
+  const [b, v] = await Promise.all([base(c, lang), loadOrderForCustomer(c.env.DB, num, c.req.query('t') ?? '', new URL(c.req.url).origin)])
   c.header('cache-control', 'private, no-store')
   const meta = { lang, path: '/cart', title: tr.orderReady, noindex: true, active: 'cart' as const }
   if (!v) {
@@ -547,17 +547,34 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
   const hint = ch === 'instagram' ? tr.hintIg : ch === 'messenger' ? tr.hintMs : tr.firstWa
   const label = ch === 'instagram' ? tr.openIg : ch === 'messenger' ? tr.openMs : tr.sendWa
   const cur = lang === 'ar' ? 'د.ل' : 'LYD'
+  const status = isStatus(v.order.status) ? v.order.status : 'new'
+  const wa = waNumber(b.settings.whatsapp || '')
   return render(c, meta, b, (
     <section class="wrap narrow done" data-order-page={num} data-copy-first={copyFirst ? '1' : undefined}>
-      <span class="ok-ico" aria-hidden="true">✓</span>
-      <h1 class="h1">{tr.orderReady}</h1>
-      <p class="onum"><span class="muted">{tr.orderNumber}</span> <bdi>{num}</bdi></p>
-      <p class="muted" data-order-hint data-opened-hint={ch === 'whatsapp' ? tr.hintWa : undefined}>{hint}</p>
-      <div class="sends">
-        <a class={`send ${ch}`} href={links[ch]} target="_blank" rel="noopener" data-open data-opened-label={ch === 'whatsapp' ? tr.openWa : undefined}><span>{label}</span></a>
-        <button class="btn ghost wide" type="button" data-copy>{tr.copyMsg}</button>
-        <textarea class="vh" readonly aria-hidden="true" tabindex={-1} data-msg>{v.message}</textarea>
-      </div>
+      {status === 'new' ? (
+        <>
+          <span class="ok-ico" aria-hidden="true">✓</span>
+          <h1 class="h1">{tr.orderReady}</h1>
+          <p class="onum"><span class="muted">{tr.orderNumber}</span> <bdi>{num}</bdi></p>
+          <p class="muted" data-order-hint data-opened-hint={ch === 'whatsapp' ? tr.hintWa : undefined}>{hint}</p>
+          <div class="sends">
+            <a class={`send ${ch}`} href={links[ch]} target="_blank" rel="noopener" data-open data-opened-label={ch === 'whatsapp' ? tr.openWa : undefined}><span>{label}</span></a>
+            <button class="btn ghost wide" type="button" data-copy>{tr.copyMsg}</button>
+            <textarea class="vh" readonly aria-hidden="true" tabindex={-1} data-msg>{v.message}</textarea>
+          </div>
+        </>
+      ) : (
+        <>
+          <span class={`ok-ico st-${status}`} aria-hidden="true">{status === 'cancelled' ? '×' : status === 'out' ? Icons.truck : '✓'}</span>
+          <h1 class="h1">{tr.stTitle[status]}</h1>
+          <p class="onum"><span class="muted">{tr.orderNumber}</span> <bdi>{num}</bdi></p>
+          <p class="muted">{tr.stHelp[status]}</p>
+          {wa ? <div class="sends"><a class="send whatsapp" href={`https://wa.me/${wa}?text=${encodeURIComponent(`${lang === 'ar' ? 'بخصوص طلبيتي' : 'About my order'} ${num}`)}`} target="_blank" rel="noopener"><span>{tr.msgUs}</span></a></div> : null}
+        </>
+      )}
+      <h2 class="h track-h">{tr.trackH}</h2>
+      <Tracker lang={lang} status={status} events={v.events} />
+      <p class="muted small">{tr.trackKeep}</p>
       <h2 class="h">{tr.yourOrder}</h2>
       <div class="sum">
         {v.info.lines.map((l) => (
@@ -566,12 +583,38 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
         {sumRows(v.info).map((r) => <div class={`r-${r.kind}`}><span>{r.label}</span><span>{r.value}</span></div>)}
         <div class="tot"><span>{tr.total}</span><span>{fmtLyd(v.info.total)} {cur}</span></div>
       </div>
-      <h2 class="h">{tr.nextSteps}</h2>
-      <ol class="steps"><li>{tr.step1}</li><li>{tr.step2}</li><li>{tr.step3}</li></ol>
       <a class="btn ghost wide" href={`/${lang}/`}>{tr.keepShopping}</a>
     </section>
   ))
 })
+
+/** The customer's timeline: received → confirmed → out for delivery → delivered (or received → cancelled), with Libya times. */
+function Tracker({ lang, status, events }: { lang: Lang; status: Status; events: OrderEvent[] }) {
+  const tr = t(lang)
+  const fmt = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-LY-u-nu-latn' : 'en-GB', { timeZone: 'Africa/Tripoli', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  const at = (st: string) => {
+    const e = [...events].reverse().find((x) => x.status === st)
+    if (!e) return ''
+    const d = new Date(e.at.replace(' ', 'T') + 'Z')
+    return Number.isNaN(d.getTime()) ? '' : fmt.format(d)
+  }
+  const flow: Status[] = status === 'cancelled' ? ['new', 'cancelled'] : ['new', 'confirmed', 'out', 'delivered']
+  const now = flow.indexOf(status)
+  return (
+    <ol class="track" data-status={status}>
+      {flow.map((st, i) => {
+        const state = i < now ? 'done' : i === now ? (st === 'delivered' || st === 'cancelled' ? 'done' : 'now') : 'todo'
+        const when = i <= now ? at(st) : ''
+        return (
+          <li class={`t-${state}${st === 'cancelled' ? ' t-cancel' : ''}`} aria-current={i === now ? 'step' : undefined}>
+            <span class="t-dot" aria-hidden="true">{state === 'done' ? (st === 'cancelled' ? '×' : '✓') : ''}</span>
+            <span class="t-txt"><b>{STATUS_WORDS[lang][st]}</b>{when ? <small>{when}</small> : null}{i >= now && tr.trackSub[st] && status !== 'cancelled' && state !== 'done' ? <small>{tr.trackSub[st]}</small> : null}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
 
 /* ---------- info pages ---------- */
 const PAGES: Record<string, { ar: [string, string]; en: [string, string] }> = {
