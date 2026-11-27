@@ -217,7 +217,7 @@ export function Card({ p, lang, brands, eager, offer }: { p: ProductWithMedia; l
     <a class={`card${p.in_stock ? '' : ' out'}`} href={`/${lang}/p/${p.id}`}>
       <span class={`ph t-${brand?.tint ?? 'swa'}`}><Pic p={p} lang={lang} eager={eager} />{sp.pct && p.in_stock && offer ? <OfferBadge offer={offer} lang={lang} pct={sp.pct} /> : null}<span class={`stk${p.in_stock ? ' on' : ''}`}><i aria-hidden="true" />{p.in_stock ? tr.inStock : tr.outShort}</span></span>
       <span class="bd">{brand?.name}</span>
-      <span class="nm">{pName(p, lang)}</span>
+      <span class="nm"><bdi>{pName(p, lang)}</bdi></span>
       {p.in_stock ? <Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /> : <span class="soldout">{tr.outOfStock}</span>}
       {p.in_stock && sp.flash && sp.flash.left !== null ? <span class="fleft">{tr.flashLeft(sp.flash.left)}</span> : null}
     </a>

@@ -124,7 +124,7 @@
   function giftLine(d, img) {
     if (!d.gift) return '';
     return img
-      ? '<div class="line gift">' + (d.gift.image ? '<img src="' + esc(d.gift.image) + '" alt="" loading="lazy">' : '<span></span>') + '<div><span class="bd">🎁 ' + esc(T.giftW) + '</span><div class="nm">' + esc(d.gift.name) + '</div></div><span class="price sale">' + esc(T.delFree) + ' <s>' + money(d.gift.orig) + '</s></span></div>'
+      ? '<div class="line gift">' + (d.gift.image ? '<img src="' + esc(d.gift.image) + '" alt="" loading="lazy">' : '<span></span>') + '<div><span class="bd">🎁 ' + esc(T.giftW) + '</span><div class="nm"><bdi>' + esc(d.gift.name) + '</bdi></div></div><span class="price sale">' + esc(T.delFree) + ' <s>' + money(d.gift.orig) + '</s></span></div>'
       : '<div class="r-gift"><span><bdi>🎁 ' + esc(d.gift.name) + '</bdi></span><span>' + esc(T.giftW) + '</span></div>';
   }
   function renderCart() {
@@ -139,7 +139,7 @@
       keep.forEach(function (i) {
         var it = byId[i.id];
         html += '<div class="line"><a href="/' + lang + '/p/' + it.id + '"><img src="' + esc(it.image) + '" alt="" loading="lazy"></a><div><span class="bd">' + esc(it.brand) +
-          '</span><div class="nm">' + esc(it.name) + '</div>' + (it.inStock
+          '</span><div class="nm"><bdi>' + esc(it.name) + '</bdi></div>' + (it.inStock
             ? '<span class="qty"><button type="button" data-q="' + it.id + ':-1" aria-label="−">−</button><span>' + i.qty + '</span><button type="button" data-q="' + it.id + ':1" aria-label="+">+</button></span>'
             : '<span class="soldout">' + esc(T.out) + '</span>') +
           ' <button class="linkbtn" type="button" data-rm="' + it.id + '">' + esc(T.remove) + '</button></div>' + (it.inStock ? lineHtml(it) : '<span class="price muted">—</span>') + '</div>';

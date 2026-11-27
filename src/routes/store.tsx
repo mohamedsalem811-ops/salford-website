@@ -386,7 +386,7 @@ function ReviewList({ list, lang, products }: { list: Review[]; lang: Lang; prod
             <div class="rv-top"><Stars n={r.rating} lang={lang} />{r.verified ? <span class="rv-ver">✓ {tr.rvVerified}</span> : null}</div>
             {r.text ? <p class="rv-text" dir="auto">{r.text}</p> : null}
             {r.photo_key ? <a class="rv-ph" href={`/api/review-photo/${r.id}`} target="_blank" rel="noopener"><img src={`/api/review-photo/${r.id}`} alt="" loading="lazy" /></a> : null}
-            <p class="rv-by"><bdi>{r.name}</bdi>{r.city ? <> · <bdi>{r.city}</bdi></> : null} · <span>{monthOf(r.created_at, lang)}</span>{p ? <> · <a href={`/${lang}/p/${p.id}`}>{pName(p, lang)}</a></> : null}</p>
+            <p class="rv-by"><bdi>{r.name}</bdi>{r.city ? <> · <bdi>{r.city}</bdi></> : null} · <span>{monthOf(r.created_at, lang)}</span>{p ? <> · <a href={`/${lang}/p/${p.id}`}><bdi>{pName(p, lang)}</bdi></a></> : null}</p>
           </li>
         )
       })}
@@ -507,7 +507,7 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
         <Gallery p={p} lang={lang} />
         <div class="pinfo">
           <a class="bd" href={`/${lang}/brand/${p.brand_id}`}>{brand?.name}</a>
-          <h1 class="pname">{name}</h1>
+          <h1 class="pname"><bdi>{name}</bdi></h1>
           <div class="prow">
             <Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} />
             {sp.pct && p.in_stock ? <span class="ochip" dir="ltr">{sp.flash ? `${tr.flashTag} −${sp.pct}%` : `−${sp.pct}%`}</span> : null}
@@ -535,7 +535,7 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
             <span><b>{tr.trustLineT}</b>{tr.trustLineS} <a href={`/${lang}/page/trust`}>{tr.trustMore}</a></span>
           </div>
           {setParts.length ? (
-            <div class="setbox"><b>{tr.setIncludes}</b><ul>{setParts.map((s) => <li><a href={`/${lang}/p/${s.id}`}>{s.name_en || s.name_ar}</a> <bdi class="muted">{s.code}</bdi></li>)}</ul></div>
+            <div class="setbox"><b>{tr.setIncludes}</b><ul>{setParts.map((s) => <li><a href={`/${lang}/p/${s.id}`}><bdi>{s.name_en || s.name_ar}</bdi></a> <bdi class="muted">{s.code}</bdi></li>)}</ul></div>
           ) : null}
           {pShort(p, lang) ? <p class="short" dir="auto">{pShort(p, lang)}</p> : null}
           {desc ? <div class="desc" dir="auto">{desc.split('\n').map((l) => (l.trim() ? <p>{l}</p> : null))}</div> : null}
@@ -550,7 +550,7 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
       {p.in_stock ? (
         /* phones and iPads: a small bar that comes up once the main button has scrolled away */
         <div class="fbuy" data-fbuy aria-hidden="true">
-          <span class="fbuy-txt"><span class="fbuy-nm">{name}</span><Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /></span>
+          <span class="fbuy-txt"><span class="fbuy-nm"><bdi>{name}</bdi></span><Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /></span>
           <button class="btn" type="button" data-add={p.id} tabindex={-1}>{Icons.bag}{tr.addToCart}</button>
         </div>
       ) : null}
