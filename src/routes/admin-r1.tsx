@@ -405,6 +405,7 @@ r1Pages.get('/delivery', async (c) => {
   ])
   const on = s.delivery_on === '1'
   const freeMin = Number(s.free_delivery_min || 0)
+  const freeOn = s.free_delivery_on !== '0' && freeMin > 0
   const noPrice = ar.results.filter((a) => a.enabled && (a.price === null || a.price === undefined)).length
   return c.html(
     <Shell title="Delivery" nav="delivery">
@@ -415,7 +416,13 @@ r1Pages.get('/delivery', async (c) => {
           <p class="a-muted">Off: customers type their city and the delivery price is agreed in the chat (as now).
             On: customers choose their city and area, see the price and delivery time before ordering, and pay the driver in cash. An area without a price shows “agreed in the chat”.</p>
           {noPrice ? <p class="tag warn">{noPrice} area(s) have no price yet</p> : null}
-          <label class="a-f" style="max-width:320px">Free delivery for orders from (LYD, products after discount)<input name="free_min" type="number" min="0" step="any" value={freeMin ? lyd(freeMin) : ''} placeholder="Never free" /></label>
+        </div>
+        <div class="a-card">
+          <h2>Free delivery {freeOn ? <span class="tag ok">On</span> : <span class="tag">Off</span>}</h2>
+          <label class="a-inline"><input type="checkbox" name="free_on" checked={freeOn} /> <b>Free delivery when the order reaches an amount</b></label>
+          <label class="a-f" style="max-width:320px">Amount (LYD, products total after any discount)<input name="free_min" type="number" inputmode="decimal" min="1" step="any" value={freeMin ? lyd(freeMin) : '1000'} /></label>
+          <p class="a-muted">On: an order at or above this amount has free delivery, and the cart tells the customer how much more to add.
+            Off: delivery is never free (except during an offer ticked “free delivery”).</p>
         </div>
         <div class="a-card">
           <h2>Cities and areas</h2>
@@ -484,8 +491,11 @@ r1Api.put('/delivery', async (c) => {
   const up = (k: string, v: string) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(k, v)
   const fm = String(b.free_min ?? '').trim()
   const free = fm ? Number(fm) : 0
-  if (!(Number.isFinite(free) && free >= 0)) return c.json({ error: 'Free delivery amount is not a number.' }, 400)
-  stmts.push(up('delivery_on', b.delivery_on ? '1' : '0'), up('free_delivery_min', String(toDirham(free))))
+  const freeOn = !!b.free_on
+  if (!(Number.isFinite(free) && free >= 0 && free <= 1000000)) return c.json({ error: 'Free delivery amount is not a number.' }, 400)
+  if (freeOn && !(free > 0)) return c.json({ error: 'Enter the amount for free delivery, or untick it.' }, 400)
+  stmts.push(up('delivery_on', b.delivery_on ? '1' : '0'), up('free_delivery_on', freeOn ? '1' : '0'))
+  if (free > 0) stmts.push(up('free_delivery_min', String(toDirham(free)))) // the amount is kept while switched off
   const t = (k: string, max = 60) => String(b[k] ?? '').trim().slice(0, max)
   for (const { id } of cr.results) {
     if (!(`c${id}_name_ar` in b)) continue

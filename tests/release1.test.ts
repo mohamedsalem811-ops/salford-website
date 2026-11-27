@@ -205,7 +205,7 @@ test('delivery prices: area fee, free from a total, made-up areas', async () => 
   assert.ok(d.message.includes('City: Tripoli · Tajoura'))
 
   // free delivery from 400 LYD (products after discount)
-  await call('PUT', '/admin/api/delivery', { delivery_on: true, free_min: '400' }, asAdmin)
+  await call('PUT', '/admin/api/delivery', { delivery_on: true, free_on: true, free_min: '400' }, asAdmin)
   const free = await quote({ items: both, area_id: tajoura.id })
   assert.equal(free.delivery.mode, 'free')
   assert.equal(free.total, 490000)
@@ -213,13 +213,22 @@ test('delivery prices: area fee, free from a total, made-up areas', async () => 
   assert.ok(f.d.message.includes('Delivery: Free'))
   assert.equal(row(f.d.number).delivery_free, 1)
 
+  // the free-delivery switch: off keeps the amount but charges delivery, on again restores it, on needs an amount
+  await call('PUT', '/admin/api/delivery', { delivery_on: true, free_on: false, free_min: '400' }, asAdmin)
+  assert.equal((await quote({ items: both, area_id: tajoura.id })).delivery.mode, 'fee')
+  assert.equal(DB.sqlite.prepare("SELECT value FROM settings WHERE key = 'free_delivery_min'").get()!.value, '400000')
+  assert.ok((await (await get('/admin/delivery', asAdmin)).text()).includes('value="400"'))
+  assert.equal((await call('PUT', '/admin/api/delivery', { delivery_on: true, free_on: true, free_min: '' }, asAdmin)).status, 400)
+  await call('PUT', '/admin/api/delivery', { delivery_on: true, free_on: true, free_min: '400' }, asAdmin)
+  assert.equal((await quote({ items: both, area_id: tajoura.id })).delivery.mode, 'free')
+
   // a city that is switched off is not offered or trusted
   DB.sqlite.prepare('UPDATE delivery_cities SET enabled = 0 WHERE id = 1').run()
   assert.equal((await order({ items: both, area_id: tajoura.id, city: 'Misrata' })).d.message.includes('City: Misrata'), true)
   DB.sqlite.prepare('UPDATE delivery_cities SET enabled = 1 WHERE id = 1').run()
 
   // switching delivery prices off brings back the old checkout
-  await call('PUT', '/admin/api/delivery', { delivery_on: false, free_min: '400' }, asAdmin)
+  await call('PUT', '/admin/api/delivery', { delivery_on: false, free_on: true, free_min: '400' }, asAdmin)
   assert.equal((await quote({ items: both, area_id: tajoura.id })).delivery.mode, 'off')
 })
 

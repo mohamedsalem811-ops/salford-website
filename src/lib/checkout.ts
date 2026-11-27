@@ -24,7 +24,9 @@ export function parseItems(raw: unknown): Want {
   return want
 }
 
-const freeMinOf = (s: Record<string, string>) => {
+/** Free delivery from this products total (dirhams); 0 = never. The switch is on unless the owner turned it off. */
+export const freeMinOf = (s: Record<string, string>) => {
+  if (s.free_delivery_on === '0') return 0
   const n = Number(s.free_delivery_min ?? '1000000')
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
@@ -80,7 +82,7 @@ export async function loadFresh(db: D1Database, want: Want, codeRaw: unknown, ph
   const res = await db.batch([
     db.prepare(`SELECT * FROM products WHERE id IN (${ids.map(() => '?').join(',')}) AND status = 'live' AND deleted_at IS NULL AND in_stock = 1`).bind(...ids),
     db.prepare('SELECT * FROM offers WHERE enabled = 1'),
-    db.prepare("SELECT key, value FROM settings WHERE key IN ('delivery_on', 'free_delivery_min', 'loyalty_on', 'loyalty_pct')"),
+    db.prepare("SELECT key, value FROM settings WHERE key IN ('delivery_on', 'free_delivery_on', 'free_delivery_min', 'loyalty_on', 'loyalty_pct')"),
     db.prepare(
       'SELECT a.*, c.name_ar AS c_ar, c.name_en AS c_en, c.sort AS c_sort FROM delivery_areas a JOIN delivery_cities c ON c.id = a.city_id WHERE a.id = ? AND a.enabled = 1 AND c.enabled = 1',
     ).bind(areaId || 0),
