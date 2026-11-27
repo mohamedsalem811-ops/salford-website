@@ -10,5 +10,19 @@
   "ai": { "binding": "AI" },
   "r2_buckets": [
     { "binding": "MEDIA", "bucket_name": "salford-media" }
-  ]
+  ],
+  // Preview deployments use a separate test database so testing never touches live orders.
+  // Pages does not inherit bindings into an environment, so all of them are repeated here.
+  // Photos stay in the shared bucket (the test database points at the same files).
+  "env": {
+    "preview": {
+      "d1_databases": [
+        { "binding": "DB", "database_name": "salford-site-db-test", "database_id": "9303f8ba-917d-42cf-8311-139072ca0e4a", "migrations_dir": "migrations" }
+      ],
+      "ai": { "binding": "AI" },
+      "r2_buckets": [
+        { "binding": "MEDIA", "bucket_name": "salford-media" }
+      ]
+    }
+  }
 }

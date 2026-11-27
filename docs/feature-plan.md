@@ -1,7 +1,6 @@
 # Feature plan: offers, codes, delivery, tracking, customers, waiting list, reviews, trust
 
-Status: plan final. Waiting for (1) the owner's template picks from the gallery and (2) the owner's "go" for Step 0.
-Nothing is built yet.
+Status: plan final. Template picks received. **Step 0 done (27 Nov 2026).** Release 1 is next.
 
 Template gallery (owner picks one look per occasion): https://claude.ai/artifact/Rciu5G7YLovbgdYTZAhMuV
 
@@ -40,15 +39,15 @@ Template gallery (owner picks one look per occasion): https://claude.ai/artifact
 ## Occasion templates
 | Occasion | Date | Preview % | Look chosen |
 |---|---|---|---|
-| Independence Day (عيد الاستقلال) | 24 Dec 2026 | 24% | waiting |
-| New Year (رأس السنة) | 1 Jan 2027 | 20% | waiting |
-| Ramadan (رمضان) | about 8 Feb 2027 (moon) | 15% | waiting |
-| Eid al-Fitr (عيد الفطر) | about 9 Mar 2027 (moon) | 20% | waiting |
-| Mother's Day (عيد الأم) | 21 Mar 2027 | 15% | waiting |
-| Eid al-Adha (عيد الأضحى) | about 16 May 2027 (moon) | 15% | waiting |
-| White Friday (الجمعة البيضاء) | 26 Nov 2027 | 25% | waiting |
-| Black Friday (بلاك فرايدي) | 26 Nov 2027 | 30% | waiting |
-| 24-hour flash sale (عرض 24 ساعة) | any day | 30% | waiting |
+| Independence Day (عيد الاستقلال) | 24 Dec 2026 | 24% | C: Salford colours + small flag |
+| New Year (رأس السنة) | 1 Jan 2027 | 20% | A: midnight and gold |
+| Ramadan (رمضان) | about 8 Feb 2027 (moon) | 15% | C: cream and gold |
+| Eid al-Fitr (عيد الفطر) | about 9 Mar 2027 (moon) | 20% | A: cream and gold stars |
+| Mother's Day (عيد الأم) | 21 Mar 2027 | 15% | A: blush flowers |
+| Eid al-Adha (عيد الأضحى) | about 16 May 2027 (moon) | 15% | C: Salford colours + lanterns |
+| White Friday (الجمعة البيضاء) | 26 Nov 2027 | 25% | C: white and mauve with photo |
+| Black Friday (بلاك فرايدي) | 26 Nov 2027 | 30% | A: black and gold |
+| 24-hour flash sale (عرض 24 ساعة) | any day | 30% | A: pink alert |
 
 - A template sets only the look: colours, strip, banner layout, ornaments, title lettering and badge style.
   The words, %, dates and products are all editable per offer.
@@ -67,6 +66,16 @@ Template gallery (owner picks one look per occasion): https://claude.ai/artifact
      - `AI`.
      - Pages does not inherit bindings into an env, so all three must be declared.
   4. Deploy preview and prove the separation: a marker setting written on the test database appears on preview, and NOT on live.
+- **Step 0 result (27 Nov 2026):**
+  - Backup of live taken first (kept outside the repo).
+  - `salford-site-db-test` (9303f8ba-…) holds a copy of live. Row counts matched table by table.
+  - The test copy's one order has a dummy name, phone and address. Its login sessions are cleared, and it has the setting `env_marker = TEST-DB`.
+  - The preview deployment reads the test database:
+    - Text written only to the test copy showed on preview's About page and not on salfordlibya.com.
+    - Live has no marker, and its 1 order is unchanged.
+  - Deploy note: the session's credential proxy replaces the upload ticket on `/pages/assets/check-missing`.
+    - When no static file changed, a deploy works if that check is skipped.
+    - A release that adds new static files needs the upload to work. Otherwise those files must be served by the worker.
 - Migrations are additive only (new tables/columns with defaults). Old code keeps working, so rollback = redeploy the previous build.
 - Before each live release: `wrangler d1 export` backup, and note the D1 Time Travel timestamp.
 - Features that need the owner's data ship switched OFF (delivery prices, offers, codes). The owner fills them in the LIVE admin,
