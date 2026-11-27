@@ -21,7 +21,7 @@ app.use('*', async (c, next) => {
   await next()
   const h = c.res.headers
   h.set('x-content-type-options', 'nosniff')
-  h.set('referrer-policy', 'strict-origin-when-cross-origin')
+  if (!h.has('referrer-policy')) h.set('referrer-policy', 'strict-origin-when-cross-origin') // private order and review links keep no-referrer
   h.set('x-frame-options', 'SAMEORIGIN')
   h.set('permissions-policy', 'camera=(), microphone=(), geolocation=()')
   if (!h.has('content-security-policy') && (h.get('content-type') || '').includes('text/html')) {
@@ -59,7 +59,7 @@ app.get('/sitemap.xml', async (c) => {
   const cat = await catalog(c)
   const results = cat.products.filter((p) => cat.media.get(p.id)?.length)
   const brands = cat.shopBrands
-  const paths = ['/', '/shop', '/brands', ...brands.map((b) => `/brand/${b.id}`), '/page/about', '/page/delivery', '/page/contact']
+  const paths = ['/', '/shop', '/brands', ...brands.map((b) => `/brand/${b.id}`), '/page/about', '/page/delivery', '/page/trust', '/page/contact']
   const urls = [
     ...paths.flatMap((p) => ['ar', 'en'].map((l) => `<url><loc>${origin}/${l}${p}</loc></url>`)),
     ...results.flatMap((p) => ['ar', 'en'].map((l) => `<url><loc>${origin}/${l}/p/${p.id}</loc><lastmod>${p.updated_at.slice(0, 10)}</lastmod></url>`)),

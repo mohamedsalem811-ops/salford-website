@@ -156,6 +156,7 @@ export function Layout(props: PageMeta & { brands: Brand[]; settings: Record<str
                 <h2>{tr.footHelp}</h2>
                 <a href={`/${lang}/page/about`}>{tr.about}</a>
                 <a href={`/${lang}/page/delivery`}>{tr.deliveryReturns}</a>
+                <a href={`/${lang}/page/trust`}>{tr.trust}</a>
                 <a href={`/${lang}/page/contact`}>{tr.contact}</a>
               </nav>
               <div class="fcol fpay">

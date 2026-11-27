@@ -12,6 +12,8 @@ import { t, isLang, CITIES_AR, type Lang } from '../lib/i18n'
 import { Layout, Grid, Price, Pic, Icons, bname, type PageMeta } from '../views/layout'
 import { mediaUrl, srcset, youtubeId, firstImage, absUrl } from '../lib/media'
 import { loadOrderForCustomer, channelLinks, waNumber, igHandle, sumRows, isStatus, STATUS_WORDS, type Status, type OrderEvent } from '../lib/orders'
+import { onSwitch, stars, parseGallery, type Review } from '../lib/r3'
+import { freeMinOf } from '../lib/checkout'
 
 type C = Context<{ Bindings: Env }>
 export const store = new Hono<{ Bindings: Env }>()
@@ -340,6 +342,97 @@ function Gallery({ p, lang }: { p: ProductWithMedia; lang: Lang }) {
   )
 }
 
+/* ---------- Release 3: waiting list, reviews, delivery line ---------- */
+const rvDate = { ar: new Intl.DateTimeFormat('ar-LY-u-nu-latn', { month: 'long', year: 'numeric', timeZone: 'Africa/Tripoli' }), en: new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Tripoli' }) }
+const monthOf = (utc: string, lang: Lang) => { const d = new Date(utc.replace(' ', 'T') + 'Z'); return Number.isNaN(d.getTime()) ? '' : rvDate[lang].format(d) }
+
+/** The product page's delivery line: prices by area (and free from an amount) when delivery prices are on. */
+function delLine(b: Base, lang: Lang) {
+  const tr = t(lang)
+  if (b.settings.delivery_on !== '1') return tr.delSub
+  const min = freeMinOf(b.settings)
+  return tr.delSubOn(min ? fmtLyd(min) : '')
+}
+
+function Stars({ n, lang }: { n: number; lang: Lang }) {
+  const full = Math.round(n)
+  return <span class="stars" role="img" aria-label={t(lang).rvStar(full)}>{[1, 2, 3, 4, 5].map((i) => <span class={i <= full ? 'on' : ''}>★</span>)}</span>
+}
+
+function ReviewList({ list, lang, products }: { list: Review[]; lang: Lang; products?: Catalog }) {
+  const tr = t(lang)
+  if (!list.length) return null
+  return (
+    <ul class="rv-list">
+      {list.map((r) => {
+        const p = products && r.product_id ? products.byId.get(r.product_id) : undefined
+        return (
+          <li class="rv">
+            <div class="rv-top"><Stars n={r.rating} lang={lang} />{r.verified ? <span class="rv-ver">✓ {tr.rvVerified}</span> : null}</div>
+            {r.text ? <p class="rv-text" dir="auto">{r.text}</p> : null}
+            {r.photo_key ? <a class="rv-ph" href={`/api/review-photo/${r.id}`} target="_blank" rel="noopener"><img src={`/api/review-photo/${r.id}`} alt="" loading="lazy" /></a> : null}
+            <p class="rv-by"><bdi>{r.name}</bdi>{r.city ? <> · <bdi>{r.city}</bdi></> : null} · <span>{monthOf(r.created_at, lang)}</span>{p ? <> · <a href={`/${lang}/p/${p.id}`}>{pName(p, lang)}</a></> : null}</p>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** The review form; `order` = the customer's own order link (verified, pick the piece). */
+function ReviewForm({ lang, productId, order }: { lang: Lang; productId?: number; order?: { number: string; token: string; name: string; city: string; items: { id: number; name: string }[]; shopOk: boolean } }) {
+  const tr = t(lang)
+  return (
+    <form class="form rv-form" data-review-form novalidate>
+      {productId ? <input type="hidden" name="product_id" value={String(productId)} /> : null}
+      {order ? <><input type="hidden" name="number" value={order.number} /><input type="hidden" name="token" value={order.token} /></> : null}
+      <input type="hidden" name="lang" value={lang} />
+      {order ? (
+        <label class="field"><span>{tr.rvPiece}</span>
+          <select name="product_id">
+            {order.items.map((i) => <option value={String(i.id)}>{i.name}</option>)}
+            {order.shopOk ? <option value="">{tr.rvShop}</option> : null}
+          </select>
+        </label>
+      ) : null}
+      <fieldset class="field rv-rate" data-field="rating">
+        <legend>{tr.rvRating}</legend>
+        <span class="rate-in" dir="ltr">
+          {[5, 4, 3, 2, 1].map((n) => <><input type="radio" name="rating" value={String(n)} id={`rt${n}`} /><label for={`rt${n}`} title={tr.rvStar(n)}><span class="vh">{tr.rvStar(n)}</span>★</label></>)}
+        </span>
+        
+      </fieldset>
+      <label class="field" data-field="name"><span>{tr.rvName}</span><input name="name" maxlength={60} autocomplete="name" value={order?.name ?? ''} required /></label>
+      <label class="field"><span>{tr.rvCity}</span><input name="city" maxlength={60} value={order?.city ?? ''} /></label>
+      <label class="field"><span>{tr.rvText}</span><textarea name="text" rows={4} maxlength={800} dir="auto"></textarea></label>
+      <label class="field" data-field="photo"><span>{tr.rvPhoto}</span><input type="file" name="photo" accept="image/*" /><small class="muted">{tr.rvPhotoNote}</small></label>
+      {order ? null : <label class="field"><span>{tr.rvPhone}</span><input name="phone" type="tel" inputmode="tel" maxlength={20} autocomplete="tel" dir="ltr" /><small class="muted">{tr.rvPhoneNote}</small></label>}
+      <input class="vh" name="website" tabindex={-1} autocomplete="off" aria-hidden="true" />
+      <p class="form-err" data-form-err hidden></p>
+      <button class="btn" type="submit">{tr.rvSend}</button>
+      <p class="rv-ok" data-ok hidden>{tr.rvOk}</p>
+    </form>
+  )
+}
+
+function WaitForm({ lang, id }: { lang: Lang; id: number }) {
+  const tr = t(lang)
+  return (
+    <form class="form wl" data-waitlist={String(id)} novalidate>
+      <p class="wl-h"><b>{tr.wlT}</b><span>{tr.wlS}</span></p>
+      <div class="wl-row">
+        <label class="field" data-field="name"><span>{tr.wlName}</span><input name="name" maxlength={60} autocomplete="name" required /></label>
+        <label class="field" data-field="phone"><span>{tr.wlPhone}</span><input name="phone" type="tel" inputmode="tel" maxlength={20} autocomplete="tel" dir="ltr" placeholder="09XXXXXXXX" required /></label>
+      </div>
+      <input class="vh" name="website" tabindex={-1} autocomplete="off" aria-hidden="true" />
+      <p class="form-err" data-form-err hidden></p>
+      <button class="btn ghost wide" type="submit">{tr.wlBtn}</button>
+      <small class="muted">{tr.wlNote}</small>
+      <p class="rv-ok" data-ok hidden>{tr.wlOk}</p>
+    </form>
+  )
+}
+
 store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
   const lang = c.req.param('lang') as Lang
   const tr = t(lang)
@@ -358,8 +451,15 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
   }
   const desc = pDesc(p, lang)
   const sp = shopPrice(p, b.offer)
+  const rvOn = onSwitch(b.settings, 'reviews_on')
+  const rv = rvOn ? (b.cat.reviewsBy.get(p.id) ?? []) : []
+  const st = stars(rv)
   const ld = {
     '@context': 'https://schema.org', '@type': 'Product', name, sku: p.code,
+    ...(st.n ? {
+      aggregateRating: { '@type': 'AggregateRating', ratingValue: st.avg, reviewCount: st.n, bestRating: 5, worstRating: 1 },
+      review: rv.slice(0, 5).map((r) => ({ '@type': 'Review', author: { '@type': 'Person', name: r.name }, datePublished: r.created_at.slice(0, 10), reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5 }, ...(r.text ? { reviewBody: r.text } : {}) })),
+    } : {}),
     brand: { '@type': 'Brand', name: brand?.name },
     image: img ? absUrl(origin(c), mediaUrl(img, 900)) : undefined,
     description: pShort(p, lang) || desc.slice(0, 200),
@@ -387,6 +487,7 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
               <button class="btn wide" type="button" data-add={p.id}>{Icons.bag}{tr.addToCart}</button>
             ) : <button class="btn wide" type="button" disabled>{tr.soldOut}</button>}
           </div>
+          {!p.in_stock && onSwitch(b.settings, 'waitlist_on') ? <WaitForm lang={lang} id={p.id} /> : null}
           <p class="code">{tr.code} <bdi>{p.code}</bdi></p>
           <div class="info-row">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l8-4 8 4v8l-8 4-8-4z" /><path d="M4 8l8 4 8-4M12 12v8" /></svg>
@@ -394,7 +495,11 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
           </div>
           <div class="info-row">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7" /><circle cx="7" cy="17.5" r="1.6" /><circle cx="17" cy="17.5" r="1.6" /></svg>
-            <span><b>{tr.delTitle}</b>{tr.delSub}</span>
+            <span><b>{tr.delTitle}</b>{delLine(b, lang)} <a href={`/${lang}/page/delivery`}>{tr.delPrices}</a></span>
+          </div>
+          <div class="info-row">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></svg>
+            <span><b>{tr.trustLineT}</b>{tr.trustLineS} <a href={`/${lang}/page/trust`}>{tr.trustMore}</a></span>
           </div>
           {setParts.length ? (
             <div class="setbox"><b>{tr.setIncludes}</b><ul>{setParts.map((s) => <li><a href={`/${lang}/p/${s.id}`}>{s.name_en || s.name_ar}</a> <bdi class="muted">{s.code}</bdi></li>)}</ul></div>
@@ -415,6 +520,17 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
           <span class="fbuy-txt"><span class="fbuy-nm">{name}</span><Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /></span>
           <button class="btn" type="button" data-add={p.id} tabindex={-1}>{Icons.bag}{tr.addToCart}</button>
         </div>
+      ) : null}
+      {rvOn ? (
+        <section class="wrap sec reviews" id="reviews">
+          <h2 class="h">{tr.rvH}</h2>
+          {rv.length ? <p class="rv-sum"><Stars n={st.avg} lang={lang} /> <b dir="ltr">{st.avg.toFixed(1)}</b> <span class="muted">· {tr.rvCount(st.n)}</span></p> : <p class="muted">{tr.rvNone}</p>}
+          <ReviewList list={rv.slice(0, 20)} lang={lang} />
+          <details class="rv-write">
+            <summary class="btn ghost">{tr.rvWrite}</summary>
+            <ReviewForm lang={lang} productId={p.id} />
+          </details>
+        </section>
       ) : null}
       {similar.length ? (
         <section class="wrap sec">
@@ -526,6 +642,7 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
   const num = c.req.param('num')
   const [b, v] = await Promise.all([base(c, lang), loadOrderForCustomer(c.env.DB, num, c.req.query('t') ?? '', new URL(c.req.url).origin)])
   c.header('cache-control', 'private, no-store')
+  c.header('referrer-policy', 'no-referrer') // the link carries the customer's private token
   const meta = { lang, path: '/cart', title: tr.orderReady, noindex: true, active: 'cart' as const }
   if (!v) {
     const wa = waNumber(b.settings.whatsapp || '')
@@ -623,14 +740,142 @@ const PAGES: Record<string, { ar: [string, string]; en: [string, string] }> = {
     en: ['About us', 'Salford Libya sells authentic jewelry from Swarovski, Tiffany & Co., APM Monaco and Pandora. Every piece arrives in the brand’s original box with its papers.'],
   },
   delivery: {
-    ar: ['التوصيل والإرجاع', 'نوصل لكل المدن والمناطق في ليبيا. موعد التوصيل ورسومه نتفق عليها معك في المحادثة بعد تأكيد الطلبية. الدفع نقداً أو ببطاقة مصرفية عند الاستلام، أو عبر LyPay. لأي استفسار عن الإرجاع أو الاستبدال تواصل معنا قبل الاستلام.'],
-    en: ['Delivery & returns', 'We deliver to every city and area in Libya. Delivery time and cost are agreed with you in the chat after your order is confirmed. Pay cash or by card on delivery, or with LyPay. For returns or exchanges, please contact us before delivery.'],
+    ar: ['التوصيل والإرجاع', 'نوصل لكل المدن والمناطق في ليبيا، ونتفق معك على موعد التوصيل في المحادثة بعد تأكيد الطلبية.'],
+    en: ['Delivery & returns', 'We deliver to every city and area in Libya, and agree the delivery time with you in the chat once your order is confirmed.'],
+  },
+  trust: {
+    ar: ['تسوّق بثقة', ''],
+    en: ['Shop with confidence', ''],
   },
   contact: {
     ar: ['تواصل معنا', 'راسلنا على واتساب أو إنستغرام أو فيسبوك، ونرد عليك في أقرب وقت.'],
     en: ['Contact us', 'Message us on WhatsApp, Instagram or Facebook and we will reply as soon as we can.'],
   },
 }
+/** Delivery page: the price table (when delivery prices are on) and the rules, always from the live settings. */
+function DeliveryInfo({ b, lang }: { b: Base; lang: Lang }) {
+  const tr = t(lang)
+  const on = b.settings.delivery_on === '1'
+  const nm = (x: { name_ar: string; name_en: string }) => (lang === 'ar' ? x.name_ar || x.name_en : x.name_en || x.name_ar)
+  const min = freeMinOf(b.settings)
+  const offerName = b.offer && b.offer.free_delivery ? (lang === 'ar' ? b.offer.name_ar || b.offer.name_en : b.offer.name_en || b.offer.name_ar) : ''
+  const cities = b.cat.cities.map((city) => ({ city, areas: b.cat.areas.filter((a) => a.city_id === city.id) })).filter((x) => x.areas.length)
+  const fee = (v: number | null) => (v === null || v === undefined ? tr.delAgreed : v === 0 ? tr.freeShort : `${fmtLyd(v)} ${tr.currency}`)
+  return (
+    <>
+      {on && cities.length ? (
+        <>
+          <h2 class="h">{tr.delTable}</h2>
+          {min ? <p class="para del-free">{tr.delFreeFrom(fmtLyd(min))}</p> : null}
+          {b.offer && b.offer.free_delivery ? <p class="para del-free">{tr.delFreeOffer(offerName || '')}</p> : null}
+          <div class="del-wrap">
+            <table class="del-table">
+              <thead><tr><th>{tr.delCity}</th><th>{tr.delArea}</th><th>{tr.delPrice}</th><th>{tr.delTime}</th></tr></thead>
+              <tbody>
+                {cities.flatMap(({ city, areas }) => areas.map((a, i) => (
+                  <tr class={i ? '' : 'first'}>
+                    <td>{i ? '' : nm(city)}</td>
+                    <td>{a.name_en === 'All areas' ? (lang === 'ar' ? 'كل المناطق' : 'All areas') : nm(a)}</td>
+                    <td class="num">{fee(a.price)}</td>
+                    <td>{(lang === 'ar' ? a.time_ar || a.time_en : a.time_en || a.time_ar) || '—'}</td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+      <h2 class="h">{tr.delRules}</h2>
+      <ul class="rules">
+        <li>{on ? tr.delR1 : tr.delR1Off}</li>
+        <li>{tr.delR2}</li>
+        <li>{tr.delR3}</li>
+        <li>{tr.delR4}</li>
+        {on ? <li>{tr.delR5}</li> : null}
+      </ul>
+      <p><a href={`/${lang}/page/trust`}>{tr.trustMore}</a></p>
+    </>
+  )
+}
+
+/** Trust page: the three facts, the owner's own words and photos, and approved reviews. */
+function TrustPage({ b, lang }: { b: Base; lang: Lang }) {
+  const tr = t(lang)
+  const extra = (b.settings[`trust_text_${lang}`] || '').trim()
+  const gallery = parseGallery(b.settings.trust_gallery)
+  const rvOn = onSwitch(b.settings, 'reviews_on')
+  const rv = rvOn ? b.cat.reviews : []
+  const st = stars(rv)
+  const facts: [string, string, string][] = [
+    [tr.tf1T, tr.tf1S, 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8'],
+    [tr.tf2T, tr.tf2S, 'M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2zM8 8h8M8 12h8M8 16h5'],
+    [tr.tf3T, tr.tf3S, 'M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6zM9 12l2 2 4-4'],
+  ]
+  return (
+    <section class="wrap narrow sec trust">
+      <h1 class="h1">{tr.trust}</h1>
+      <p class="para lead">{tr.trustIntro}</p>
+      <ul class="facts">
+        {facts.map(([h, sub, d]) => (
+          <li class="info-row"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg><span><b>{h}</b>{sub}</span></li>
+        ))}
+      </ul>
+      {extra ? extra.split('\n').map((l) => (l.trim() ? <p class="para" dir="auto">{l}</p> : null)) : null}
+      {gallery.length ? (
+        <>
+          <h2 class="h">{tr.trustGallery}</h2>
+          <ul class="tgal">
+            {gallery.map((g) => {
+              const cap = lang === 'ar' ? g.cap_ar || g.cap_en : g.cap_en || g.cap_ar
+              return <li><figure><img src={g.url} alt={cap} loading="lazy" />{cap ? <figcaption dir="auto">{cap}</figcaption> : null}</figure></li>
+            })}
+          </ul>
+        </>
+      ) : null}
+      {rv.length ? (
+        <>
+          <h2 class="h">{tr.trustReviews}</h2>
+          <p class="rv-sum"><Stars n={st.avg} lang={lang} /> <b dir="ltr">{st.avg.toFixed(1)}</b> <span class="muted">· {tr.rvCount(st.n)}</span></p>
+          <ReviewList list={rv.slice(0, 12)} lang={lang} products={b.cat} />
+        </>
+      ) : null}
+      <p><a class="btn ghost" href={`/${lang}/page/delivery`}>{tr.trustDelLink}</a></p>
+    </section>
+  )
+}
+
+/* ---------- Release 3: the customer's own review page (from the "ask for a review" message) ---------- */
+store.get('/:lang{(?:ar|en)}/review/:number{SL-[0-9]+}', async (c) => {
+  const lang = c.req.param('lang') as Lang
+  const tr = t(lang)
+  const b = await base(c, lang)
+  const number = c.req.param('number')
+  const token = String(c.req.query('t') ?? '')
+  const got = await loadOrderForCustomer(c.env.DB, number, token)
+  c.header('referrer-policy', 'no-referrer')
+  c.header('cache-control', 'private, no-store')
+  const page = (body: unknown, status = 200) => render(c, { lang, path: `/review/${number}`, title: tr.rvPage, noindex: true }, b, <section class="wrap narrow sec">{body as never}</section>, status)
+  if (!got) return page(<><h1 class="h1">{tr.rvPage}</h1><p class="para">{tr.orderMissing}</p><p class="muted">{tr.orderMissingHelp}</p></>, 404)
+  if (!onSwitch(b.settings, 'reviews_on')) return page(<><h1 class="h1">{tr.rvPage}</h1><p class="para">{tr.rvOff}</p></>)
+  const o = got.order
+  if (o.status !== 'delivered') return page(<><h1 class="h1">{tr.rvPage}</h1><p class="para">{tr.rvNotYet}</p></>)
+  const db = c.env.DB
+  const [{ results: items }, { results: done }] = await db.batch([
+    db.prepare('SELECT DISTINCT product_id AS id, name FROM order_items WHERE order_id = ? AND product_id IS NOT NULL ORDER BY rowid').bind(o.id),
+    db.prepare("SELECT product_id FROM reviews WHERE order_id = ? AND status != 'rejected'").bind(o.id),
+  ]) as unknown as [{ results: { id: number; name: string }[] }, { results: { product_id: number | null }[] }]
+  const reviewed = new Set(done.map((d) => d.product_id ?? 0))
+  const left = items.filter((i) => !reviewed.has(i.id))
+  if (!left.length && reviewed.has(0)) return page(<><h1 class="h1">{tr.rvPage}</h1><p class="para">{tr.rvDone}</p></>)
+  return page(
+    <>
+      <h1 class="h1">{tr.rvPage}</h1>
+      <p class="muted">{tr.rvPageSub(number)}</p>
+      <ReviewForm lang={lang} order={{ number, token, name: o.name, city: o.city, items: left, shopOk: !reviewed.has(0) }} />
+    </>,
+  )
+})
+
 store.get('/:lang{(?:ar|en)}/page/:slug', async (c) => {
   const lang = c.req.param('lang') as Lang
   const slug = c.req.param('slug')
@@ -643,10 +888,12 @@ store.get('/:lang{(?:ar|en)}/page/:slug', async (c) => {
   const s = b.settings
   const wa = waNumber(s.whatsapp || '') ? `https://wa.me/${waNumber(s.whatsapp || '')}` : ''
   const ig = igHandle(s.instagram || '') ? `https://www.instagram.com/${igHandle(s.instagram || '')}/` : ''
+  if (slug === 'trust') return render(c, { lang, path: '/page/trust', title, desc: tr.trustIntro }, b, <TrustPage b={b} lang={lang} />)
   return render(c, { lang, path: `/page/${slug}`, title }, b, (
     <section class="wrap narrow sec">
       <h1 class="h1">{title}</h1>
       {text.split('\n').map((l) => <p class="para">{l}</p>)}
+      {slug === 'delivery' ? <DeliveryInfo b={b} lang={lang} /> : null}
       {slug === 'contact' ? (
         <div class="sends">
           {wa ? <a class="send whatsapp" href={wa} rel="noopener" target="_blank"><span>{Icons.wa}{tr.whatsapp}</span></a> : null}

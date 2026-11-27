@@ -52,6 +52,9 @@ export const Shell = ({ title, children, nav }: { title: string; children: Child
             <a href="/admin/offers" class={nav === 'offers' ? 'on' : ''}>Offers</a>
             <a href="/admin/codes" class={nav === 'codes' ? 'on' : ''}>Discount codes</a>
             <a href="/admin/delivery" class={nav === 'delivery' ? 'on' : ''}>Delivery</a>
+            <a href="/admin/reviews" class={nav === 'reviews' ? 'on' : ''}>Reviews</a>
+            <a href="/admin/waitlist" class={nav === 'waitlist' ? 'on' : ''}>Waiting list</a>
+            <a href="/admin/trust" class={nav === 'trust' ? 'on' : ''}>Trust page</a>
             <a href="/admin/settings" class={nav === 'settings' ? 'on' : ''}>Settings</a>
             <a href="/ar/" target="_blank" rel="noopener">View site ↗</a>
             <form method="post" action="/admin/logout"><button class="linkbtn" type="submit">Log out</button></form>

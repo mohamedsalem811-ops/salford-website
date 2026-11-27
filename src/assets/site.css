@@ -486,3 +486,48 @@ img.pimg.broken { opacity: 0; }
 .sum .r-disc span:last-child { color: #2E7D4F; font-weight: 600; }
 .sum .r-del small { font-size: .78rem; }
 .freehint { margin: -4px 0 12px; font-size: .88rem; color: var(--mauve); font-weight: 600; }
+
+/* ---------- Release 3: waiting list, reviews, trust and delivery pages ---------- */
+.field textarea, .field select { min-width: 0; width: 100%; min-height: 46px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font: inherit; color: var(--ink); }
+.field textarea { resize: vertical; }
+.field input[type="file"] { padding: 10px; min-height: 46px; }
+.field small { font-size: .8rem; }
+.wl { margin-top: 12px; padding: 14px; border: 1px dashed var(--rose); border-radius: 14px; background: #fff; gap: 10px; }
+.wl-h { margin: 0; color: var(--muted); font-size: .9rem; } .wl-h b { display: block; color: var(--ink); }
+.wl-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 480px) { .wl-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.rv-ok { margin: 0; color: var(--ok); font-weight: 600; }
+.stars { color: #E6D3D8; letter-spacing: 1px; white-space: nowrap; } .stars .on { color: #C9952E; }
+.rv-sum { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; } .rv-sum .stars { font-size: 1.2rem; }
+.rv-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .rv-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rv { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.rv-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rv-ver { font-size: .78rem; color: var(--ok); background: #E8F4EC; border-radius: 99px; padding: 2px 8px; }
+.rv-text { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.rv-ph img { display: block; max-width: 100%; max-height: 240px; border-radius: 10px; object-fit: cover; }
+.rv-by { margin: 0; font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
+.rv-write > summary { list-style: none; display: inline-flex; cursor: pointer; } .rv-write > summary::-webkit-details-marker { display: none; }
+.rv-write[open] > summary { margin-bottom: 14px; }
+.rv-form { max-width: 560px; }
+.rv-rate { border: 0; padding: 0; margin: 0; min-width: 0; } .rv-rate legend { color: var(--muted); font-size: .9rem; margin-bottom: 4px; padding: 0; }
+.rate-in { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; }
+.rate-in input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rate-in label { font-size: 2rem; line-height: 1; color: #E6D3D8; cursor: pointer; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.rate-in input:checked ~ label, .rate-in label:hover, .rate-in label:hover ~ label { color: #C9952E; }
+.rate-in input:focus-visible + label { outline: 2px solid var(--mauve); outline-offset: 2px; border-radius: 8px; }
+.info-row a { color: var(--mauve); font-weight: 600; }
+.trust .lead { font-size: 1.05rem; }
+.facts { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 10px; }
+.tgal { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 760px) { .tgal { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tgal figure { margin: 0; } .tgal img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: var(--soft); }
+.tgal figcaption { font-size: .82rem; color: var(--muted); margin-top: 4px; }
+.del-free { color: var(--ok); font-weight: 600; }
+.del-wrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.del-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.del-table th, .del-table td { padding: 10px 12px; text-align: start; border-bottom: 1px solid var(--line); vertical-align: top; }
+.del-table th { color: var(--muted); font-weight: 600; background: var(--soft); }
+.del-table tr.first td { border-top: 1px solid var(--line); } .del-table tbody tr:last-child td { border-bottom: 0; }
+.del-table td:first-child { font-weight: 600; } .del-table .num { white-space: nowrap; }
+.rules { margin: 0 0 18px; padding-inline-start: 20px; display: grid; gap: 8px; max-width: 65ch; }

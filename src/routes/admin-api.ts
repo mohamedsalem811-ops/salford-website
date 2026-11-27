@@ -9,13 +9,14 @@ import { bumpCatalog } from '../lib/catalog'
 import { translateProduct } from '../lib/translate'
 import { r1Api } from './admin-r1'
 import { r2Api } from './admin-r2'
+import { r3Api } from './admin-r3'
 
 type Vars = { admin: { id: number; email: string } }
 
 export const adminApi = new Hono<{ Bindings: Env; Variables: Vars }>()
 
 /** Anything saved here that the shop shows makes every copy of the shop reload its in-memory catalog. */
-const NO_SHOP_CHANGE = /^\/admin\/api\/(orders|password|sessions|admins|upload|video\/(start|part))(\/|$)/
+const NO_SHOP_CHANGE = /^\/admin\/api\/(orders|password|sessions|admins|upload|waitlist|video\/(start|part))(\/|$)/
 adminApi.use('*', async (c, next) => {
   await next()
   if (c.req.method !== 'GET' && c.res.status < 400 && !NO_SHOP_CHANGE.test(c.req.path)) await bumpCatalog(c.env.DB)
@@ -406,3 +407,4 @@ adminApi.post('/sessions/end-others', async (c) => {
 /* ---------- Release 1: offers, codes, delivery (admin-r1.tsx) ---------- */
 adminApi.route('/', r1Api)
 adminApi.route('/', r2Api)
+adminApi.route('/', r3Api)

@@ -394,6 +394,83 @@
     });
   }
 
+  /* ---------- Release 3: waiting list and reviews ---------- */
+  var R3 = {
+    ar: { rating: 'اختر عدد النجوم', photo: 'لم نقدر نقرأ هذه الصورة. جرّب صورة أخرى.', done: 'وصلنا رأيك من قبل، شكراً لك!', back: 'رجعت متوفرة! نحدّث الصفحة…', sending: 'جاري الإرسال…', many: 'محاولات كثيرة. حاول بعد ساعة.' },
+    en: { rating: 'Choose the number of stars', photo: 'We could not read this photo. Try another one.', done: 'We already have your review, thank you!', back: 'It is back in stock! Refreshing…', sending: 'Sending…', many: 'Too many tries. Please try again in an hour.' },
+  }[lang];
+  /** Resizes a photo in the browser (at most 1600 px) and re-encodes it, which also drops hidden data such as location. */
+  function shrinkPhoto(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, 1600 / Math.max(w, h, 1));
+        var cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w * k)); cv.height = Math.max(1, Math.round(h * k));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+        var done = function (b) { cv.width = cv.height = 0; if (b && b.size) res(b); else rej(new Error('encode')); };
+        cv.toBlob(function (b) { if (b && b.type === 'image/webp') done(b); else cv.toBlob(done, 'image/jpeg', 0.85); }, 'image/webp', 0.82);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('decode')); };
+      img.src = url;
+    });
+  }
+  function r3Form(form, send) {
+    var err = $('[data-form-err]', form), btn = $('button[type="submit"]', form);
+    var show = function (msg, field) {
+      err.textContent = msg || ''; err.hidden = !msg;
+      var el = field && form.elements[field];
+      if (el && el.setAttribute && !el.length) { el.setAttribute('aria-invalid', 'true'); el.focus(); }
+    };
+    form.addEventListener('input', function (e) { if (e.target.getAttribute && e.target.getAttribute('aria-invalid')) { e.target.removeAttribute('aria-invalid'); err.hidden = true; } });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (btn.disabled) return;
+      show('');
+      var ready = send(show);
+      if (!ready) return;
+      btn.disabled = true; var label = btn.textContent; btn.textContent = R3.sending;
+      ready.then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (r.ok) { $$('.field, .wl-h, .wl-row, button[type="submit"], small.muted', form).forEach(function (x) { x.hidden = true; }); $('[data-ok]', form).hidden = false; return; }
+          var f = (d.fields || [])[0];
+          if (r.status === 429) show(R3.many);
+          else if (d.error === 'done') show(R3.done);
+          else if (d.error === 'in_stock') { show(R3.back); setTimeout(function () { location.reload(); }, 1200); }
+          else if (d.error === 'photo' || r.status === 413) show(R3.photo, 'photo');
+          else if (f === 'name') show(T.errName, 'name');
+          else if (f === 'phone') show(T.errPhone, 'phone');
+          else if (f === 'rating') show(R3.rating);
+          else show(T.err);
+        });
+      }).catch(function (x) { show(x && x.message === 'photo' ? R3.photo : T.err); }).then(function () { btn.disabled = false; btn.textContent = label; });
+    });
+  }
+  $$('[data-waitlist]').forEach(function (form) {
+    r3Form(form, function (show) {
+      var F = form.elements, name = F.name.value.trim(), phone = libyanPhone(F.phone.value);
+      if (!name) { show(T.errName, 'name'); return null; }
+      if (!phone) { show(T.errPhone, 'phone'); return null; }
+      return fetch('/api/waitlist', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ product_id: Number(form.getAttribute('data-waitlist')), name: name, phone: phone, lang: lang, website: F.website.value }) });
+    });
+  });
+  $$('[data-review-form]').forEach(function (form) {
+    r3Form(form, function (show) {
+      var F = form.elements, rated = $('input[name="rating"]:checked', form);
+      if (!rated) { show(R3.rating); return null; }
+      if (!F.name.value.trim()) { show(T.errName, 'name'); return null; }
+      if (F.phone && F.phone.value.trim() && !libyanPhone(F.phone.value)) { show(T.errPhone, 'phone'); return null; }
+      var file = F.photo.files && F.photo.files[0];
+      var fd = new FormData();
+      $$('input, select, textarea', form).forEach(function (el) {
+        if (!el.name || el.type === 'file' || ((el.type === 'radio' || el.type === 'checkbox') && !el.checked)) return;
+        fd.append(el.name, el.name === 'phone' ? libyanPhone(el.value) : el.value);
+      });
+      var go = function () { return fetch('/api/reviews', { method: 'POST', body: fd }); };
+      if (!file) return go();
+      return shrinkPhoto(file).then(function (b) { fd.append('photo', b, b.type === 'image/webp' ? 'photo.webp' : 'photo.jpg'); return go(); }, function () { throw new Error('photo'); });
+    });
+  });
+
   /* ---------- broken photos: hide the broken icon, keep the soft background ---------- */
   document.addEventListener('error', function (e) { var t = e.target; if (t && t.tagName === 'IMG' && t.classList.contains('pimg')) t.classList.add('broken'); }, true);
 })();

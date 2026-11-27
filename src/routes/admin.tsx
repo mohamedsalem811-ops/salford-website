@@ -7,10 +7,12 @@ import { mediaUrl } from '../lib/media'
 import { V } from '../views/layout'
 import { assetPath } from '../lib/assets'
 import { adminApi } from './admin-api'
-import { sumRows, sumFromRow, STATUSES, STATUS_EN, isStatus, trackUrl, updateMessage, waCustomer, type Status } from '../lib/orders'
+import { sumRows, sumFromRow, STATUSES, STATUS_EN, isStatus, trackUrl, updateMessage, waCustomer, LINK_DAYS, type Status } from '../lib/orders'
 import { Shell, libyaTime } from '../views/admin-shell'
 import { r1Pages } from './admin-r1'
 import { r2Pages } from './admin-r2'
+import { r3Pages } from './admin-r3'
+import { askReviewMessage, onSwitch, reviewUrl } from '../lib/r3'
 
 type Vars = { admin: { id: number; email: string } }
 export const admin = new Hono<{ Bindings: Env; Variables: Vars }>()
@@ -93,6 +95,7 @@ admin.use('/*', async (c, next) => {
 admin.route('/api', adminApi)
 admin.route('/', r1Pages)
 admin.route('/', r2Pages)
+admin.route('/', r3Pages)
 
 /* ---------- products ---------- */
 admin.get('/', async (c) => {
@@ -297,11 +300,12 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const o = await c.env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(id).first<Record<string, string | number>>()
   if (!o) return c.redirect('/admin/orders')
-  const [itemsRes, evRes, prevRes] = await c.env.DB.batch([
+  const [[itemsRes, evRes, prevRes, rvRes], st] = await Promise.all([c.env.DB.batch([
     c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id),
     c.env.DB.prepare('SELECT e.status, e.at, e.admin_id, a.email FROM order_events e LEFT JOIN admins a ON a.id = e.admin_id WHERE e.order_id = ? ORDER BY e.id').bind(id),
     c.env.DB.prepare("SELECT count(*) AS n, coalesce(sum(status = 'delivered'), 0) AS d FROM orders WHERE phone = ? AND id != ? AND status != 'cancelled'").bind(o.phone, id),
-  ])
+    c.env.DB.prepare('SELECT count(*) AS n FROM reviews WHERE order_id = ?').bind(id),
+  ]), getSettings(c.env.DB)])
   const items = itemsRes.results as Record<string, string | number>[]
   const events = evRes.results as { status: string; at: string; admin_id: number | null; email: string | null }[]
   const prev = (prevRes.results[0] ?? { n: 0, d: 0 }) as { n: number; d: number }
@@ -311,6 +315,9 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
   const status = isStatus(o.status) ? o.status : 'new'
   const msgFor = (st: Status) => updateMessage(st, { lang, number: String(o.number), name: String(o.name), total: Number(o.total), fee: sum?.fee ?? 0, track })
   const sends: Status[] = ['confirmed', 'out', 'delivered', 'cancelled']
+  const reviewed = Number((rvRes.results[0] as { n: number } | undefined)?.n ?? 0)
+  const linkOk = !!o.view_token && Date.parse(String(o.created_at).replace(' ', 'T') + 'Z') > Date.now() - LINK_DAYS * 86400000
+  const askMsg = askReviewMessage(lang, { name: String(o.name), number: String(o.number), link: reviewUrl(new URL(c.req.url).origin, lang, String(o.number), String(o.view_token)) })
   return c.html(
     <Shell title={String(o.number)} nav="orders">
       <div class="a-head"><h1>Order {o.number} <span class={`tag st-${o.status}`}>{stLabel(o.status)}</span>{Number(o.paid) ? <span class="tag st-paid">Paid</span> : null}</h1><a class="a-btn" href="/admin/orders">All orders</a></div>
@@ -358,6 +365,17 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
             {sends.map((st) => <a class={`a-btn${st === status ? ' p' : ''}`} href={waCustomer(String(o.phone), msgFor(st))} target="_blank" rel="noopener" data-send-update={st}>{STATUS_EN[st]}</a>)}
           </div>
           {status !== 'new' ? <details class="a-preview"><summary>Message for “{STATUS_EN[status]}”</summary><pre dir="auto">{msgFor(status)}</pre></details> : null}
+        </div>
+        <div class="a-card">
+          <h2>Ask for a review {reviewed ? <span class="tag ok">{reviewed} received</span> : null}</h2>
+          {!onSwitch(st, 'reviews_on') ? <p class="a-muted">Reviews are switched off. Turn them on in <a href="/admin/reviews">Reviews</a> to use this button.</p>
+            : status !== 'delivered' ? <p class="a-muted">Available once the order is marked Delivered.</p>
+            : !linkOk ? <p class="a-muted">This order is older than {LINK_DAYS} days, so its private link has expired.</p>
+            : <>
+              <p class="a-muted">Opens WhatsApp with a short message and the customer’s own review link. Reviews sent from it are marked “Verified buyer”, and you approve them in <a href="/admin/reviews">Reviews</a> before they show.</p>
+              <div class="a-sends"><a class="a-btn p" href={waCustomer(String(o.phone), askMsg)} target="_blank" rel="noopener">Ask for a review</a></div>
+              <details class="a-preview"><summary>Message</summary><pre dir="auto">{askMsg}</pre></details>
+            </>}
         </div>
       </div>
     </Shell>,

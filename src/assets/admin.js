@@ -428,4 +428,59 @@
       if (dc && guard() && confirm('Delete this city and all its areas?')) api('DELETE', '/delivery/cities/' + dc.getAttribute('data-del-city')).then(after).catch(function (err) { toast(err.message, true); });
     });
   }
+
+  /* ---------- Release 3: waiting list, reviews, trust page ---------- */
+  $$('[data-r3-switch]').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      api('POST', '/r3-switch', { key: f.getAttribute('data-r3-switch'), on: f.elements.on.checked }).then(function (d) { toast(d.on ? 'Switched on' : 'Switched off'); setTimeout(function () { location.reload(); }, 600); }).catch(function (err) { toast(err.message, true); });
+    });
+  });
+  document.addEventListener('click', function (e) {
+    // the link opens WhatsApp as usual; the person is marked as sent at the same time
+    var ws = e.target.closest('[data-wl-sent]');
+    if (ws) api('POST', '/waitlist/' + ws.getAttribute('data-wl-sent') + '/sent').then(function () { ws.classList.remove('p'); ws.textContent = 'Send again'; }).catch(function (err) { toast(err.message, true); });
+    var wd = e.target.closest('[data-wl-del]');
+    if (wd && confirm('Remove this person from the waiting list?')) api('DELETE', '/waitlist/' + wd.getAttribute('data-wl-del')).then(function () { var tr = wd.closest('tr'); if (tr) tr.hidden = true; toast('Removed'); }).catch(function (err) { toast(err.message, true); });
+    var rv = e.target.closest('[data-rv]');
+    if (rv) {
+      var p = rv.getAttribute('data-rv').split(':'), del = p[1] === 'delete';
+      if (del && !confirm('Delete this review for good? Its photo is deleted too.')) return;
+      if (p[1] === 'approve_nophoto' && !confirm('The photo will be deleted. Continue?')) return;
+      rv.disabled = true;
+      (del ? api('DELETE', '/reviews/' + p[0]) : api('POST', '/reviews/' + p[0], { action: p[1] })).then(function () {
+        var card = rv.closest('[data-review]'); if (card) card.hidden = true;
+        toast({ approve: 'Approved: it is on the site', approve_nophoto: 'Approved without the photo', reject: 'Hidden from the site', 'delete': 'Deleted' }[p[1]] || 'Saved');
+      }).catch(function (err) { rv.disabled = false; toast(err.message, true); });
+    }
+  });
+  var tf = $('[data-trust-form]');
+  if (tf) {
+    var gal = $('[data-gallery]', tf), gadd = $('[data-gal-add]', tf);
+    var galItem = function (url) {
+      var li = document.createElement('li'); li.setAttribute('data-url', url);
+      li.innerHTML = '<img alt="" src="' + esc(url) + '"><label class="a-f">Caption (Arabic)<input name="cap_ar" dir="rtl" maxlength="120"></label><label class="a-f">Caption (English)<input name="cap_en" maxlength="120"></label><button class="a-btn" type="button" data-gal-del>Remove</button>';
+      gal.appendChild(li);
+    };
+    tf.addEventListener('click', function (e) { var d = e.target.closest('[data-gal-del]'); if (d) { var li = d.closest('li'); li.parentNode.removeChild(li); } });
+    gadd.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(gadd.files || []), room = Math.max(24 - $$('li', gal).length, 0), chain = Promise.resolve();
+      if (files.length > room) { toast('Up to 24 photos: ' + room + ' more can be added', true); files = files.slice(0, room); }
+      busy++;
+      files.forEach(function (f, i) {
+        chain = chain.then(function () {
+          toast('Uploading photo ' + (i + 1) + ' of ' + files.length + '…');
+          return processPhoto(f, [1080]).then(function (r) { return retry(function () { return api('PUT', '/upload?product=banner&base=' + hex(9) + '&w=' + r.variants[0].w, undefined, r.variants[0].blob); }, 3); }).then(function (d) { galItem(d.url); });
+        }).catch(function (err) { toast(err.message, true); });
+      });
+      chain.then(function () { busy--; gadd.value = ''; if (files.length) toast('Uploaded. Press Save trust page.'); });
+    });
+    tf.addEventListener('submit', function (e) {
+      e.preventDefault(); saving(tf, true);
+      var g = $$('li', gal).map(function (li) { return { url: li.getAttribute('data-url'), cap_ar: $('[name="cap_ar"]', li).value, cap_en: $('[name="cap_en"]', li).value }; });
+      api('POST', '/trust', { trust_text_ar: tf.elements.trust_text_ar.value, trust_text_en: tf.elements.trust_text_en.value, gallery: g })
+        .then(function (d) { formErr(tf, ''); toast('Trust page saved · ' + d.photos + ' photo' + (d.photos === 1 ? '' : 's')); })
+        .catch(function (err) { formErr(tf, err.message); }).then(function () { saving(tf, false); });
+    });
+  }
 })();

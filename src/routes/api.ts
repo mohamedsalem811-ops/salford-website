@@ -8,7 +8,8 @@ import type { Quote } from '../lib/pricing'
 import { parseItems, loadFromCatalog, loadFresh, runQuote, placeName } from '../lib/checkout'
 import { firstImage, mediaUrl } from '../lib/media'
 import { isLang, type Lang } from '../lib/i18n'
-import { normalizePhone, channelLinks, buildMessage, sha256hex, randomToken, trackUrl, type OrderSum } from '../lib/orders'
+import { normalizePhone, channelLinks, buildMessage, sha256hex, randomToken, trackUrl, loadOrderForCustomer, type OrderSum } from '../lib/orders'
+import { onSwitch, stripMetadata, photoType, MAX_REVIEW_PHOTO, WAITLIST_DAYS } from '../lib/r3'
 
 export { normalizePhone, channelLinks, buildMessage }
 
@@ -178,4 +179,145 @@ api.post('/orders', async (c) => {
   const message = buildMessage({ lang, number, lines, total: q.total, name, phone, city, address, note, payment, sum, track })
   const codeNote = q.code && q.code.status !== 'ok' ? q.code.status : ''
   return c.json({ number, token, message, links: channelLinks(settings, message), channel, unavailable, total: fmtLyd(q.total), codeNote })
+})
+
+/* ---------- Release 3: waiting list and reviews ---------- */
+
+/** Counts this connection's tries of one kind in the last hour, and notes one more. True when over the limit. */
+async function overLimit(db: D1Database, kind: string, ipHash: string, max: number) {
+  const r = await db.prepare("SELECT count(*) AS n FROM attempts WHERE kind = ? AND ip_hash = ? AND at > datetime('now', '-1 hour')").bind(kind, ipHash).first<{ n: number }>()
+  if ((r?.n ?? 0) >= max) return true
+  await db.batch([
+    db.prepare('INSERT INTO attempts (kind, ip_hash) VALUES (?, ?)').bind(kind, ipHash),
+    db.prepare("DELETE FROM attempts WHERE at < datetime('now', '-2 days')"),
+  ])
+  return false
+}
+const switchOn = async (db: D1Database, key: 'waitlist_on' | 'reviews_on') =>
+  onSwitch({ [key]: (await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>())?.value ?? '0' }, key)
+
+const WAIT_TRIES = 10 // sign-ups per connection per hour
+const REVIEW_TRIES = 5 // reviews per connection per hour
+
+/** "Tell me when it's back": one entry per phone per sold-out product; signing up again refreshes it. */
+api.post('/waitlist', async (c) => {
+  let body: Record<string, unknown>
+  try { body = await c.req.json() } catch { return c.json({ error: 'bad_request' }, 400) }
+  if (String(body.website ?? '')) return c.json({ error: 'bad_request' }, 400)
+  const db = c.env.DB
+  if (!(await switchOn(db, 'waitlist_on'))) return c.json({ error: 'off' }, 403)
+  const lang: Lang = isLang(String(body.lang)) ? (body.lang as Lang) : 'ar'
+  const pid = Number(body.product_id)
+  const name = clean(body.name, 60)
+  const phone = normalizePhone(String(body.phone ?? '')) ?? ''
+  const fields = [...(name ? [] : ['name']), ...(phone ? [] : ['phone'])]
+  if (!Number.isInteger(pid) || pid <= 0) fields.push('product')
+  if (fields.length) return c.json({ error: 'invalid', fields }, 422)
+  const p = await db.prepare("SELECT id, in_stock FROM products WHERE id = ? AND status = 'live' AND deleted_at IS NULL").bind(pid).first<{ id: number; in_stock: number }>()
+  if (!p) return c.json({ error: 'unavailable' }, 404)
+  if (p.in_stock) return c.json({ error: 'in_stock' }, 409)
+  const ipHash = await ipHashOf(c, 'sl-wait:')
+  if (await overLimit(db, 'wait', ipHash, WAIT_TRIES)) return c.json({ error: 'too_many' }, 429)
+  await db.batch([
+    db.prepare(`INSERT INTO waitlist (product_id, name, phone, lang, ip_hash) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(product_id, phone) DO UPDATE SET name = excluded.name, lang = excluded.lang, ip_hash = excluded.ip_hash, created_at = datetime('now'), notified_at = NULL`).bind(pid, name, phone, lang, ipHash),
+    db.prepare(`DELETE FROM waitlist WHERE created_at < datetime('now', '-${WAITLIST_DAYS} days')`),
+  ])
+  return c.json({ ok: true })
+})
+
+/**
+ * A review: from a product page (anyone), or from the customer's own order link after delivery.
+ * It shows only once the team approves it. Sent as a form (with an optional photo) or as JSON.
+ */
+api.post('/reviews', async (c) => {
+  if (Number(c.req.header('content-length') ?? 0) > MAX_REVIEW_PHOTO + 64 * 1024) return c.json({ error: 'too_large' }, 413)
+  const f: Record<string, unknown> = {}
+  let photo: File | null = null
+  try {
+    if ((c.req.header('content-type') ?? '').includes('multipart/form-data')) {
+      const fd = await c.req.formData()
+      for (const [k, v] of fd.entries()) {
+        const fv = v as unknown as File | string
+        if (k === 'photo') { if (typeof fv !== 'string' && fv.size) photo = fv }
+        else f[k] = v
+      }
+    } else Object.assign(f, await c.req.json())
+  } catch { return c.json({ error: 'bad_request' }, 400) }
+  if (String(f.website ?? '')) return c.json({ error: 'bad_request' }, 400)
+  const db = c.env.DB
+  if (!(await switchOn(db, 'reviews_on'))) return c.json({ error: 'off' }, 403)
+  const lang: Lang = isLang(String(f.lang)) ? (f.lang as Lang) : 'ar'
+  const rating = Number(f.rating)
+  const name = clean(f.name, 60)
+  const city = clean(f.city, 60)
+  const text = String(f.text ?? '').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 800)
+  const fields: string[] = []
+  if (!(Number.isInteger(rating) && rating >= 1 && rating <= 5)) fields.push('rating')
+  if (!name) fields.push('name')
+  const pidRaw = String(f.product_id ?? '').trim()
+  let pid: number | null = pidRaw ? Number(pidRaw) : null
+  if (pid !== null && !(Number.isInteger(pid) && pid > 0)) fields.push('product')
+  if (fields.length) return c.json({ error: 'invalid', fields }, 422)
+
+  let phone = normalizePhone(String(f.phone ?? '')) ?? ''
+  let orderId: number | null = null
+  let verified = 0
+  if (f.number || f.token) {
+    // from the customer's own order link: the order must be delivered, the piece must be in it
+    const got = await loadOrderForCustomer(db, String(f.number ?? ''), String(f.token ?? ''))
+    if (!got) return c.json({ error: 'order' }, 404)
+    if (got.order.status !== 'delivered') return c.json({ error: 'not_delivered' }, 409)
+    if (pid !== null) {
+      const inOrder = await db.prepare('SELECT 1 AS y FROM order_items WHERE order_id = ? AND product_id = ?').bind(got.order.id, pid).first()
+      if (!inOrder) return c.json({ error: 'invalid', fields: ['product'] }, 422)
+    }
+    const dup = await db.prepare("SELECT 1 AS y FROM reviews WHERE order_id = ? AND product_id IS ? AND status != 'rejected'").bind(got.order.id, pid).first()
+    if (dup) return c.json({ error: 'done' }, 409)
+    orderId = got.order.id
+    phone = got.order.phone
+    verified = 1
+  } else {
+    if (pid === null) return c.json({ error: 'invalid', fields: ['product'] }, 422)
+    const p = await db.prepare("SELECT 1 AS y FROM products WHERE id = ? AND status = 'live' AND deleted_at IS NULL").bind(pid).first()
+    if (!p) return c.json({ error: 'unavailable' }, 404)
+    if (phone) {
+      const dup = await db.prepare("SELECT 1 AS y FROM reviews WHERE product_id = ? AND phone = ? AND status != 'rejected'").bind(pid, phone).first()
+      if (dup) return c.json({ error: 'done' }, 409)
+      verified = (await db.prepare("SELECT 1 AS y FROM orders WHERE phone = ? AND status = 'delivered' LIMIT 1").bind(phone).first()) ? 1 : 0
+    }
+  }
+
+  let bytes: Uint8Array | null = null
+  if (photo) {
+    if (photo.size > MAX_REVIEW_PHOTO) return c.json({ error: 'photo' }, 413)
+    bytes = stripMetadata(new Uint8Array(await photo.arrayBuffer()))
+    if (!bytes) return c.json({ error: 'photo' }, 415)
+  }
+  const ipHash = await ipHashOf(c, 'sl-review:')
+  if (await overLimit(db, 'review', ipHash, REVIEW_TRIES)) return c.json({ error: 'too_many' }, 429)
+  let key = ''
+  if (bytes) {
+    key = `rv/${randomToken().slice(0, 24)}`
+    await c.env.MEDIA.put(key, bytes, { httpMetadata: { contentType: photoType(bytes) === 'webp' ? 'image/webp' : 'image/jpeg' } })
+  }
+  await db.prepare('INSERT INTO reviews (product_id, order_id, name, city, rating, text, photo_key, phone, lang, verified, ip_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(pid, orderId, name, city, rating, text, key, phone, lang, verified, ipHash).run()
+  return c.json({ ok: true })
+})
+
+/** A review photo, only while its review is approved (unapproved photos are never public). */
+api.get('/review-photo/:id{[0-9]+}', async (c) => {
+  const cat = await catalog(c)
+  const r = cat.reviews.find((x) => x.id === Number(c.req.param('id')))
+  if (!r || !r.photo_key) return c.notFound()
+  const obj = await c.env.MEDIA.get(r.photo_key)
+  if (!obj) return c.notFound()
+  return new Response(obj.body, {
+    headers: {
+      'content-type': obj.httpMetadata?.contentType || 'image/jpeg',
+      'cache-control': 'public, max-age=3600',
+      'x-content-type-options': 'nosniff',
+    },
+  })
 })

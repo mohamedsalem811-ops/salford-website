@@ -1,7 +1,33 @@
 # Feature plan: offers, codes, delivery, tracking, customers, waiting list, reviews, trust
 
-Status: **Release 2 live (27 Nov 2026).** Release 1 (offers, codes, delivery) and Release 2 (statuses, tracker, customers, loyalty) are live.
-The loyalty discount ships switched off; the owner turns it on in Admin → Customers. Release 3 is next.
+Status: **Release 3 live (27 Nov 2026).** Release 1 (offers, codes, delivery), Release 2 (statuses, tracker, customers, loyalty)
+and Release 3 (waiting list, reviews, trust page, delivery page) are live.
+Loyalty, the waiting list and reviews ship switched off; the owner turns them on in Admin → Customers / Waiting list / Reviews.
+Free delivery from 1,000 LYD has its own on/off switch in Admin → Delivery. Release 4 is next.
+
+Release 3 record:
+- Waiting list (sold-out pieces only): name + phone on the product page; one entry per phone per piece (signing up again just
+  updates it); entries older than 90 days are deleted. Admin → Waiting list puts pieces that are back in stock first, with a
+  one-tap WhatsApp message per person and a "Sent" mark. Built so Meta's paid automatic sending can be added later.
+- Reviews: anyone can send one (stars, text, optional JPEG/WebP photo up to 3 MB, stored with EXIF/GPS removed);
+  nothing shows until approved. The photo stays private (team only) until approved; "approve without photo" deletes it.
+  "Verified buyer" only when the phone matches a delivered order, or the review comes from the order's own link.
+  Approved reviews show on the product page (with Google star data) and the trust page.
+  Order page: "Ask for a review" button once Delivered (uses the 60-day order link).
+- Trust page (`/page/trust`): fixed facts (authentic boxes, original gift receipts, exchange/return only at the door after
+  inspecting) + the owner's own text + photo gallery with captions (Admin → Trust page). Trust line on every product page.
+- Delivery page (`/page/delivery`): price table by city/area + rules (discounts never apply to delivery; delivery is always
+  paid in cash; the customer pays delivery even when returning at the door; unknown area → agreed in chat).
+- Private pages (order tracker, review link) send no referrer; other pages send strict-origin-when-cross-origin.
+- Tests: 46 unit/route tests (10 new for R3). Browser tests on the preview (test DB): 153 checks on iPhone/iPad/desktop × ar/en,
+  incl. tamper checks (private photo URLs, forged "verified"/status, bad ratings, oversize/PNG photos, honeypot, guessed order
+  links, waiting list on an in-stock piece, spam limits) and moderation, waiting-list sending, the order-link review flow and
+  the trust editor on iPad.
+- Before going live: backup `live-20261127T130836Z.sql` (kept outside the repo); D1 Time Travel bookmark
+  `00000334-00000000-00005130-df7fe9098caf8de9e2d553c67da22773`.
+- Live smoke test: trust/delivery pages ar/en, product trust line, admin Reviews/Waiting list/Trust page, switches Off,
+  review/waiting-list sign-up refused while Off, "Ask for a review" card shows the switched-off note; the temporary admin
+  session was deleted afterwards and no test rows were left.
 
 Release 2 record:
 - Customer-facing statuses: New → Confirmed → Out for delivery → Delivered, or Cancelled. "Paid" is a separate team-only tick

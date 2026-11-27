@@ -4,6 +4,7 @@ import type { Env, Brand, Category, Media, Product, ProductWithMedia, ListOpts }
 import { SYNONYMS } from './db'
 import type { Offer, City, Area } from './pricing'
 import { liveOffer } from './pricing'
+import { REVIEW_PUBLIC_COLS, type Review } from './r3'
 
 /**
  * The shop catalog kept in memory, so a page view costs about one database row instead of thousands.
@@ -29,6 +30,8 @@ export type Catalog = {
   cities: City[] // enabled, in order
   areas: Area[] // enabled, in order
   hasCodes: boolean // any discount code switched on: the checkout shows the code box only then
+  reviews: Review[] // approved reviews, newest first (shown only while reviews are switched on)
+  reviewsBy: Map<number, Review[]> // approved reviews of each product
 }
 
 /** The offer running right now, if any. */
@@ -40,7 +43,7 @@ let snap: Catalog | null = null
 async function load(db: D1Database, v: string): Promise<Catalog> {
   const startedAt = Date.now()
   // Plain table reads, sorted here: D1 counts every row it touches, and ORDER BY / JOIN touch each row twice.
-  const [p, m, b, c, s, o, dc, da, cc] = await db.batch([
+  const [p, m, b, c, s, o, dc, da, cc, rv] = await db.batch([
     db.prepare("SELECT * FROM products WHERE status = 'live' AND deleted_at IS NULL"),
     db.prepare("SELECT * FROM media WHERE status != 'broken'"),
     db.prepare('SELECT * FROM brands'),
@@ -50,6 +53,7 @@ async function load(db: D1Database, v: string): Promise<Catalog> {
     db.prepare('SELECT * FROM delivery_cities WHERE enabled = 1'),
     db.prepare('SELECT * FROM delivery_areas WHERE enabled = 1'),
     db.prepare('SELECT count(*) AS n FROM codes WHERE enabled = 1'),
+    db.prepare(`SELECT ${REVIEW_PUBLIC_COLS} FROM reviews WHERE status = 'approved'`),
   ])
   const products = (p.results as Product[]).sort((x, y) => y.in_stock - x.in_stock || x.sort - y.sort || y.id - x.id)
   const live = new Set(products.map((x) => x.id))
@@ -68,6 +72,14 @@ async function load(db: D1Database, v: string): Promise<Catalog> {
   const shown = products.filter((x) => media.get(x.id)?.length)
   const brandIds = new Set(shown.map((x) => x.brand_id))
   const catIds = new Set(shown.map((x) => x.category_id))
+  const reviews = (rv.results as Review[]).sort((x, y) => y.id - x.id)
+  const reviewsBy = new Map<number, Review[]>()
+  for (const r of reviews) {
+    if (!r.product_id) continue
+    const list = reviewsBy.get(r.product_id)
+    if (list) list.push(r)
+    else reviewsBy.set(r.product_id, [r])
+  }
   return {
     v, checkedAt: startedAt, loadedAt: startedAt,
     brands,
@@ -83,6 +95,8 @@ async function load(db: D1Database, v: string): Promise<Catalog> {
     cities: bySort(dc.results as City[]),
     areas: (da.results as Area[]).sort((x, y) => x.city_id - y.city_id || x.sort - y.sort || x.id - y.id),
     hasCodes: ((cc.results[0] as { n: number } | undefined)?.n ?? 0) > 0,
+    reviews,
+    reviewsBy,
   }
 }
 
