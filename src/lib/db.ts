@@ -22,6 +22,7 @@ export type Product = {
   price: number; compare_price: number | null; is_set: number; set_codes: string
   in_stock: number; is_new: number; best_seller: number; status: string; sort: number
   created_at: string; updated_at: string; deleted_at: string | null
+  no_discount?: number
 }
 export type ProductWithMedia = Product & { media: Media[] }
 

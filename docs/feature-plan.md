@@ -1,6 +1,15 @@
 # Feature plan: offers, codes, delivery, tracking, customers, waiting list, reviews, trust
 
-Status: plan final. Template picks received. **Step 0 done (27 Nov 2026).** Release 1 is next.
+Status: **Release 1 live (27 Nov 2026), with every new feature switched off** (no offers, no codes, delivery prices off).
+The owner switches them on from the admin. Release 2 is next.
+
+Release 1 record:
+- Tests: 29 unit/route tests (pricing, features-off message identical, offers, codes, guessing limit, delivery, tamper, admin).
+- Browser tests on the preview (test DB): iPhone, iPad, desktop × ar/en; admin setup done through the real forms on iPad; all 9 looks screenshotted.
+- Before going live: backup `live-20261127T113021Z.sql` (kept outside the repo); D1 Time Travel point 2026-11-27 11:30:19 UTC.
+- Live smoke test: pages, assets, admin tabs, one order with features off (deleted afterwards).
+- Prices under an offer or a percent code are rounded down to a whole 5 LYD (590 − 24% → 445).
+- The code-guessing limit (20 wrong codes per hour) counts per connection.
 
 Template gallery (owner picks one look per occasion): https://claude.ai/artifact/Rciu5G7YLovbgdYTZAhMuV
 

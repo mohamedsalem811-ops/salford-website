@@ -315,4 +315,112 @@
   if (cp) cp.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/password', formJSON(cp)).then(function () { cp.reset(); toast('Password changed. Other devices are signed out.'); }).catch(function (err) { toast(err.message, true); }); });
   var es = $('[data-end-sessions]');
   if (es) es.addEventListener('click', function () { if (confirm('Sign out on every other phone and computer?')) api('POST', '/sessions/end-others').then(function () { toast('Other devices are signed out'); }).catch(function (err) { toast(err.message, true); }); });
+
+  /* ---------- Release 1: offers, codes, delivery ---------- */
+  function formErr(form, msg) { var el = $('[data-form-err]', form); if (el) { el.textContent = msg || ''; el.hidden = !msg; } if (msg) toast(msg, true); }
+  function saving(form, on) { $$('button[type="submit"]', form).concat(form.id ? $$('button[form="' + form.id + '"]') : []).forEach(function (b) { b.disabled = on; }); }
+  document.addEventListener('click', function (e) {
+    var cp = e.target.closest('[data-copy]');
+    if (cp) { var v = cp.getAttribute('data-copy'); (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function () { toast('Link copied'); }, function () { toast('Select the link and copy it'); }); }
+  });
+
+  var off = $('[data-offer-form]');
+  if (off) {
+    var oid = Number(off.getAttribute('data-offer-form'));
+    var LD = {}; try { LD = JSON.parse($('#look-defaults').textContent); } catch (err) { LD = {}; }
+    var MAP = { banner: 'ttl', sub: 'sub', kicker: 'kick', caption: 'strip' };
+    var lookNow = function () { var r = $('input[name="template"]:checked', off); return r ? r.value : 'ind'; };
+    var showDefaults = function () {
+      var d = LD[lookNow()]; if (!d) return;
+      var pct = off.elements.percent.value || d.pct;
+      $$('[data-def]', off).forEach(function (inp) {
+        var f = inp.getAttribute('data-def'), l = inp.getAttribute('data-lang');
+        inp.placeholder = f === 'badge' ? '−' + pct + '%' : String(d[l][MAP[f]] || '').replace(/\{pct\}/g, pct).replace(/\{year\}/g, new Date().getFullYear() + (lookNow() === 'ny' && new Date().getMonth() === 11 ? 1 : 0));
+      });
+      off.elements.name_en.placeholder = d.en.name; off.elements.name_ar.placeholder = d.ar.name;
+      $('[data-photo-field]', off).hidden = !d.photo;
+    };
+    $$('input[name="template"]', off).forEach(function (r) { r.addEventListener('change', function () { var d = LD[r.value]; if (d && !oid) off.elements.percent.value = d.pct; showDefaults(); }); });
+    off.elements.percent.addEventListener('input', showDefaults);
+    $$('input[name="scope_mode"]', off).forEach(function (r) { r.addEventListener('change', function () { $('[data-scope-some]', off).hidden = $('input[name="scope_mode"]:checked', off).value === 'all'; }); });
+    showDefaults();
+    off.addEventListener('submit', function (e) {
+      e.preventDefault(); formErr(off, '');
+      var b = formJSON(off);
+      b.template = lookNow();
+      b.scope_mode = ($('input[name="scope_mode"]:checked', off) || {}).value || 'all';
+      b.brands = $$('input[name="sc_brand"]:checked', off).map(function (x) { return x.value; });
+      b.cats = $$('input[name="sc_cat"]:checked', off).map(function (x) { return x.value; });
+      saving(off, true);
+      api(oid ? 'PUT' : 'POST', '/offers' + (oid ? '/' + oid : ''), b).then(function (d) {
+        saving(off, false);
+        if (d.warning) alert(d.warning);
+        toast('Saved');
+        if (!oid) location.href = '/admin/offers/' + d.id;
+      }).catch(function (err) { saving(off, false); formErr(off, err.message); });
+    });
+    var odel = $('[data-offer-delete]');
+    if (odel) odel.addEventListener('click', function () {
+      if (confirm('Delete this offer? Past orders keep their prices.')) api('DELETE', '/offers/' + oid).then(function () { location.href = '/admin/offers'; }).catch(function (err) { toast(err.message, true); });
+    });
+  }
+
+  var cf = $('[data-code-form]');
+  if (cf) {
+    var cid = Number(cf.getAttribute('data-code-form'));
+    cf.elements.code.addEventListener('input', function () { cf.elements.code.value = cf.elements.code.value.toUpperCase().replace(/\s+/g, ''); });
+    cf.addEventListener('submit', function (e) {
+      e.preventDefault(); formErr(cf, ''); saving(cf, true);
+      api(cid ? 'PUT' : 'POST', '/codes' + (cid ? '/' + cid : ''), formJSON(cf)).then(function (d) {
+        saving(cf, false); toast('Saved');
+        if (!cid) location.href = '/admin/codes/' + d.id; else setTimeout(function () { location.reload(); }, 500);
+      }).catch(function (err) { saving(cf, false); formErr(cf, err.message); });
+    });
+    var cdel = $('[data-code-delete]');
+    if (cdel) cdel.addEventListener('click', function () {
+      if (confirm('Delete this code?')) api('DELETE', '/codes/' + cid).then(function () { location.href = '/admin/codes'; }).catch(function (err) { toast(err.message, true); });
+    });
+  }
+
+  var df = $('[data-delivery-form]');
+  if (df) {
+    var dirty = false;
+    df.addEventListener('input', function () { dirty = true; });
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+    var guard = function () { return !dirty || confirm('You have changes that are not saved. Continue and lose them?'); };
+    var after = function () { dirty = false; location.reload(); };
+    df.addEventListener('submit', function (e) {
+      e.preventDefault(); formErr(df, ''); saving(df, true);
+      api('PUT', '/delivery', formJSON(df)).then(function () { saving(df, false); dirty = false; toast('Saved'); setTimeout(function () { location.reload(); }, 600); })
+        .catch(function (err) { saving(df, false); formErr(df, err.message); });
+    });
+    df.addEventListener('click', function (e) {
+      var ap = e.target.closest('[data-apply-city]');
+      if (ap) {
+        var sec = ap.closest('.d-city'), pr = $('[data-all-price]', sec).value, ta = $('[data-all-time-ar]', sec).value, te = $('[data-all-time-en]', sec).value;
+        if (pr === '' && !ta && !te) { toast('Type a price or a time first', true); return; }
+        $$('tr[data-area-id]', sec).forEach(function (tr) {
+          if (pr !== '') $('[data-price]', tr).value = pr;
+          if (ta) $('[data-time-ar]', tr).value = ta;
+          if (te) $('[data-time-en]', tr).value = te;
+        });
+        dirty = true; toast('Filled in. Press “Save delivery”.');
+      }
+      var aa = e.target.closest('[data-add-area]');
+      if (aa) {
+        var row = aa.closest('.a-row'), nar = $('[data-new-area-ar]', row).value.trim(), nen = $('[data-new-area-en]', row).value.trim();
+        if (!nar) { toast('Type the area name in Arabic', true); return; }
+        if (guard()) api('POST', '/delivery/areas', { city_id: Number(aa.getAttribute('data-add-area')), name_ar: nar, name_en: nen }).then(after).catch(function (err) { toast(err.message, true); });
+      }
+      if (e.target.closest('[data-add-city]')) {
+        var r2 = e.target.closest('.a-row'), car = $('[data-new-city-ar]', r2).value.trim(), cen = $('[data-new-city-en]', r2).value.trim();
+        if (!car) { toast('Type the city name in Arabic', true); return; }
+        if (guard()) api('POST', '/delivery/cities', { name_ar: car, name_en: cen }).then(after).catch(function (err) { toast(err.message, true); });
+      }
+      var da = e.target.closest('[data-del-area]');
+      if (da && guard() && confirm('Delete this area?')) api('DELETE', '/delivery/areas/' + da.getAttribute('data-del-area')).then(after).catch(function (err) { toast(err.message, true); });
+      var dc = e.target.closest('[data-del-city]');
+      if (dc && guard() && confirm('Delete this city and all its areas?')) api('DELETE', '/delivery/cities/' + dc.getAttribute('data-del-city')).then(after).catch(function (err) { toast(err.message, true); });
+    });
+  }
 })();

@@ -45,6 +45,11 @@ const ar = {
   nProducts: (n: number) => (n === 1 ? 'منتج واحد' : n === 2 ? 'منتجين' : n <= 10 ? `${n} منتجات` : `${n} منتج`),
   comingSoon: 'قريباً عندنا', comingSoonSub: 'قطع هذه العلامة توصل قريباً. تابعنا أو راسلنا ونبلغوك أول ما توصل.',
   footAsk: 'عندك سؤال على قطعة؟', footAskSub: 'كلمنا مباشرة، نردوا عليك في أقرب وقت.',
+  pickCity: 'المدينة', pickCityPh: 'اختر مدينتك', cityNotListed: 'مدينة أخرى (غير موجودة في القائمة)',
+  pickArea: 'المنطقة', pickAreaPh: 'اختر منطقتك', areaNotListed: 'منطقة أخرى (غير موجودة في القائمة)',
+  otherPlace: 'اكتب مدينتك ومنطقتك', otherPlaceNote: 'نتفق معك على رسوم التوصيل في المحادثة',
+  codeLabel: 'كود الخصم', codePh: 'إذا عندك كود، اكتبه هنا', codeApply: 'تطبيق',
+  delCash: 'رسوم التوصيل تُدفع نقداً للمندوب عند الاستلام، مهما كانت طريقة الدفع.',
   footHelp: 'مساعدة', footAll: 'كل المنتجات', footPay: 'طرق الدفع', facebook: 'فيسبوك', backTop: 'للأعلى',
 }
 
@@ -91,6 +96,11 @@ const en: typeof ar = {
   nProducts: (n: number) => `${n} ${n === 1 ? 'product' : 'products'}`,
   comingSoon: 'Coming soon', comingSoonSub: 'Pieces from this brand are on their way. Follow us or message us and we’ll tell you when they arrive.',
   footAsk: 'A question about a piece?', footAskSub: 'Message us directly, we reply as soon as we can.',
+  pickCity: 'City', pickCityPh: 'Choose your city', cityNotListed: 'Another city (not in the list)',
+  pickArea: 'Area', pickAreaPh: 'Choose your area', areaNotListed: 'Another area (not in the list)',
+  otherPlace: 'Type your city and area', otherPlaceNote: 'We agree the delivery fee with you in the chat',
+  codeLabel: 'Discount code', codePh: 'Have a code? Type it here', codeApply: 'Apply',
+  delCash: 'The delivery fee is paid in cash to the driver on delivery, whatever the payment method.',
   footHelp: 'Help', footAll: 'All products', footPay: 'Ways to pay', facebook: 'Facebook', backTop: 'Top',
 }
 

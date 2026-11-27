@@ -105,3 +105,27 @@ h1 { font-size: 1.4rem; margin: 0; } h2 { font-size: 1.05rem; margin: 0 0 10px; 
   .a-olist .a-ph { display: inline; }
   .a-filter select { flex: 1; }
 }
+
+/* ---------- Release 1: offers, codes, delivery ---------- */
+.a-sub { background: #FDF8F9; }
+.a-grid-gap { display: grid; gap: 16px; }
+.lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.lk-opt { position: relative; display: grid; gap: 6px; cursor: pointer; }
+.lk-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.lk { display: grid; justify-items: center; align-content: start; gap: 4px; text-align: center; border-radius: 12px; padding: 0 10px 12px; overflow: hidden; min-height: 132px; border: 2px solid transparent; box-shadow: 0 0 0 1px var(--line); font: 12px/1.4 system-ui, 'IBM Plex Sans Arabic', sans-serif; direction: rtl; }
+.lk-opt input:checked + .lk { border-color: var(--mauve); box-shadow: 0 0 0 3px #F1D9DF; }
+.lk-opt input:focus-visible + .lk { outline: 2px solid var(--mauve); outline-offset: 2px; }
+.lk-s { justify-self: stretch; margin: 0 -10px 6px; padding: 3px 6px; font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lk-k { font-size: 11px; font-weight: 600; }
+.lk b { font-size: 15px; line-height: 1.3; }
+.lk-b { margin-top: 4px; padding: 3px 14px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.lk-n { font-size: 13px; }
+.d-city { display: grid; gap: 8px; padding: 14px 0; border-top: 1px solid var(--line); }
+.d-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.d-head input:not([type="checkbox"]), .d-all input, .d-city > .a-row input, .a-card > .a-row input { min-height: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid #E2CFD5; font: 14px system-ui, 'IBM Plex Sans Arabic', sans-serif; }
+.d-head input:not([type="checkbox"]) { font-weight: 600; flex: 1; min-width: 140px; }
+.d-head .d-sort { flex: 0 0 72px; min-width: 0; }
+.d-all input { flex: 1; min-width: 110px; }
+.d-areas input:not([type="checkbox"]) { min-height: 34px; padding: 4px 8px; border-radius: 7px; border: 1px solid #E2CFD5; font: 14px system-ui, 'IBM Plex Sans Arabic', sans-serif; width: 100%; min-width: 90px; }
+.d-areas .d-num { width: 90px; min-width: 70px; }
+.d-areas td input[type="checkbox"] { width: 18px; height: 18px; }

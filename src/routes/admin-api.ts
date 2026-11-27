@@ -7,6 +7,7 @@ import { waNumber, igHandle, fbPage } from '../lib/orders'
 import { bumpCatalog } from '../lib/catalog'
 
 import { translateProduct } from '../lib/translate'
+import { r1Api } from './admin-r1'
 
 type Vars = { admin: { id: number; email: string } }
 
@@ -137,9 +138,9 @@ adminApi.put('/products/:id{[0-9]+}', async (c) => {
   const shortAr = arOf('short', 300), descAr = arOf('desc', 4000)
   await c.env.DB.prepare(
     `UPDATE products SET brand_id=?, category_id=?, code=?, price=?, compare_price=?, name_en=?, short_ar=?, short_en=?, desc_ar=?, desc_en=?,
-     set_codes=?, status=?, in_stock=?, is_new=?, best_seller=?, is_set=?, updated_at=${now} WHERE id=?`,
+     set_codes=?, status=?, in_stock=?, is_new=?, best_seller=?, is_set=?, no_discount=?, updated_at=${now} WHERE id=?`,
   ).bind(brand, cat, s('code', 60), toDirham(s('price')), compare, s('name_en', 200), shortAr, s('short_en', 300), descAr, s('desc_en'),
-    JSON.stringify(codes), status, flag('in_stock'), flag('is_new'), flag('best_seller'), flag('is_set'), id).run()
+    JSON.stringify(codes), status, flag('in_stock'), flag('is_new'), flag('best_seller'), flag('is_set'), flag('no_discount'), id).run()
   const missing = (s('short_en', 300) && !shortAr) || (s('desc_en') && !descAr)
   if (missing && c.env.AI) {
     const r = await translateProduct(c.env, id)
@@ -392,3 +393,6 @@ adminApi.post('/sessions/end-others', async (c) => {
   await endOtherSessions(c, c.get('admin').id)
   return c.json({ ok: true })
 })
+
+/* ---------- Release 1: offers, codes, delivery (admin-r1.tsx) ---------- */
+adminApi.route('/', r1Api)

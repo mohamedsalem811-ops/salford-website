@@ -5,49 +5,14 @@ import { getBrands, getCategories, getSettings, fmtLyd } from '../lib/db'
 import { requireAdmin, verifyLogin, startSession, endSession, tooManyAttempts, recordAttempt, clientIp, hashPassword } from '../lib/auth'
 import { mediaUrl } from '../lib/media'
 import { V } from '../views/layout'
+import { assetPath } from '../lib/assets'
 import { adminApi } from './admin-api'
-
-/** D1 stores UTC ('2026-11-24 13:05:00'); the team reads Libya time. */
-const libyaFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tripoli', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-const libyaTime = (utc: string | number) => {
-  const d = new Date(String(utc).replace(' ', 'T') + 'Z')
-  return Number.isNaN(d.getTime()) ? String(utc) : libyaFmt.format(d)
-}
+import { sumRows, sumFromRow } from '../lib/orders'
+import { Shell, libyaTime } from '../views/admin-shell'
+import { r1Pages } from './admin-r1'
 
 type Vars = { admin: { id: number; email: string } }
 export const admin = new Hono<{ Bindings: Env; Variables: Vars }>()
-
-const Shell = ({ title, children, nav }: { title: string; children: Child; nav?: string }) => (
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content="noindex, nofollow" />
-      <title>{title} · Salford Admin</title>
-      <link rel="icon" type="image/png" href="/static/brand/favicon-48.png" />
-      <link rel="stylesheet" href={`/static/admin.css?v=${V}`} />
-    </head>
-    <body>
-      {nav !== undefined ? (
-        <div class="a-wrap">
-          <nav class="a-side" aria-label="Admin">
-            <img class="a-logo" src="/static/brand/word-white.webp" alt="Salford" width="480" height="127" />
-            <a href="/admin" class={nav === 'products' ? 'on' : ''}>Products</a>
-            <a href="/admin/orders" class={nav === 'orders' ? 'on' : ''}>Orders</a>
-            <a href="/admin/settings" class={nav === 'settings' ? 'on' : ''}>Settings</a>
-            <a href="/ar/" target="_blank" rel="noopener">View site ↗</a>
-            <form method="post" action="/admin/logout"><button class="linkbtn" type="submit">Log out</button></form>
-          </nav>
-          <main class="a-main">{children}</main>
-        </div>
-      ) : (
-        <main class="a-center">{children}</main>
-      )}
-      <div class="toast" role="status" aria-live="polite" hidden></div>
-      <script src={`/static/admin.js?v=${V}`} defer></script>
-    </body>
-  </html>
-)
 
 /* ---------- login / setup ---------- */
 admin.get('/login', async (c) => {
@@ -125,6 +90,7 @@ admin.use('/*', async (c, next) => {
   return requireAdmin(c, next)
 })
 admin.route('/api', adminApi)
+admin.route('/', r1Pages)
 
 /* ---------- products ---------- */
 admin.get('/', async (c) => {
@@ -257,6 +223,7 @@ admin.get('/p/:id{[0-9]+}', async (c) => {
             <label><input type="checkbox" name="is_new" checked={!!p.is_new} /> New arrival</label>
             <label><input type="checkbox" name="best_seller" checked={!!p.best_seller} /> Best seller</label>
             <label><input type="checkbox" name="is_set" checked={!!p.is_set} /> This is a set</label>
+            <label title="Offers and discount codes skip this product"><input type="checkbox" name="no_discount" checked={!!p.no_discount} /> Never discount</label>
           </div>
         </form>
         <section class="a-card" data-media-manager={p.id}>
@@ -325,6 +292,7 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
   if (!o) return c.redirect('/admin/orders')
   const { results: items } = await c.env.DB.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').bind(id).all<Record<string, string | number>>()
   const wa = `https://wa.me/218${String(o.phone).replace(/^0/, '')}`
+  const sum = sumFromRow(o)
   return c.html(
     <Shell title={String(o.number)} nav="orders">
       <div class="a-head"><h1>Order {o.number}</h1><a class="a-btn" href="/admin/orders">All orders</a></div>
@@ -344,8 +312,12 @@ admin.get('/orders/:id{[0-9]+}', async (c) => {
         </div>
         <div class="a-card">
           <h2>Items</h2>
-          <table class="a-table"><tbody>{items.map((i) => <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code></td><td>× {i.qty}</td><td class="num">{fmtLyd(Number(i.price) * Number(i.qty))}</td></tr>)}</tbody></table>
-          <p class="a-total">Total <b>{fmtLyd(Number(o.total))} LYD</b></p>
+          <table class="a-table"><tbody>{items.map((i) => {
+            const was = sum && Number(i.orig_price) > Number(i.price) ? Number(i.orig_price) * Number(i.qty) : 0
+            return <tr><td>{i.brand}</td><td dir="auto">{i.name}<br /><code>{i.code}</code></td><td>× {i.qty}</td><td class="num">{fmtLyd(Number(i.price) * Number(i.qty))}{was ? <><br /><s class="a-muted">{fmtLyd(was)}</s></> : null}</td></tr>
+          })}</tbody></table>
+          {sum ? <dl class="a-dl">{sumRows({ lang: 'en', total: Number(o.total), sum }).map((r) => <><dt>{r.label}</dt><dd>{r.value}</dd></>)}{sum.area ? <><dt>Area</dt><dd dir="auto">{sum.area}</dd></> : null}</dl> : null}
+          <p class="a-total">Total <b>{fmtLyd(Number(o.total))} LYD</b>{sum && sum.fee ? <span class="a-muted"> (incl. {fmtLyd(sum.fee)} delivery, cash to the driver)</span> : null}</p>
           <form class="a-order-form" data-order-form={o.id}>
             <label class="a-f">Status<select name="status">{STATUSES.map((s) => <option value={s} selected={o.status === s}>{s}</option>)}</select></label>
             <label class="a-f">Team note<textarea name="admin_note" rows={3}>{o.admin_note}</textarea></label>

@@ -1,12 +1,17 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import { getCookie } from 'hono/cookie'
+import { currentAdmin } from '../lib/auth'
 import type { Env, Brand, ProductWithMedia } from '../lib/db'
 import { pName, pShort, pDesc, fmtLyd } from '../lib/db'
-import { catalog, listFrom, productFrom, type Catalog } from '../lib/catalog'
+import { catalog, listFrom, productFrom, offerNow, type Catalog } from '../lib/catalog'
+import type { Offer } from '../lib/pricing'
+import { shopPrice, inScope, parseScope, discountable } from '../lib/pricing'
+import { OfferBanner, isoUtc } from '../views/offer'
 import { t, isLang, CITIES_AR, type Lang } from '../lib/i18n'
 import { Layout, Grid, Price, Pic, Icons, bname, type PageMeta } from '../views/layout'
 import { mediaUrl, srcset, youtubeId, firstImage, absUrl } from '../lib/media'
-import { loadOrderForCustomer, channelLinks, waNumber, igHandle } from '../lib/orders'
+import { loadOrderForCustomer, channelLinks, waNumber, igHandle, sumRows } from '../lib/orders'
 
 type C = Context<{ Bindings: Env }>
 export const store = new Hono<{ Bindings: Env }>()
@@ -14,15 +19,23 @@ export const store = new Hono<{ Bindings: Env }>()
 const origin = (c: C) => new URL(c.req.url).origin
 const noindex = (c: C) => new URL(c.req.url).hostname.endsWith('.pages.dev')
 
-async function base(c: C, _lang: Lang): Promise<{ brands: Brand[]; settings: Record<string, string>; cat: Catalog }> {
+type Base = { brands: Brand[]; settings: Record<string, string>; cat: Catalog; offer: Offer | null }
+async function base(c: C, _lang: Lang): Promise<Base> {
   const cat = await catalog(c)
-  return { brands: cat.brands, settings: cat.settings, cat }
+  let offer = offerNow(cat)
+  // Admin → Offers → "Preview": shows that offer (even before it starts, or switched off) to a logged-in team member only
+  const pv = Number(c.req.query('offer_preview'))
+  if (pv && getCookie(c, 'sl_admin') && (await currentAdmin(c))) {
+    const o = await c.env.DB.prepare('SELECT * FROM offers WHERE id = ?').bind(pv).first<Offer>()
+    if (o) offer = { ...o, kind: 'percent' }
+  }
+  return { brands: cat.brands, settings: cat.settings, cat, offer }
 }
 
-function render(c: C, meta: Omit<PageMeta, 'origin'>, b: { brands: Brand[]; settings: Record<string, string>; cat: Catalog }, body: unknown, status = 200) {
+function render(c: C, meta: Omit<PageMeta, 'origin'>, b: Base, body: unknown, status = 200) {
   // header and footer list only brands that have pieces to show
   return c.html(
-    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.cat.shopBrands} settings={b.settings}>
+    <Layout {...meta} origin={origin(c)} noindex={meta.noindex || noindex(c)} brands={b.cat.shopBrands} settings={b.settings} offer={b.offer}>
       {body as never}
     </Layout>,
     status as 200,
@@ -59,6 +72,15 @@ store.get('/:lang{(?:ar|en)}/products', async (c) => {
 store.get('/:lang{(?:ar|en)}/sets', (c) => c.redirect(`/${c.req.param('lang')}/shop?cat=sets`, 301))
 
 /* ---------- home ---------- */
+/** The photo for a photo-layout offer banner: the chosen product, or the first product the offer covers. */
+function photoFor(cat: Catalog, o: Offer) {
+  const pick = (id: number) => { const m = cat.media.get(id)?.find((x) => x.kind === 'image'); return m ? mediaUrl(m, 900) : '' }
+  if (o.photo_product_id && cat.byId.has(o.photo_product_id)) { const u = pick(o.photo_product_id); if (u) return u }
+  const sc = parseScope(o.scope)
+  for (const p of cat.products) if (p.in_stock && discountable(p) && inScope(p, sc)) { const u = pick(p.id); if (u) return u }
+  return ''
+}
+
 type Banner = { image?: string; image_mobile?: string; eyebrow_ar?: string; eyebrow_en?: string; title_ar?: string; title_en?: string; link?: string }
 
 store.get('/:lang{(?:ar|en)}/', async (c) => {
@@ -75,10 +97,12 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
   const catPics = cats.map((ct) => listFrom(b.cat, { cat: ct.id, limit: 1 }))
   let banners: Banner[] = []
   try { banners = JSON.parse(b.settings.banners || '[]') } catch { banners = [] }
+  const offerPhoto = b.offer ? photoFor(b.cat, b.offer) : ''
 
   return render(c, { lang, path: '/', active: 'home', image: absUrl(origin(c), '/static/brand/og.jpg') }, b, (
     <>
       <section class="wrap">
+        <OfferBanner offer={b.offer} lang={lang} photo={offerPhoto} />
         <div class="hero">
           <picture class="hero-pic">
             <source media="(max-width: 639px)" type="image/webp" srcset="/static/brand/hero-m-480.webp 480w, /static/brand/hero-m-864.webp 864w" sizes="100vw" />
@@ -141,13 +165,13 @@ store.get('/:lang{(?:ar|en)}/', async (c) => {
 
       <section class="wrap sec">
         <div class="sec-h"><h2 class="h">{tr.newArrivals}</h2><a href={`/${lang}/shop`}>{tr.viewAll}</a></div>
-        <Grid items={newest} lang={lang} brands={b.brands} eagerFirst={2} fit />
+        <Grid items={newest} lang={lang} brands={b.brands} eagerFirst={2} fit offer={b.offer} />
       </section>
 
       {best.length ? (
         <section class="wrap sec">
           <div class="sec-h"><h2 class="h">{tr.bestSellers}</h2><a href={`/${lang}/shop`}>{tr.viewAll}</a></div>
-          <Grid items={best} lang={lang} brands={b.brands} fit />
+          <Grid items={best} lang={lang} brands={b.brands} fit offer={b.offer} />
         </section>
       ) : null}
 
@@ -259,7 +283,7 @@ async function listing(c: C, lang: Lang, brandId?: string) {
             </select>
           </label>
         </div>
-        {items.length ? <Grid items={items} lang={lang} brands={b.brands} eagerFirst={4} /> : <p class="empty">{tr.noResults}</p>}
+        {items.length ? <Grid items={items} lang={lang} brands={b.brands} eagerFirst={4} offer={b.offer} /> : <p class="empty">{tr.noResults}</p>}
       </section>
       )}
     </>
@@ -333,14 +357,19 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
     setParts = b.cat.products.filter((x) => !x.is_set && codes.includes(x.code)).map((x) => ({ id: x.id, code: x.code, name_en: x.name_en, name_ar: x.name_ar }))
   }
   const desc = pDesc(p, lang)
+  const sp = shopPrice(p, b.offer)
   const ld = {
     '@context': 'https://schema.org', '@type': 'Product', name, sku: p.code,
     brand: { '@type': 'Brand', name: brand?.name },
     image: img ? absUrl(origin(c), mediaUrl(img, 900)) : undefined,
     description: pShort(p, lang) || desc.slice(0, 200),
-    offers: { '@type': 'Offer', priceCurrency: 'LYD', price: (p.price / 1000).toString(), availability: p.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' },
+    offers: {
+      '@type': 'Offer', priceCurrency: 'LYD', price: (sp.price / 1000).toString(),
+      ...(sp.pct && b.offer?.ends_at ? { priceValidUntil: isoUtc(b.offer.ends_at).slice(0, 10) } : {}),
+      availability: p.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+    },
   }
-  return render(c, { lang, path: `/p/${p.id}`, title: `${name} · ${brand?.name ?? ''}`, desc: `${brand?.name ?? ''} · ${fmtLyd(p.price)} ${tr.currency} · ${pShort(p, lang)}`, image: ld.image }, b, (
+  return render(c, { lang, path: `/p/${p.id}`, title: `${name} · ${brand?.name ?? ''}`, desc: `${brand?.name ?? ''} · ${fmtLyd(sp.price)} ${tr.currency} · ${pShort(p, lang)}`, image: ld.image }, b, (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\\u003c') }} />
       <article class="wrap product">
@@ -349,7 +378,8 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
           <a class="bd" href={`/${lang}/brand/${p.brand_id}`}>{brand?.name}</a>
           <h1 class="pname">{name}</h1>
           <div class="prow">
-            <Price value={p.price} compare={p.compare_price} lang={lang} />
+            <Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} />
+            {sp.pct && p.in_stock ? <span class="ochip" dir="ltr">−{sp.pct}%</span> : null}
             <span class={p.in_stock ? 'instock' : 'nostock'}>{p.in_stock ? tr.inStock : tr.outOfStock}</span>
           </div>
           <div class="buybar" data-buybar>
@@ -382,14 +412,14 @@ store.get('/:lang{(?:ar|en)}/p/:id{[0-9]+}', async (c) => {
       {p.in_stock ? (
         /* phones and iPads: a small bar that comes up once the main button has scrolled away */
         <div class="fbuy" data-fbuy aria-hidden="true">
-          <span class="fbuy-txt"><span class="fbuy-nm">{name}</span><Price value={p.price} compare={p.compare_price} lang={lang} /></span>
+          <span class="fbuy-txt"><span class="fbuy-nm">{name}</span><Price value={sp.price} compare={sp.was} lang={lang} sale={!!sp.pct} /></span>
           <button class="btn" type="button" data-add={p.id} tabindex={-1}>{Icons.bag}{tr.addToCart}</button>
         </div>
       ) : null}
       {similar.length ? (
         <section class="wrap sec">
           <h2 class="h">{tr.similar}</h2>
-          <Grid items={similar} lang={lang} brands={b.brands} fit />
+          <Grid items={similar} lang={lang} brands={b.brands} fit offer={b.offer} />
         </section>
       ) : null}
     </>
@@ -425,15 +455,44 @@ store.get('/:lang{(?:ar|en)}/checkout', async (c) => {
     ok.messenger ? { v: 'messenger', l: tr.messenger, n: tr.ready } : null,
     ok.instagram ? { v: 'instagram', l: tr.instagram, n: tr.igHint } : null,
   ].filter(Boolean) as { v: string; l: string; n: string }[]
+  const delOn = s.delivery_on === '1'
+  const nm = (x: { name_ar: string; name_en: string }) => (lang === 'ar' ? x.name_ar || x.name_en : x.name_en || x.name_ar)
+  const areas = b.cat.areas.filter((a) => b.cat.cities.some((x) => x.id === a.city_id))
+  const cities = b.cat.cities.filter((x) => areas.some((a) => a.city_id === x.id))
   return render(c, { lang, path: '/checkout', title: tr.checkout, active: 'cart' }, b, (
     <section class="wrap narrow">
       <h1 class="h1">{tr.checkout}</h1>
       <form id="checkout" class="form" novalidate data-checkout>
         <div id="co-summary" class="sum" aria-live="polite"></div>
+        {b.cat.hasCodes ? (
+          <div class="codebox" data-codebox>
+            <label class="field"><span>{tr.codeLabel}</span>
+              <span class="coderow"><input name="code" placeholder={tr.codePh} autocomplete="off" autocapitalize="characters" spellcheck={false} maxlength={30} dir="ltr" /><button class="btn sm ghost" type="button" data-code-apply>{tr.codeApply}</button></span>
+            </label>
+            <p class="code-msg" data-code-msg aria-live="polite" hidden></p>
+          </div>
+        ) : null}
         <label class="field"><span>{tr.name}</span><input name="name" required autocomplete="name" maxlength={80} /></label>
         <label class="field"><span>{tr.phone}</span><input name="phone" required type="tel" inputmode="tel" autocomplete="tel" dir="ltr" placeholder="09X XXX XXXX" maxlength={20} /></label>
-        <label class="field"><span>{tr.city}</span><input name="city" required list="cities" placeholder={tr.cityPh} autocomplete="address-level2" maxlength={60} /></label>
-        <datalist id="cities">{CITIES_AR.map((x) => <option value={x} />)}</datalist>
+        {delOn ? (
+          <>
+            <label class="field"><span>{tr.pickCity}</span>
+              <select name="city_id" required data-city>
+                <option value="">{tr.pickCityPh}</option>
+                {cities.map((x) => <option value={x.id}>{nm(x)}</option>)}
+                <option value="other">{tr.cityNotListed}</option>
+              </select>
+            </label>
+            <label class="field" data-area-wrap hidden><span>{tr.pickArea}</span><select name="area_id" data-area></select></label>
+            <label class="field" data-city-other hidden><span>{tr.otherPlace}</span><input name="city" placeholder={tr.cityPh} autocomplete="address-level2" maxlength={60} /><small class="muted">{tr.otherPlaceNote}</small></label>
+            <script type="application/json" id="areas-data" dangerouslySetInnerHTML={{ __html: JSON.stringify({ areas: areas.map((a) => ({ id: a.id, c: a.city_id, n: nm(a), one: a.name_en === 'All areas' })), ph: tr.pickAreaPh, other: tr.areaNotListed }).replace(/</g, '\\u003c') }} />
+          </>
+        ) : (
+          <>
+            <label class="field"><span>{tr.city}</span><input name="city" required list="cities" placeholder={tr.cityPh} autocomplete="address-level2" maxlength={60} /></label>
+            <datalist id="cities">{CITIES_AR.map((x) => <option value={x} />)}</datalist>
+          </>
+        )}
         <label class="field"><span>{tr.address}</span><input name="address" placeholder={tr.addressPh} autocomplete="street-address" maxlength={200} /></label>
         <label class="field"><span>{tr.note}</span><input name="note" placeholder={tr.notePh} maxlength={200} /></label>
         {/* left empty by people; filled by spam robots */}
@@ -444,6 +503,7 @@ store.get('/:lang{(?:ar|en)}/checkout', async (c) => {
             <label class="payopt"><input type="radio" name="payment" value={p.v} checked={i === 0} /><span>{p.l}</span>{p.n ? <small>{p.n}</small> : null}</label>
           ))}
         </fieldset>
+        {delOn ? <p class="muted small delcash">{Icons.truck}<span>{tr.delCash}</span></p> : null}
         <p class="form-err" role="alert" hidden></p>
         <h2 class="h">{tr.sendVia}</h2>
         {channels.length ? (
@@ -501,8 +561,9 @@ store.get('/:lang{(?:ar|en)}/order/:num', async (c) => {
       <h2 class="h">{tr.yourOrder}</h2>
       <div class="sum">
         {v.info.lines.map((l) => (
-          <div><span><bdi>{l.brand} · {l.name}</bdi>{l.qty > 1 ? ` × ${l.qty}` : ''}</span><span>{fmtLyd(l.price * l.qty)} {cur}</span></div>
+          <div><span><bdi>{l.brand} · {l.name}</bdi>{l.qty > 1 ? ` × ${l.qty}` : ''}</span><span>{fmtLyd((v.info.sum && l.orig_price ? l.orig_price : l.price) * l.qty)} {cur}</span></div>
         ))}
+        {sumRows(v.info).map((r) => <div class={`r-${r.kind}`}><span>{r.label}</span><span>{r.value}</span></div>)}
         <div class="tot"><span>{tr.total}</span><span>{fmtLyd(v.info.total)} {cur}</span></div>
       </div>
       <h2 class="h">{tr.nextSteps}</h2>

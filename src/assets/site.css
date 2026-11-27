@@ -412,3 +412,59 @@ img.pimg.broken { opacity: 0; }
   .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .grid.fit > :nth-child(n+9) { display: grid; }
 }
+
+/* ---------- Release 1: live offer (colours come from the look: --o-* in <head>) ---------- */
+.ostrip { display: block; background: var(--o-sbg, var(--ink)); color: var(--o-sink, #fff); font-size: .8rem; font-weight: 600; text-align: center; text-decoration: none;
+  padding: 7px max(12px, env(safe-area-inset-right, 0px)) 7px max(12px, env(safe-area-inset-left, 0px)); line-height: 1.4; text-wrap: balance; }
+.ostrip bdi, .ocd b { font-family: 'Alexandria', var(--f-head), sans-serif; font-variant-numeric: tabular-nums; }
+.obanner { position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
+  margin-top: 14px; padding: 30px 18px 24px; min-height: 280px; border-radius: 24px; overflow: hidden; text-decoration: none;
+  background: var(--o-hbg, #fff); color: var(--o-hink, var(--ink)); }
+.obanner + .hero { margin-top: 12px; }
+.obanner > :where(:not(.orn)) { position: relative; z-index: 1; }
+.obanner .orn { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.obanner .orn span { position: absolute; display: block; line-height: 0; }
+.obanner .orn svg { width: 100%; height: auto; display: block; }
+.oflag { width: 52px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08); margin-bottom: 4px; line-height: 0; }
+.oflag svg { display: block; width: 100%; height: auto; }
+.okick { font-size: .85rem; font-weight: 600; color: var(--o-acc, var(--mauve)); }
+.okick.lat { font: italic 600 1.45rem/1.1 'Cormorant Garamond', var(--f-brand), serif; letter-spacing: .04em; }
+.okick.huge { font: 600 3.4rem/1 'Cormorant Garamond', var(--f-brand), serif; letter-spacing: .06em; margin-bottom: 2px; }
+.ottl { font-family: var(--o-tf, var(--f-head)); font-size: clamp(1.75rem, 6.4vw, 2.5rem); line-height: 1.3; font-weight: 700; color: var(--o-tink, var(--o-hink, var(--ink))); text-wrap: balance; max-width: 22ch; }
+.osub { font-size: .95rem; opacity: .92; text-wrap: balance; max-width: 40ch; }
+.ocd { display: flex; gap: 8px; margin-top: 8px; }
+.ocd .u { background: var(--o-cdbg, rgba(0, 0, 0, .06)); color: var(--o-cdink, inherit); border-radius: 12px; min-width: 56px; padding: 7px 0 4px; text-align: center; }
+.ocd b { display: block; font-weight: 700; font-size: 1.3rem; line-height: 1.1; }
+.ocd i { font-style: normal; font-size: .7rem; opacity: .85; }
+.obtn { display: inline-flex; align-items: center; min-height: 44px; margin-top: 10px; padding: 0 28px; border-radius: 99px; background: var(--o-bbg, var(--mauve)); color: var(--o-bink, #fff); font-weight: 600; }
+.obanner.photo { padding: 0 0 24px; justify-content: flex-start; gap: 4px; }
+.obanner .opic { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; max-height: 300px; margin-bottom: 8px; }
+.obanner .opic img { width: 100%; height: 100%; object-fit: cover; object-position: center 70%; }
+.obanner .opic::after { content: ""; position: absolute; inset: auto 0 0; height: 40%; background: linear-gradient(to bottom, transparent, var(--o-hbg, #fff)); }
+.obanner .obody { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 18px; }
+@media (min-width: 900px) {
+  .obanner { min-height: 340px; }
+  .obanner.photo { flex-direction: row; padding: 0; gap: 0; }
+  .obanner.photo .opic { width: 50%; max-height: none; aspect-ratio: auto; align-self: stretch; margin: 0; }
+  .obanner.photo .opic::after { inset: 0 auto 0 0; width: 30%; height: auto; background: linear-gradient(to left, transparent, var(--o-hbg, #fff)); }
+  [dir="rtl"] .obanner.photo .opic::after { inset: 0 0 0 auto; background: linear-gradient(to right, transparent, var(--o-hbg, #fff)); }
+  .obanner.photo .obody { flex: 1; padding: 30px; }
+}
+.obadge { position: absolute; z-index: 2; top: 8px; inset-inline-end: 8px; background: var(--o-gbg, var(--mauve)); color: var(--o-gink, #fff);
+  font: 700 .75rem/1 'Alexandria', var(--f-head), sans-serif; padding: 6px 8px; border-radius: 99px; }
+.ochip { display: inline-block; vertical-align: 2px; margin-inline-start: 8px; padding: 2px 9px; border-radius: 99px; background: var(--o-gbg, var(--mauve)); color: var(--o-gink, #fff); font-size: .78rem; font-weight: 700; }
+.price.sale { color: var(--o-pr, var(--mauve)); }
+
+/* ---------- Release 1: checkout code box, delivery note, breakdown ---------- */
+.codebox { display: grid; gap: 6px; }
+.coderow { display: flex; gap: 8px; }
+.coderow input { flex: 1; min-width: 0; text-transform: uppercase; }
+.coderow button { flex: none; }
+.code-msg { margin: 0; font-size: .88rem; color: var(--muted); }
+.code-msg.ok { color: #2E7D4F; }
+.code-msg.bad { color: #B3261E; }
+.delcash { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; font-size: .88rem; color: var(--muted); }
+.delcash svg { flex: none; margin-top: 3px; }
+.sum .r-disc span:last-child { color: #2E7D4F; font-weight: 600; }
+.sum .r-del small { font-size: .78rem; }
+.freehint { margin: -4px 0 12px; font-size: .88rem; color: var(--mauve); font-weight: 600; }

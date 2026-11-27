@@ -7,12 +7,26 @@
       cont: 'كمّل طلبيتك', empty: 'سلتك فاضية. شوف الجديد وابدأ التسوق.', shop: 'تسوّق الآن', note: 'نؤكد معك السعر والتوفر قبل إرسال الطلبية.',
       cur: 'د.ل', out: 'غير متوفر حالياً', errName: 'اكتب اسمك', errPhone: 'اكتب رقم هاتف ليبي صحيح، مثل 0912345678', errCity: 'اكتب مدينتك',
       err: 'صار خطأ، حاول مرة ثانية', tooMany: 'أرسلت طلبيات كثيرة. حاول بعد ساعة أو راسلنا مباشرة.', unavailable: 'المنتجات في سلتك لم تعد متوفرة.',
-      copied: 'تم نسخ الرسالة، الصقها في المحادثة', copyFail: 'انسخ الرسالة من المربع بالأسفل' },
+      copied: 'تم نسخ الرسالة، الصقها في المحادثة', copyFail: 'انسخ الرسالة من المربع بالأسفل',
+      disc: 'الخصم', codeW: 'كود', byArea: 'اختر منطقتك', delFree: 'مجاني', delChat: 'نتفق عليه في المحادثة', cash: 'نقداً للمندوب', time: 'مدة التوصيل',
+      totDel: 'المجموع مع التوصيل', freeYes: 'التوصيل مجاني لطلبيتك', freeMore: function (x) { return 'أضف ' + x + ' د.ل وتحصل على توصيل مجاني'; },
+      errArea: 'اختر منطقتك', errCityPick: 'اختر مدينتك', codeSaved: function (c) { return 'تم حفظ كود الخصم ' + c + '، يُطبّق عند إكمال الطلبية'; },
+      code: { ok: function (x) { return 'تم تطبيق الكود، وفّرت ' + x + ' د.ل'; }, not_better: function (o) { return 'عرض ' + o + ' يعطيك سعراً أفضل، فطبّقناه بدل الكود'; },
+        invalid: 'هذا الكود غير صحيح', expired: 'هذا الكود منتهي أو لم يبدأ بعد', used_up: 'هذا الكود وصل للحد الأقصى من الاستخدام',
+        used: 'استخدمت هذا الكود من قبل بهذا الرقم', min: function (x) { return 'هذا الكود يعمل للطلبيات من ' + x + ' د.ل'; },
+        no_items: 'هذا الكود لا ينطبق على القطع في سلتك', slow: 'محاولات كثيرة، حاول بعد قليل' } },
     en: { added: 'Added to cart', remove: 'Remove', items: 'Items', delivery: 'Delivery', byCity: 'Depends on city', total: 'Total',
       cont: 'Continue', empty: 'Your cart is empty. Have a look at what’s new.', shop: 'Shop now', note: 'We confirm price and availability with you before sending.',
       cur: 'LYD', out: 'Out of stock', errName: 'Enter your name', errPhone: 'Enter a valid Libyan phone number, e.g. 0912345678', errCity: 'Enter your city',
       err: 'Something went wrong, please try again', tooMany: 'Too many orders. Try again in an hour or message us directly.', unavailable: 'The items in your cart are no longer available.',
-      copied: 'Message copied. Paste it in the chat', copyFail: 'Copy the message from the box below' }
+      copied: 'Message copied. Paste it in the chat', copyFail: 'Copy the message from the box below',
+      disc: 'Discount', codeW: 'code', byArea: 'Choose your area', delFree: 'Free', delChat: 'Agreed in the chat', cash: 'cash to the driver', time: 'Delivery time',
+      totDel: 'Total with delivery', freeYes: 'Your delivery is free', freeMore: function (x) { return 'Add ' + x + ' LYD for free delivery'; },
+      errArea: 'Choose your area', errCityPick: 'Choose your city', codeSaved: function (c) { return 'Discount code ' + c + ' saved. It is applied at checkout'; },
+      code: { ok: function (x) { return 'Code applied: you save ' + x + ' LYD'; }, not_better: function (o) { return 'The ' + o + ' offer gives you a better price, so we applied it instead'; },
+        invalid: 'This code is not valid', expired: 'This code has ended or has not started yet', used_up: 'This code has reached its limit',
+        used: 'You have already used this code with this phone number', min: function (x) { return 'This code works on orders from ' + x + ' LYD'; },
+        no_items: 'This code does not apply to the pieces in your cart', slow: 'Too many tries, please wait a little' } }
   }[lang];
 
   /* ---------- small helpers ---------- */
@@ -53,33 +67,59 @@
     }
   });
 
-  /* ---------- cart page ---------- */
+  /* ---------- discount code from a link (?code=SARA10): kept on this phone for 30 days ---------- */
+  function normCode(v) { v = String(v || '').trim().toUpperCase().replace(/\s+/g, ''); return /^[A-Z0-9_-]{2,30}$/.test(v) ? v : ''; }
+  function savedCode() { var c = store('sl_code'); return c && c.c && Date.now() - (c.at || 0) < 30 * 864e5 ? c.c : ''; }
+  (function () {
+    var m = /[?&]code=([^&#]*)/i.exec(location.search); if (!m) return;
+    var c = normCode(decodeURIComponent(m[1].replace(/\+/g, ' ')));
+    if (c) { store('sl_code', { c: c, at: Date.now() }); setTimeout(function () { toast(T.codeSaved(c)); }, 300); }
+    try { var u = new URL(location.href); u.searchParams.delete('code'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {}
+  })();
+
+  /* ---------- prices: always from the server (/api/quote), the same sums the order is charged ---------- */
   var cartEl = $('[data-cart-page]');
-  function fetchItems(c) {
-    if (!c.length) return Promise.resolve([]);
-    return fetch('/api/cart?lang=' + lang + '&ids=' + c.map(function (i) { return i.id; }).join(','))
-      .then(function (r) { return r.json(); }).then(function (d) { return d.items || []; });
+  function quote(extra) {
+    var body = { lang: lang, items: cart() };
+    for (var k in extra) body[k] = extra[k];
+    return fetch('/api/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) throw new Error('quote'); return r.json(); });
+  }
+  function cur(d) { return money(d) + ' ' + T.cur; }
+  function row(label, value, cls) { return '<div' + (cls ? ' class="' + cls + '"' : '') + '><span>' + esc(label) + '</span><span>' + value + '</span></div>'; }
+  function discRows(d) {
+    if (!(d.discount > 0)) return '';
+    var why = d.kind === 'code' && d.code ? T.codeW + ' ' + d.code.code : d.offer ? d.offer.name : '';
+    return row(T.items, cur(d.subtotal)) + row(why ? T.disc + ' (' + why + ')' : T.disc, '−' + cur(d.discount), 'r-disc');
+  }
+  function lineHtml(it, withQty) {
+    var was = it.price < it.orig ? it.orig : it.was;
+    return '<span class="price' + (it.price < it.orig ? ' sale' : '') + '">' + cur(it.price * it.qty) + (was ? ' <s>' + money(was * it.qty) + '</s>' : '') + '</span>';
+  }
+  function freeHint(d) {
+    if (!d.deliveryOn || !d.freeMin) return '';
+    return '<p class="freehint">' + esc(d.items >= d.freeMin ? T.freeYes : T.freeMore(money(d.freeMin - d.items))) + '</p>';
   }
   function renderCart() {
     var c = cart();
     if (!c.length) { cartEl.innerHTML = '<p class="empty">' + esc(T.empty) + '</p><a class="btn wide" href="/' + lang + '/">' + esc(T.shop) + '</a>'; return; }
-    fetchItems(c).then(function (items) {
-      var byId = {}; items.forEach(function (it) { byId[it.id] = it; });
+    quote({ code: savedCode() }).then(function (d) {
+      var byId = {}; (d.products || []).forEach(function (it) { byId[it.id] = it; });
       var keep = c.filter(function (i) { return byId[i.id]; });
       if (keep.length !== c.length) saveCart(keep);
       if (!keep.length) { cartEl.innerHTML = '<p class="empty">' + esc(T.empty) + '</p>'; return; }
-      var total = 0, html = '';
+      var html = '';
       keep.forEach(function (i) {
-        var it = byId[i.id]; if (it.inStock) total += it.price * i.qty;
+        var it = byId[i.id];
         html += '<div class="line"><a href="/' + lang + '/p/' + it.id + '"><img src="' + esc(it.image) + '" alt="" loading="lazy"></a><div><span class="bd">' + esc(it.brand) +
           '</span><div class="nm">' + esc(it.name) + '</div>' + (it.inStock
             ? '<span class="qty"><button type="button" data-q="' + it.id + ':-1" aria-label="−">−</button><span>' + i.qty + '</span><button type="button" data-q="' + it.id + ':1" aria-label="+">+</button></span>'
             : '<span class="soldout">' + esc(T.out) + '</span>') +
-          ' <button class="linkbtn" type="button" data-rm="' + it.id + '">' + esc(T.remove) + '</button></div><span class="price">' + money(it.price * i.qty) + ' ' + T.cur + '</span></div>';
+          ' <button class="linkbtn" type="button" data-rm="' + it.id + '">' + esc(T.remove) + '</button></div>' + (it.inStock ? lineHtml(it) : '<span class="price muted">—</span>') + '</div>';
       });
-      html += '<div class="sum"><div><span>' + T.items + '</span><span>' + money(total) + ' ' + T.cur + '</span></div><div><span>' + T.delivery + '</span><span class="muted">' + T.byCity +
-        '</span></div><div class="tot"><span>' + T.total + '</span><span>' + money(total) + ' ' + T.cur + '</span></div></div><p class="muted">' + esc(T.note) + '</p>' +
-        (total ? '<a class="btn wide" href="/' + lang + '/checkout">' + esc(T.cont) + '</a>' : '');
+      html += '<div class="sum">' + discRows(d) + row(T.delivery, '<span class="muted">' + esc(d.deliveryOn ? T.byArea : T.byCity) + '</span>') +
+        '<div class="tot"><span>' + T.total + '</span><span>' + cur(d.items) + '</span></div></div>' + freeHint(d) + '<p class="muted">' + esc(T.note) + '</p>' +
+        (d.items ? '<a class="btn wide" href="/' + lang + '/checkout">' + esc(T.cont) + '</a>' : '');
       cartEl.innerHTML = html;
     }).catch(function () { cartEl.innerHTML = '<p class="form-err">' + esc(T.err) + '</p>'; });
   }
@@ -104,44 +144,104 @@
   if (form) {
     var c0 = cart();
     if (!c0.length) location.replace('/' + lang + '/cart');
-    fetchItems(c0).then(function (items) {
-      var total = 0, n = 0, html = '';
-      items.forEach(function (it) {
-        var i = c0.find(function (x) { return x.id === it.id; });
-        if (!i || !it.inStock) return;
-        total += it.price * i.qty; n += i.qty;
-        html += '<div><span><bdi>' + esc(it.brand) + ' · ' + esc(it.name) + '</bdi>' + (i.qty > 1 ? ' × ' + i.qty : '') + '</span><span>' + money(it.price * i.qty) + ' ' + T.cur + '</span></div>';
+    var F = form.elements, citySel = $('[data-city]', form), areaSel = $('[data-area]', form), areaWrap = $('[data-area-wrap]', form), otherWrap = $('[data-city-other]', form);
+    var AD = null; try { AD = JSON.parse(($('#areas-data') || {}).textContent || 'null'); } catch (e) { AD = null; }
+    var codeIn = F.code, codeMsg = $('[data-code-msg]', form), code = codeIn ? savedCode() : '';
+    if (codeIn && code) codeIn.value = code;
+    var areaId = function () {
+      if (!citySel || !citySel.value || citySel.value === 'other') return 0;
+      return Number(areaSel && areaSel.value) || 0;
+    };
+    var fillAreas = function (keep) {
+      if (!citySel) return;
+      var v = citySel.value, list = (AD && AD.areas || []).filter(function (a) { return String(a.c) === v; });
+      otherWrap.hidden = v !== 'other';
+      if (F.city) F.city.required = v === 'other';
+      if (!v || v === 'other' || !list.length) { areaWrap.hidden = true; areaSel.innerHTML = ''; return; }
+      if (list.length === 1 && list[0].one) { areaWrap.hidden = true; areaSel.innerHTML = '<option value="' + list[0].id + '"></option>'; areaSel.value = String(list[0].id); return; }
+      areaWrap.hidden = false;
+      areaSel.innerHTML = '<option value="">' + esc(AD.ph) + '</option>' + list.map(function (a) { return '<option value="' + a.id + '">' + esc(a.n) + '</option>'; }).join('') + '<option value="0">' + esc(AD.other) + '</option>';
+      if (keep) areaSel.value = String(keep);
+      if (areaSel.value === '' && keep === 0) areaSel.value = '0';
+    };
+    var last = null, seq = 0;
+    var renderSum = function (d) {
+      last = d;
+      var html = '', n = 0;
+      (d.products || []).forEach(function (it) {
+        if (!it.inStock) return;
+        n += it.qty;
+        html += '<div><span><bdi>' + esc(it.brand) + ' · ' + esc(it.name) + '</bdi>' + (it.qty > 1 ? ' × ' + it.qty : '') + '</span>' + lineHtml(it) + '</div>';
       });
-      $('#co-summary').innerHTML = html + '<div class="tot"><span>' + T.total + ' (' + n + ')</span><span>' + money(total) + ' ' + T.cur + '</span></div>';
-    });
+      html += discRows(d);
+      var dl = d.delivery || { mode: 'off' }, needArea = d.deliveryOn && citySel && (!citySel.value || (!areaWrap.hidden && areaSel.value === ''));
+      if (d.deliveryOn) {
+        var dv = needArea ? '<span class="muted">' + esc(T.byArea) + '</span>' : dl.mode === 'fee' ? cur(dl.fee) + ' <small class="muted">(' + esc(T.cash) + ')</small>' : dl.mode === 'free' ? esc(T.delFree) : esc(T.delChat);
+        html += row(T.delivery, dv, 'r-del');
+        if (!needArea && dl.time) html += row(T.time, esc(dl.time));
+      }
+      html += '<div class="tot"><span>' + (d.fee > 0 ? T.totDel : T.total) + ' (' + n + ')</span><span>' + cur(d.total) + '</span></div>';
+      $('#co-summary').innerHTML = html + freeHint(d);
+      if (codeMsg) {
+        var cs = d.code, m = '';
+        if (cs) {
+          var f = T.code[cs.status];
+          m = cs.status === 'ok' ? f(money(cs.saving)) : cs.status === 'not_better' ? f(d.offer ? d.offer.name : '') : cs.status === 'min' ? f(money(cs.min)) : f || '';
+        }
+        codeMsg.textContent = m; codeMsg.hidden = !m; codeMsg.className = 'code-msg' + (cs && cs.status === 'ok' ? ' ok' : cs && cs.status === 'not_better' ? '' : ' bad');
+      }
+    };
+    var requote = function () {
+      var my = ++seq;
+      return quote({ code: code, phone: libyanPhone(F.phone.value), area_id: areaId() }).then(function (d) { if (my === seq) renderSum(d); }).catch(function () {});
+    };
     var saved = store('sl_customer') || {};
-    ['name', 'phone', 'city', 'address'].forEach(function (k) { if (saved[k] && form.elements[k]) form.elements[k].value = saved[k]; });
+    ['name', 'phone', 'address'].forEach(function (k) { if (saved[k] && F[k]) F[k].value = saved[k]; });
+    if (citySel) {
+      if (saved.city_id && citySel.querySelector('option[value="' + saved.city_id + '"]')) { citySel.value = String(saved.city_id); fillAreas(saved.area_id); }
+      if (citySel.value === 'other' && saved.city) F.city.value = saved.city;
+      citySel.addEventListener('change', function () { fillAreas(); requote(); });
+      areaSel.addEventListener('change', requote);
+    } else if (saved.city && F.city) F.city.value = saved.city;
+    F.phone.addEventListener('change', requote);
+    if (codeIn) {
+      var apply = function () { code = normCode(codeIn.value); codeIn.value = code; if (code) store('sl_code', { c: code, at: Date.now() }); else store('sl_code', null); requote(); };
+      $('[data-code-apply]', form).addEventListener('click', apply);
+      codeIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+    }
+    requote();
     var submitter = null;
     form.addEventListener('click', function (e) { var b = e.target.closest('button[name="channel"]'); if (b) submitter = b; });
     var showErr = function (field, msg) {
       var err = $('.form-err', form);
       err.textContent = msg; err.hidden = false;
-      if (field && form.elements[field]) { form.elements[field].setAttribute('aria-invalid', 'true'); form.elements[field].focus(); }
+      var el = field && (field.nodeType ? field : F[field]);
+      if (el) { el.setAttribute('aria-invalid', 'true'); el.focus(); }
     };
     // fixing the field that was flagged clears the message straight away
-    form.addEventListener('input', function (e) {
+    var clearOne = function (e) {
       if (e.target.getAttribute('aria-invalid') !== 'true') return;
       e.target.removeAttribute('aria-invalid'); $('.form-err', form).hidden = true;
-    });
+    };
+    form.addEventListener('input', clearOne); form.addEventListener('change', clearOne);
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var f = form.elements, bad = null;
-      $$('input', form).forEach(function (i) { i.removeAttribute('aria-invalid'); });
-      var phone = libyanPhone(f.phone.value);
-      if (!f.name.value.trim()) bad = ['name', T.errName];
+      var bad = null;
+      $$('input, select', form).forEach(function (i) { i.removeAttribute('aria-invalid'); });
+      var phone = libyanPhone(F.phone.value);
+      var cityText = F.city ? F.city.value.trim() : '';
+      if (citySel && citySel.value && citySel.value !== 'other') cityText = citySel.options[citySel.selectedIndex].text;
+      if (!F.name.value.trim()) bad = ['name', T.errName];
       else if (!phone) bad = ['phone', T.errPhone];
-      else if (!f.city.value.trim()) bad = ['city', T.errCity];
+      else if (citySel && !citySel.value) bad = [citySel, T.errCityPick];
+      else if (citySel && !areaWrap.hidden && areaSel.value === '') bad = [areaSel, T.errArea];
+      else if (!cityText) bad = ['city', T.errCity];
       if (bad) { showErr(bad[0], bad[1]); return; }
       $('.form-err', form).hidden = true;
       var channel = (e.submitter || submitter || {}).value || 'whatsapp';
       var pay = form.querySelector('input[name="payment"]:checked');
-      var body = { lang: lang, name: f.name.value, phone: phone, city: f.city.value, address: f.address.value, note: f.note.value, payment: pay ? pay.value : '', channel: channel, items: cart(), website: f.website ? f.website.value : '' };
-      store('sl_customer', { name: body.name, phone: body.phone, city: body.city, address: body.address });
+      var body = { lang: lang, name: F.name.value, phone: phone, city: cityText, area_id: areaId(), code: code, address: F.address.value, note: F.note.value, payment: pay ? pay.value : '', channel: channel, items: cart(), website: F.website ? F.website.value : '' };
+      store('sl_customer', { name: body.name, phone: body.phone, city: citySel && citySel.value !== 'other' && citySel.value ? saved.city || '' : body.city, address: body.address, city_id: citySel ? citySel.value : '', area_id: citySel ? (areaSel.value === '' ? '' : Number(areaSel.value)) : '' });
       var btns = $$('button[name="channel"]', form); btns.forEach(function (b) { b.disabled = true; });
       fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
@@ -151,7 +251,7 @@
             var fields = (res.d && res.d.fields) || [], has = function (k) { return res.status === 422 && fields.indexOf(k) > -1; };
             if (has('name')) return showErr('name', T.errName);
             if (has('phone')) return showErr('phone', T.errPhone);
-            if (has('city')) return showErr('city', T.errCity);
+            if (has('city')) return showErr(citySel || 'city', citySel ? T.errCityPick : T.errCity);
             return showErr(null, res.status === 429 ? T.tooMany : res.status === 409 || has('items') ? T.unavailable : T.err);
           }
           var d = res.d, url = '/' + lang + '/order/' + d.number + '?t=' + d.token;
@@ -159,6 +259,7 @@
           var autoOpen = channel === 'whatsapp' && phoneLike && d.links && d.links.whatsapp;
           if (autoOpen) sstore('sl_opened_' + d.number, true);
           saveCart([]);
+          if (code && !d.codeNote) store('sl_code', null); // a used code is not kept for the next order
           history.replaceState(null, '', url);
           // Phones + WhatsApp: open the chat straight away (the message is filled in); coming back lands on the order page.
           // Messenger and Instagram may not fill the message in, so the order page copies it on the tap that opens them.
@@ -166,6 +267,24 @@
         })
         .catch(function () { btns.forEach(function (b) { b.disabled = false; }); showErr(null, T.err); });
     });
+  }
+
+  /* ---------- offer countdown: boxes on the banner, hh:mm:ss in the strip ---------- */
+  var cds = $$('[data-cd]');
+  if (cds.length) {
+    var two = function (n) { return (n < 10 ? '0' : '') + n; };
+    var tick = function () {
+      var now = Date.now();
+      cds.forEach(function (el) {
+        var left = Math.max(0, Math.floor((Date.parse(el.getAttribute('data-cd')) - now) / 1000));
+        var d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+        if (el.hasAttribute('data-txt')) { el.textContent = two(d * 24 + h) + ':' + two(m) + ':' + two(s); return; }
+        var set = function (f, v) { var b = el.querySelector('[data-f="' + f + '"]'); if (b) b.textContent = two(v); };
+        if (el.hasAttribute('data-nodays')) { set('h', d * 24 + h); } else { set('d', d); set('h', h); }
+        set('m', m); set('s', s);
+      });
+    };
+    tick(); setInterval(tick, 1000);
   }
 
   /* ---------- order page (rendered by the server; this only wires the buttons) ---------- */

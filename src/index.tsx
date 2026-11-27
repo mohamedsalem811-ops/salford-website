@@ -3,6 +3,8 @@ import { getCookie, setCookie } from 'hono/cookie'
 import type { Env } from './lib/db'
 import { safeEqual } from './lib/auth'
 import { catalog } from './lib/catalog'
+import { assetFor } from './lib/assets'
+import { V } from './views/layout'
 import { setMediaBase } from './lib/media'
 import { store, notFound } from './routes/store'
 import { api } from './routes/api'
@@ -63,6 +65,12 @@ app.get('/sitemap.xml', async (c) => {
     ...results.flatMap((p) => ['ar', 'en'].map((l) => `<url><loc>${origin}/${l}/p/${p.id}</loc><lastmod>${p.updated_at.slice(0, 10)}</lastmod></url>`)),
   ]
   return c.body(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`, 200, { 'content-type': 'application/xml' })
+})
+
+app.get('/a/:file', (c) => {
+  const f = assetFor(c.req.param('file'), V)
+  if (!f) return c.notFound()
+  return c.body(f.body, 200, { 'content-type': f.type, 'cache-control': f.immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=300' })
 })
 
 app.route('/m', media)
