@@ -1,9 +1,41 @@
 # Feature plan: offers, codes, delivery, tracking, customers, waiting list, reviews, trust
 
-Status: **Release 3 live (27 Nov 2026).** Release 1 (offers, codes, delivery), Release 2 (statuses, tracker, customers, loyalty)
-and Release 3 (waiting list, reviews, trust page, delivery page) are live.
+Status: **Release 4 live (27 Nov 2026). All four releases are done.** Release 1 (offers, codes, delivery), Release 2 (statuses,
+tracker, customers, loyalty), Release 3 (waiting list, reviews, trust page, delivery page) and Release 4 (full offers) are live.
 Loyalty, the waiting list and reviews ship switched off; the owner turns them on in Admin → Customers / Waiting list / Reviews.
-Free delivery from 1,000 LYD has its own on/off switch in Admin → Delivery. Release 4 is next.
+Free delivery from 1,000 LYD has its own on/off switch in Admin → Delivery. The Release 4 extras are used only when an offer
+is set up with them (none of the live offers uses them).
+
+Release 4 record:
+- Offer kinds: one % off, "spend more, save more" (up to 4 levels by products total after discount; each level needs a bigger
+  amount and gives a bigger %; default words say "up to N%"), or "no % off" (extras only, needs at least one extra).
+- Flash deals: one line per product `code, price` or `code, N%`, optional piece limit. A flash price replaces every other
+  discount on that piece (R2). Shop shows "only X left"; the counter drops with each order (cancelled orders give pieces back);
+  a cart asking for more than is left gets the normal price with a note. The cart re-reads the pieces left fresh, so a sold-out
+  deal never shows its flash price; orders are always recalculated (R7). Saving the same lines keeps their sold counts.
+- Free gift: one product, given once per order when the products total after discount reaches the amount and the gift is in
+  stock (R4); a 0 LYD line marked 🎁 in the cart, checkout, message, order page and admin.
+- Free delivery counts for extras-only offers too.
+- "Coming soon": N days before the start a strip + banner count down; `/<lang>/offer` has "Remind me" (name + phone, one
+  entry per phone, honeypot + spam limit, deleted after 90 days). Admin → offer → "Reminders and early access" lists them with
+  one-tap WhatsApp messages once the offer starts.
+- Early access: each offer has a private link (`/?early=…`, 32-hex token, HttpOnly cookie) that opens it N hours before
+  everyone else; the people page lists returning customers (a delivered order) with one-tap messages and a "sent" mark.
+  Orders placed that way are marked early.
+- After-offer report (orders, sales, discount, average, compared with the same length of time before; gift/flash/early/
+  remind-me counts; top products). Admin previews: `?offer_preview=ID` and `?teaser_preview=ID`.
+- Occasions calendar (Admin → Calendar), prefilled with the 9 occasions; a "Coming up" card on the admin home within each
+  occasion's reminder days when no offer covers it, with a ready "Create the offer" link.
+- Instagram image maker (Admin → offer → Instagram images): story 1080×1920 or post 1080×1080, Arabic or English, the look's
+  colours and words, up to 3 product photos; Share (iPad/iPhone share sheet) or Download PNG.
+- Tests: 62 unit/route tests (6 route + pricing tests new for R4). Browser tests on the preview (test DB): 136 checks on
+  iPhone/iPad/desktop × ar/en: offer form on iPad, flash counter, levels and gift in cart and checkout, coming soon + Remind me,
+  early link, report, image maker (drawn + download), calendar + admin home reminder, and tamper checks (forged gift/price/
+  discount fields, Remind me on a running offer, honeypot, admin pages and APIs without a login, made-up early token).
+- Before going live: backup `live-20261127-140109.sql` (kept outside the repo); D1 Time Travel bookmark
+  `00000343-00000000-00005130-7747b4ea9fc3ee3df1c1a3d0f9cf3b71`.
+- Live smoke test: Black Friday unchanged (15%, strip/banner, no coming soon, no flash/levels/gift), admin offers/offer form/
+  people/report/image/calendar on iPad, one test occasion added and removed; the temporary admin session was deleted.
 
 Release 3 record:
 - Waiting list (sold-out pieces only): name + phone on the product page; one entry per phone per piece (signing up again just

@@ -60,11 +60,19 @@ export async function loadFromCatalog(db: D1Database, cat: Catalog, want: Want, 
   const a = areaId ? cat.areas.find((x) => x.id === areaId) : undefined
   const city = a ? cat.cities.find((x) => x.id === a.city_id) : undefined
   const entered = normalizeCode(codeRaw)
-  const [code, loyaltyPct] = await Promise.all([
+  const cached = offerNow(cat, early)
+  // limited flash deals in this cart: the pieces left are read fresh (the cached copy can be up to 15 seconds old)
+  const limited = (cached?.flash ?? []).filter((f) => f.max_qty > 0 && want.has(f.product_id)).map((f) => f.id)
+  const [code, loyaltyPct, fresh] = await Promise.all([
     entered && lookupCode ? codeCheck(db, entered, phone) : Promise.resolve(entered ? { entered, row: null, uses: 0, phoneUses: 0 } : null),
     loyaltyFor(db, loyaltyPctOf(cat.settings), phone),
+    limited.length ? db.prepare(`${FLASH_SQL} WHERE f.id IN (${limited.map(() => '?').join(',')})`).bind(...limited).all<Flash>().then((r) => r.results) : Promise.resolve(null),
   ])
-  const offer = offerNow(cat, early)
+  let offer = cached
+  if (offer && fresh) {
+    const sold = new Map(fresh.map((f) => [f.id, f.sold]))
+    offer = { ...offer, flash: (offer.flash ?? []).map((f) => (sold.has(f.id) ? { ...f, sold: sold.get(f.id)! } : f)) }
+  }
   return {
     products,
     offer,

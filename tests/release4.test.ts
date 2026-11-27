@@ -129,7 +129,8 @@ test('offer form: flash deals, the free gift and extras-only offers', async () =
   assert.deepEqual([li[1].product_id, li[1].price, li[1].orig_price, li[1].is_gift], [5, 0, 60000, 1])
   assert.ok(r.message.includes('🎁') && r.message.includes('Free gift'), r.message)
   assert.notEqual(setting('catalog_v'), v, 'a flash sale refreshes the counter in the shop')
-  // all pieces sold at the flash price → back to the normal price
+  // all pieces sold at the flash price → back to the normal price, even from a cached copy of the shop (no admin cookie)
+  assert.equal((await quote([{ id: 1, qty: 1 }], {})).lines[0].price, 250000)
   const after = await quote([{ id: 1, qty: 1 }])
   assert.equal(after.lines[0].price, 250000)
   assert.equal(after.lines[0].flash, undefined)
