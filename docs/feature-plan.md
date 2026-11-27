@@ -6,6 +6,25 @@ Loyalty, the waiting list and reviews ship switched off; the owner turns them on
 Free delivery from 1,000 LYD has its own on/off switch in Admin → Delivery. The Release 4 extras are used only when an offer
 is set up with them (none of the live offers uses them).
 
+Full inspection (27 Nov 2026, after Release 4): every source file read; all 148 sitemap pages plus cart/checkout/offer/404
+pages crawled live on iPhone, iPad and desktop (no script errors, no sideways scroll, no broken images or links, SEO tags,
+hreflang, Arabic pages free of English); every admin page opened on the preview on iPhone, iPad and desktop; live data audited.
+Fixed and released:
+- Trust page: its section shared the `.trust` class with the home page's three-icon strip, so it was squeezed into a
+  3-column grid on every device since Release 3. It now uses `.trustpg`.
+- Content security policy now allows Cloudflare's visitor statistics script (it was blocked on every page).
+- `/m/…` range requests: no more server errors on reversed or out-of-file ranges; correct `content-range` when a range runs
+  past the end. (Cached files are answered by Cloudflare's cache, which handles ranges itself.)
+- Order page: the browser tab shows the real status (it always said "ready").
+- Countdown: reloads once when an offer starts or ends instead of sitting at 00:00:00.
+- Cancelling an order (or undoing a cancel) with flash-deal pieces refreshes the shop's "only X left".
+- Admin: trust form errors in red; photo reorder/remove failures show a message; finishing a video upload re-checks the
+  one-video limit; delivery table and code link fields have screen-reader names; reminders table says "Delivered orders".
+- Backup before release `live-before-inspection-fixes-20261127-1431.sql` (kept outside the repo); D1 Time Travel bookmark
+  `0000034a-00000000-00005130-139af22c6a34411a14e77ff27d1e4806`. Code only, no database change. Live checks were read-only.
+Owner content still empty (not bugs): Arabic product names (English shows), About/Contact/Delivery/Trust texts and the
+trust gallery; no APM or ring products yet (the About text mentions APM Monaco); no discount codes yet.
+
 Release 4 record:
 - Offer kinds: one % off, "spend more, save more" (up to 4 levels by products total after discount; each level needs a bigger
   amount and gives a bigger %; default words say "up to N%"), or "no % off" (extras only, needs at least one extra).
@@ -24,7 +43,7 @@ Release 4 record:
   Orders placed that way are marked early.
 - After-offer report (orders, sales, discount, average, compared with the same length of time before; gift/flash/early/
   remind-me counts; top products). Admin previews: `?offer_preview=ID` and `?teaser_preview=ID`.
-- Occasions calendar (Admin → Calendar), prefilled with the 9 occasions; a "Coming up" card on the admin home within each
+- Occasions calendar (Admin → Calendar), prefilled with 8 occasions (the 9th look, the 24-hour flash sale, has no date); a "Coming up" card on the admin home within each
   occasion's reminder days when no offer covers it, with a ready "Create the offer" link.
 - Instagram image maker (Admin → offer → Instagram images): story 1080×1920 or post 1080×1080, Arabic or English, the look's
   colours and words, up to 3 product photos; Share (iPad/iPhone share sheet) or Download PNG.
